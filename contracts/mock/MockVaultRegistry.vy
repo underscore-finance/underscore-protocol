@@ -13,6 +13,7 @@ def setEarnVault(_vault: address, _isEarn: bool):
     """Set whether a vault is an earn vault for testing"""
     self.isEarnVault[_vault] = _isEarn
 
+@view
 @external
 def getSnapshotCount(_asset: address) -> uint256:
     """Get the number of times a snapshot was called for an asset"""

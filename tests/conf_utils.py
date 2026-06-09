@@ -7,6 +7,138 @@ def filter_logs(contract, event_name, _strict=False):
     return [e for e in contract.get_logs(strict=_strict) if type(e).__name__ == event_name]
 
 
+def set_live_cheque_settings(cheque_book, user_wallet, *settings, sender):
+    tx = cheque_book.setChequeSettings(user_wallet, *settings, sender=sender)
+
+    pending = cheque_book.pendingChequeSettingsMeta(user_wallet)
+    if pending[1] != 0:
+        blocks_to_wait = pending[1] - boa.env.evm.patch.block_number
+        if blocks_to_wait > 0:
+            boa.env.time_travel(blocks=blocks_to_wait)
+        cheque_book.confirmPendingChequeSettings(user_wallet, sender=sender)
+
+    return tx
+
+
+def fresh_user_wallet(hatchery, owner):
+    from contracts.core.userWallet import UserWallet, UserWalletConfig
+
+    wallet = UserWallet.at(hatchery.createUserWallet(sender=owner))
+    return wallet, UserWalletConfig.at(wallet.walletConfig())
+
+
+def instant_action_settings_tuple(settings):
+    return (
+        settings.canInstantAddManager,
+        settings.canInstantAddPayee,
+        settings.canInstantSetGlobalPayeeSettings,
+        settings.canInstantSetChequeSettings,
+    )
+
+
+def starter_agent_template_tuple(
+    *,
+    startBlock=0,
+    expiryBlock=0,
+    limits=None,
+    legoPerms=None,
+    swapPerms=None,
+    whitelistPerms=None,
+    transferPerms=None,
+    allowedAssets=None,
+    canClaimLoot=True,
+):
+    if limits is None:
+        limits = (0, 0, 0, 0, 0, False)
+    if legoPerms is None:
+        legoPerms = (True, True, True, True, True, False, [])
+    if swapPerms is None:
+        swapPerms = (False, 0, 0)
+    if whitelistPerms is None:
+        whitelistPerms = (True, True, True)
+    if transferPerms is None:
+        transferPerms = (True, True, [])
+    if allowedAssets is None:
+        allowedAssets = []
+    return (
+        startBlock,
+        expiryBlock,
+        limits,
+        legoPerms,
+        swapPerms,
+        whitelistPerms,
+        transferPerms,
+        allowedAssets,
+        canClaimLoot,
+    )
+
+
+def assert_manager_settings_match_template(settings, template, *, check_blocks=True):
+    if check_blocks:
+        assert settings.startBlock == template[0]
+        assert settings.expiryBlock == template[1]
+    assert (
+        settings.limits.maxUsdValuePerTx,
+        settings.limits.maxUsdValuePerPeriod,
+        settings.limits.maxUsdValueLifetime,
+        settings.limits.maxNumTxsPerPeriod,
+        settings.limits.txCooldownBlocks,
+        settings.limits.failOnZeroPrice,
+    ) == tuple(template[2])
+    assert (
+        settings.legoPerms.canManageYield,
+        settings.legoPerms.canBuyAndSell,
+        settings.legoPerms.canManageDebt,
+        settings.legoPerms.canManageLiq,
+        settings.legoPerms.canClaimRewards,
+        settings.legoPerms.onlyApprovedYieldOpps,
+        list(settings.legoPerms.allowedLegos),
+    ) == (
+        template[3][0],
+        template[3][1],
+        template[3][2],
+        template[3][3],
+        template[3][4],
+        template[3][5],
+        list(template[3][6]),
+    )
+    assert (
+        settings.swapPerms.mustHaveUsdValue,
+        settings.swapPerms.maxNumSwapsPerPeriod,
+        settings.swapPerms.maxSlippage,
+    ) == tuple(template[4])
+    assert (
+        settings.whitelistPerms.canConfirm,
+        settings.whitelistPerms.canCancel,
+        settings.whitelistPerms.canRemove,
+    ) == tuple(template[5])
+    assert (
+        settings.transferPerms.canTransfer,
+        settings.transferPerms.canCreateCheque,
+        list(settings.transferPerms.allowedPayees),
+    ) == (
+        template[6][0],
+        template[6][1],
+        list(template[6][2]),
+    )
+    assert list(settings.allowedAssets) == list(template[7])
+    assert settings.canClaimLoot == template[8]
+
+
+def confirm_pending_instant_action_settings(config, owner):
+    pending = config.pendingInstantActionSettings()
+    blocks = pending.confirmBlock - boa.env.evm.patch.block_number
+    if blocks > 0:
+        boa.env.time_travel(blocks=blocks)
+    config.confirmPendingInstantActionSettings(sender=owner)
+
+
+def set_user_instant_action_settings(config, owner, settings):
+    config.setInstantActionSettings(settings, sender=owner)
+    if config.pendingInstantActionSettings().confirmBlock != 0:
+        confirm_pending_instant_action_settings(config, owner)
+
+
 @pytest.fixture(scope="session")
 def _test():
     def _test(_expectedValue, _actualValue, _buffer=50):
@@ -159,11 +291,13 @@ def createAssetYieldConfig():
 
 
 @pytest.fixture(scope="session")
-def setAgentConfig(mission_control, switchboard_alpha, agent_eoa):
+def setAgentConfig(mission_control, switchboard_alpha, starter_agent):
     def setAgentConfig(
-        _startingAgent = agent_eoa,
+        _startingAgent = None,
         _startingAgentActivationLength = ONE_YEAR_IN_BLOCKS,
     ):
+        if _startingAgent is None:
+            _startingAgent = starter_agent.address
         config = (
             _startingAgent,
             _startingAgentActivationLength,
@@ -396,13 +530,11 @@ def createSwapPerms():
 @pytest.fixture(scope="session")
 def createWhitelistPerms():
     def createWhitelistPerms(
-        _canAddPending = False,
         _canConfirm = True,
         _canCancel = True,
         _canRemove = False,
     ):
         return (
-            _canAddPending,
             _canConfirm,
             _canCancel,
             _canRemove,
@@ -415,13 +547,11 @@ def createTransferPerms():
     def createTransferPerms(
         _canTransfer = True,
         _canCreateCheque = True,
-        _canAddPendingPayee = True,
         _allowedPayees = [],
     ):
         return (
             _canTransfer,
             _canCreateCheque,
-            _canAddPendingPayee,
             _allowedPayees,
         )
     yield createTransferPerms
@@ -445,7 +575,6 @@ def createGlobalPayeeSettings(createPayeeLimits):
         _txCooldownBlocks = 0, # no cooldown by default
         _failOnZeroPrice = False, # accept zero-priced transactions by default
         _usdLimits = None,
-        _canPayOwner = False, # owner-pay bypass disabled by default
         _canPull = True, # allow payments to payees by default
     ):
         if _usdLimits is None:
@@ -459,7 +588,6 @@ def createGlobalPayeeSettings(createPayeeLimits):
             _txCooldownBlocks,
             _failOnZeroPrice,
             _usdLimits,
-            _canPayOwner,
             _canPull,
         )
     yield createGlobalPayeeSettings

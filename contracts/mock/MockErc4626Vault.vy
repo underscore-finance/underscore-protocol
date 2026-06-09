@@ -94,6 +94,7 @@ def _calcSharesOnDeposit(_amount: uint256) -> uint256:
     return shares
 
 
+@view
 @external
 def totalAssets() -> uint256:
     return staticcall IERC20(self.asset).balanceOf(self)

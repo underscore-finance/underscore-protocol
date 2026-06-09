@@ -53,13 +53,13 @@ interface Appraiser:
     def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
 interface EulerEarnFactory:
-    def isValidDeployment(_vault: address) -> bool: view
+    def isValidDeployment(_vault: address) -> bool: pure
 
 interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
 interface EulerEvaultFactory:
-    def isProxy(_vault: address) -> bool: view
+    def isProxy(_vault: address) -> bool: pure
 
 interface EulerVault:
     def totalBorrows() -> uint256: view
@@ -279,7 +279,7 @@ def isRebasing() -> bool:
     return self._isRebasing()
 
 
-@view
+@pure
 @internal
 def _isRebasing() -> bool:
     return False
@@ -653,6 +653,7 @@ def claimIncentives(
     return rewardAmount, usdValue
 
 
+@pure
 @external
 def claimRewards(
     _user: address,
@@ -665,7 +666,7 @@ def claimRewards(
     return 0, 0
 
 
-@view
+@pure
 @external
 def hasClaimableRewards(_user: address) -> bool:
     # as far as we can tell, this must be done offchain

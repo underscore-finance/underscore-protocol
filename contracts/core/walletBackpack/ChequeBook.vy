@@ -22,6 +22,7 @@ interface UserWalletConfig:
     def createCheque(_recipient: address, _cheque: wcs.Cheque, _chequeData: wcs.ChequeData, _isExistingCheque: bool): nonpayable
     def managerSettings(_addr: address) -> wcs.ManagerSettings: view
     def setChequeSettings(_config: wcs.ChequeSettings): nonpayable
+    def instantActionSettings() -> wcs.InstantActionSettings: view
     def globalManagerSettings() -> wcs.GlobalManagerSettings: view
     def indexOfWhitelist(_addr: address) -> uint256: view
     def cheques(_recipient: address) -> wcs.Cheque: view
@@ -42,9 +43,14 @@ interface MissionControl:
 
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
+    def isRegisteredBackpackItem(_addr: address) -> bool: view
+
+interface Switchboard:
+    def isSwitchboardAddr(_addr: address) -> bool: view
 
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
+    def isValidAddr(_addr: address) -> bool: view
 
 interface UserWallet:
     def walletConfig() -> address: view
@@ -91,9 +97,46 @@ event ChequeSettingsModified:
     canManagerPay: bool
     canBePulled: bool
 
+event ChequeSettingsPending:
+    user: indexed(address)
+    initiatedBy: indexed(address)
+    confirmBlock: uint256
+    maxNumActiveCheques: uint256
+    maxChequeUsdValue: uint256
+    instantUsdThreshold: uint256
+    perPeriodPaidUsdCap: uint256
+    maxNumChequesPaidPerPeriod: uint256
+    payCooldownBlocks: uint256
+    perPeriodCreatedUsdCap: uint256
+    maxNumChequesCreatedPerPeriod: uint256
+    createCooldownBlocks: uint256
+    periodLength: uint256
+    expensiveDelayBlocks: uint256
+    defaultExpiryBlocks: uint256
+    canManagersCreateCheques: bool
+    canManagerPay: bool
+    canBePulled: bool
+
+event ChequeSettingsPendingConfirmed:
+    user: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    confirmedBy: indexed(address)
+
+event ChequeSettingsPendingCancelled:
+    user: indexed(address)
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    cancelledBy: indexed(address)
+
+event CanInstantSetChequeSettingsSet:
+    isEnabled: bool
+    caller: indexed(address)
+
 UNDY_HQ: public(immutable(address))
 LEDGER_ID: constant(uint256) = 1
 MISSION_CONTROL_ID: constant(uint256) = 2
+SWITCHBOARD_ID: constant(uint256) = 4
 APPRAISER_ID: constant(uint256) = 7
 MAX_CONFIG_ASSETS: constant(uint256) = 40
 
@@ -102,6 +145,9 @@ MAX_CHEQUE_PERIOD: public(immutable(uint256))
 MIN_EXPENSIVE_CHEQUE_DELAY: public(immutable(uint256))
 MAX_UNLOCK_BLOCKS: public(immutable(uint256))
 MAX_EXPIRY_BLOCKS: public(immutable(uint256))
+
+pendingChequeSettings: public(HashMap[address, wcs.PendingChequeSettings])
+canInstantSetChequeSettings: public(bool)
 
 
 @deploy
@@ -112,8 +158,10 @@ def __init__(
     _minExpensiveChequeDelay: uint256,
     _maxUnlockBlocks: uint256,
     _maxExpiryBlocks: uint256,
+    _canInstantSetChequeSettings: bool,
 ):
     assert _undyHq != empty(address) # dev: invalid undy hq
+    assert _undyHq.is_contract # dev: invalid undy hq
     UNDY_HQ = _undyHq
 
     assert _minChequePeriod != 0 and _minChequePeriod < _maxChequePeriod # dev: invalid cheque period
@@ -128,6 +176,21 @@ def __init__(
 
     assert _maxExpiryBlocks != 0 # dev: invalid expiry blocks
     MAX_EXPIRY_BLOCKS = _maxExpiryBlocks
+
+    self.canInstantSetChequeSettings = _canInstantSetChequeSettings
+
+
+##################
+# Protocol Flags #
+##################
+
+
+@external
+def setCanInstantSetChequeSettings(_isEnabled: bool) -> bool:
+    assert self._isSwitchboardAddr(msg.sender) # dev: no perms
+    self.canInstantSetChequeSettings = _isEnabled
+    log CanInstantSetChequeSettingsSet(isEnabled=_isEnabled, caller=msg.sender)
+    return True
 
 
 #####################
@@ -162,6 +225,13 @@ def createCheque(
         config.managerSettings,
     ) # dev: not authorized to create cheques
 
+    if config.owner != msg.sender:
+        assert self._isAllowedManagerPayee(_recipient, config.managerSettings.transferPerms) # dev: payee not allowed
+        assert self._isAllowedManagerPayee(_recipient, globalManagerSettings.transferPerms) # dev: payee not allowed
+
+    if config.isExistingCheque:
+        assert msg.sender == config.owner or msg.sender == config.existingCreator # dev: cannot replace cheque
+
     # get USD value
     appraiser: address = staticcall Registry(UNDY_HQ).getAddr(APPRAISER_ID)
     usdValue: uint256 = extcall Appraiser(appraiser).updatePriceAndGetUsdValue(_asset, _amount)
@@ -190,6 +260,7 @@ def createCheque(
         _canBePulled,
         msg.sender,
         usdValue,
+        config.isRecipientManager,
     )
     assert isValid # dev: invalid cheque
     
@@ -306,6 +377,7 @@ def isValidNewCheque(
     _canBePulled: bool,
     _creator: address,
     _usdValue: uint256,
+    _isRecipientManager: bool = False,
 ) -> bool:
     isValid: bool = False
     cheque: wcs.Cheque = empty(wcs.Cheque)
@@ -330,6 +402,7 @@ def isValidNewCheque(
         _canBePulled,
         _creator,
         _usdValue,
+        _isRecipientManager,
     )
     return isValid
 
@@ -356,6 +429,7 @@ def _isValidNewCheque(
     _canBePulled: bool,
     _creator: address,
     _usdValue: uint256,
+    _isRecipientManager: bool,
 ) -> (bool, wcs.Cheque, wcs.ChequeData):
 
     # validate recipient
@@ -370,6 +444,10 @@ def _isValidNewCheque(
 
     # cheque recipients can't be existing payees
     if _isExistingPayee:
+        return False, empty(wcs.Cheque), empty(wcs.ChequeData)
+
+    # cheque recipients can't be managers or privileged protocol addresses
+    if _isRecipientManager or self._isPrivilegedUndyAddr(_recipient):
         return False, empty(wcs.Cheque), empty(wcs.ChequeData)
 
     # validate asset and amount
@@ -430,17 +508,16 @@ def _isValidNewCheque(
 
     # apply time lock if USD value exceeds instant threshold
     if _chequeSettings.instantUsdThreshold != 0 and _usdValue > _chequeSettings.instantUsdThreshold:
-        if _chequeSettings.expensiveDelayBlocks != 0:
-            unlockBlock = max(unlockBlock, block.number + _chequeSettings.expensiveDelayBlocks)
-        else:
-            unlockBlock = max(unlockBlock, block.number + _timeLock)
+        effectiveDelay: uint256 = max(_chequeSettings.expensiveDelayBlocks, _timeLock)
+        unlockBlock = max(unlockBlock, block.number + effectiveDelay)
 
     # calculate expiry block
     expiryBlock: uint256 = 0
     if _expiryNumBlocks != 0:
         expiryBlock = unlockBlock + _expiryNumBlocks
     elif _chequeSettings.defaultExpiryBlocks != 0:
-        expiryBlock = unlockBlock + _chequeSettings.defaultExpiryBlocks
+        effectiveExpiry: uint256 = max(_chequeSettings.defaultExpiryBlocks, _timeLock)
+        expiryBlock = unlockBlock + effectiveExpiry
     else:
         expiryBlock = unlockBlock + _timeLock
 
@@ -564,12 +641,15 @@ def setChequeSettings(
     _canManagersCreateCheques: bool,
     _canManagerPay: bool,
     _canBePulled: bool,
+    _shouldApplyInstantly: bool = False,
 ) -> bool:
     assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
     
     # only owner can set cheque settings
     walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
-    assert msg.sender == staticcall UserWalletConfig(walletConfig).owner() # dev: no perms
+    owner: address = staticcall UserWalletConfig(walletConfig).owner()
+    assert msg.sender == owner # dev: no perms
+    timeLock: uint256 = staticcall UserWalletConfig(walletConfig).timeLock()
 
     # validate cheque settings with timelock
     assert self._isValidChequeSettings(
@@ -585,7 +665,7 @@ def setChequeSettings(
         _periodLength,
         _expensiveDelayBlocks,
         _defaultExpiryBlocks,
-        staticcall UserWalletConfig(walletConfig).timeLock(),
+        timeLock,
     ) # dev: invalid cheque settings
 
     # create settings
@@ -608,27 +688,281 @@ def setChequeSettings(
         canBePulled = _canBePulled,
     )
 
-    # update settings
-    extcall UserWalletConfig(walletConfig).setChequeSettings(settings)
-    log ChequeSettingsModified(
+    currentSettings: wcs.ChequeSettings = staticcall UserWalletConfig(walletConfig).chequeSettings()
+    existingPending: wcs.PendingChequeSettings = self.pendingChequeSettings[_userWallet]
+    hasPending: bool = existingPending.confirmBlock != 0
+
+    if not self._isChequeSettingsWidening(currentSettings, settings, timeLock):
+        if hasPending:
+            self.pendingChequeSettings[_userWallet] = empty(wcs.PendingChequeSettings)
+            log ChequeSettingsPendingCancelled(
+                user = _userWallet,
+                initiatedBlock = existingPending.initiatedBlock,
+                confirmBlock = existingPending.confirmBlock,
+                cancelledBy = msg.sender,
+            )
+
+        extcall UserWalletConfig(walletConfig).setChequeSettings(settings)
+        self._logChequeSettingsModified(_userWallet, settings)
+        return True
+
+    if _shouldApplyInstantly:
+        assert self.canInstantSetChequeSettings # dev: instant disabled
+        instantSettings: wcs.InstantActionSettings = staticcall UserWalletConfig(walletConfig).instantActionSettings()
+        assert instantSettings.canInstantSetChequeSettings # dev: instant disabled
+
+        if hasPending:
+            self.pendingChequeSettings[_userWallet] = empty(wcs.PendingChequeSettings)
+            log ChequeSettingsPendingCancelled(
+                user = _userWallet,
+                initiatedBlock = existingPending.initiatedBlock,
+                confirmBlock = existingPending.confirmBlock,
+                cancelledBy = msg.sender,
+            )
+
+        extcall UserWalletConfig(walletConfig).setChequeSettings(settings)
+        self._logChequeSettingsModified(_userWallet, settings)
+        return True
+
+    assert not hasPending # dev: pending cheque settings already exist
+
+    confirmBlock: uint256 = block.number + timeLock
+    pending: wcs.PendingChequeSettings = wcs.PendingChequeSettings(
+        settings = settings,
+        initiatedBlock = block.number,
+        confirmBlock = confirmBlock,
+        currentOwner = owner,
+    )
+    self.pendingChequeSettings[_userWallet] = pending
+    self._logChequeSettingsPending(_userWallet, confirmBlock, settings, msg.sender)
+    return True
+
+
+@view
+@external
+def hasPendingChequeSettings(_userWallet: address) -> bool:
+    return self.pendingChequeSettings[_userWallet].confirmBlock != 0
+
+
+@view
+@external
+def pendingChequeSettingsMeta(_userWallet: address) -> (uint256, uint256, address):
+    pending: wcs.PendingChequeSettings = self.pendingChequeSettings[_userWallet]
+    return pending.initiatedBlock, pending.confirmBlock, pending.currentOwner
+
+
+@external
+def confirmPendingChequeSettings(_userWallet: address) -> bool:
+    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
+
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    owner: address = staticcall UserWalletConfig(walletConfig).owner()
+    timeLock: uint256 = staticcall UserWalletConfig(walletConfig).timeLock()
+    assert msg.sender == owner # dev: no perms
+
+    pending: wcs.PendingChequeSettings = self.pendingChequeSettings[_userWallet]
+    assert pending.confirmBlock != 0 # dev: no pending cheque settings
+    assert block.number >= pending.confirmBlock # dev: time delay not reached
+    assert pending.currentOwner == owner # dev: owner must match
+    assert self._isValidChequeSettings(
+        pending.settings.maxNumActiveCheques,
+        pending.settings.maxChequeUsdValue,
+        pending.settings.instantUsdThreshold,
+        pending.settings.perPeriodPaidUsdCap,
+        pending.settings.maxNumChequesPaidPerPeriod,
+        pending.settings.payCooldownBlocks,
+        pending.settings.perPeriodCreatedUsdCap,
+        pending.settings.maxNumChequesCreatedPerPeriod,
+        pending.settings.createCooldownBlocks,
+        pending.settings.periodLength,
+        pending.settings.expensiveDelayBlocks,
+        pending.settings.defaultExpiryBlocks,
+        timeLock,
+    ) # dev: invalid cheque settings
+
+    extcall UserWalletConfig(walletConfig).setChequeSettings(pending.settings)
+    self.pendingChequeSettings[_userWallet] = empty(wcs.PendingChequeSettings)
+    self._logChequeSettingsModified(_userWallet, pending.settings)
+    log ChequeSettingsPendingConfirmed(
         user = _userWallet,
-        maxNumActiveCheques = _maxNumActiveCheques,
-        maxChequeUsdValue = _maxChequeUsdValue,
-        instantUsdThreshold = _instantUsdThreshold,
-        perPeriodPaidUsdCap = _perPeriodPaidUsdCap,
-        maxNumChequesPaidPerPeriod = _maxNumChequesPaidPerPeriod,
-        payCooldownBlocks = _payCooldownBlocks,
-        perPeriodCreatedUsdCap = _perPeriodCreatedUsdCap,
-        maxNumChequesCreatedPerPeriod = _maxNumChequesCreatedPerPeriod,
-        createCooldownBlocks = _createCooldownBlocks,
-        periodLength = _periodLength,
-        expensiveDelayBlocks = _expensiveDelayBlocks,
-        defaultExpiryBlocks = _defaultExpiryBlocks,
-        canManagersCreateCheques = _canManagersCreateCheques,
-        canManagerPay = _canManagerPay,
-        canBePulled = _canBePulled,
+        initiatedBlock = pending.initiatedBlock,
+        confirmBlock = pending.confirmBlock,
+        confirmedBy = msg.sender,
     )
     return True
+
+
+@external
+def cancelPendingChequeSettings(_userWallet: address) -> bool:
+    assert self._isValidUserWallet(_userWallet) # dev: invalid user wallet
+
+    walletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
+    owner: address = staticcall UserWalletConfig(walletConfig).owner()
+    if msg.sender != owner:
+        assert self._canPerformSecurityAction(msg.sender) # dev: no perms
+
+    pending: wcs.PendingChequeSettings = self.pendingChequeSettings[_userWallet]
+    assert pending.confirmBlock != 0 # dev: no pending cheque settings
+
+    self.pendingChequeSettings[_userWallet] = empty(wcs.PendingChequeSettings)
+    log ChequeSettingsPendingCancelled(
+        user = _userWallet,
+        initiatedBlock = pending.initiatedBlock,
+        confirmBlock = pending.confirmBlock,
+        cancelledBy = msg.sender,
+    )
+    return True
+
+
+@internal
+def _logChequeSettingsModified(_userWallet: address, _settings: wcs.ChequeSettings):
+    log ChequeSettingsModified(
+        user = _userWallet,
+        maxNumActiveCheques = _settings.maxNumActiveCheques,
+        maxChequeUsdValue = _settings.maxChequeUsdValue,
+        instantUsdThreshold = _settings.instantUsdThreshold,
+        perPeriodPaidUsdCap = _settings.perPeriodPaidUsdCap,
+        maxNumChequesPaidPerPeriod = _settings.maxNumChequesPaidPerPeriod,
+        payCooldownBlocks = _settings.payCooldownBlocks,
+        perPeriodCreatedUsdCap = _settings.perPeriodCreatedUsdCap,
+        maxNumChequesCreatedPerPeriod = _settings.maxNumChequesCreatedPerPeriod,
+        createCooldownBlocks = _settings.createCooldownBlocks,
+        periodLength = _settings.periodLength,
+        expensiveDelayBlocks = _settings.expensiveDelayBlocks,
+        defaultExpiryBlocks = _settings.defaultExpiryBlocks,
+        canManagersCreateCheques = _settings.canManagersCreateCheques,
+        canManagerPay = _settings.canManagerPay,
+        canBePulled = _settings.canBePulled,
+    )
+
+
+@internal
+def _logChequeSettingsPending(
+    _userWallet: address,
+    _confirmBlock: uint256,
+    _settings: wcs.ChequeSettings,
+    _initiatedBy: address,
+):
+    log ChequeSettingsPending(
+        user = _userWallet,
+        initiatedBy = _initiatedBy,
+        confirmBlock = _confirmBlock,
+        maxNumActiveCheques = _settings.maxNumActiveCheques,
+        maxChequeUsdValue = _settings.maxChequeUsdValue,
+        instantUsdThreshold = _settings.instantUsdThreshold,
+        perPeriodPaidUsdCap = _settings.perPeriodPaidUsdCap,
+        maxNumChequesPaidPerPeriod = _settings.maxNumChequesPaidPerPeriod,
+        payCooldownBlocks = _settings.payCooldownBlocks,
+        perPeriodCreatedUsdCap = _settings.perPeriodCreatedUsdCap,
+        maxNumChequesCreatedPerPeriod = _settings.maxNumChequesCreatedPerPeriod,
+        createCooldownBlocks = _settings.createCooldownBlocks,
+        periodLength = _settings.periodLength,
+        expensiveDelayBlocks = _settings.expensiveDelayBlocks,
+        defaultExpiryBlocks = _settings.defaultExpiryBlocks,
+        canManagersCreateCheques = _settings.canManagersCreateCheques,
+        canManagerPay = _settings.canManagerPay,
+        canBePulled = _settings.canBePulled,
+    )
+
+
+@pure
+@internal
+def _isChequeSettingsWidening(_current: wcs.ChequeSettings, _next: wcs.ChequeSettings, _timeLock: uint256) -> bool:
+    if self._isCapWidening(_current.instantUsdThreshold, _next.instantUsdThreshold):
+        return True
+    if self._isCapWidening(_current.maxChequeUsdValue, _next.maxChequeUsdValue):
+        return True
+    if self._isCapWidening(_current.perPeriodPaidUsdCap, _next.perPeriodPaidUsdCap):
+        return True
+    if self._isCapWidening(_current.maxNumChequesPaidPerPeriod, _next.maxNumChequesPaidPerPeriod):
+        return True
+    if self._isCooldownWidening(_current.payCooldownBlocks, _next.payCooldownBlocks):
+        return True
+    if self._isCapWidening(_current.perPeriodCreatedUsdCap, _next.perPeriodCreatedUsdCap):
+        return True
+    if self._isCapWidening(_current.maxNumChequesCreatedPerPeriod, _next.maxNumChequesCreatedPerPeriod):
+        return True
+    if self._isCooldownWidening(_current.createCooldownBlocks, _next.createCooldownBlocks):
+        return True
+    if self._isCapWidening(_current.maxNumActiveCheques, _next.maxNumActiveCheques):
+        return True
+    if self._isTimeLockFallbackCooldownWidening(_current.expensiveDelayBlocks, _next.expensiveDelayBlocks, _timeLock):
+        return True
+    if self._isTimeLockFallbackExpiryWidening(_current.defaultExpiryBlocks, _next.defaultExpiryBlocks, _timeLock):
+        return True
+    if self._isAllowedAssetsWidening(_current.allowedAssets, _next.allowedAssets):
+        return True
+    if not _current.canManagersCreateCheques and _next.canManagersCreateCheques:
+        return True
+    if not _current.canManagerPay and _next.canManagerPay:
+        return True
+    if not _current.canBePulled and _next.canBePulled:
+        return True
+    if _next.periodLength < _current.periodLength:
+        return True
+    return False
+
+
+@pure
+@internal
+def _isCapWidening(_old: uint256, _new: uint256) -> bool:
+    if _old == 0:
+        return False
+    if _new == 0:
+        return True
+    return _new > _old
+
+
+@pure
+@internal
+def _isCooldownWidening(_old: uint256, _new: uint256) -> bool:
+    if _old == 0:
+        return False
+    if _new == 0:
+        return True
+    return _new < _old
+
+
+@pure
+@internal
+def _resolveTimeLockFallback(_value: uint256, _timeLock: uint256) -> uint256:
+    if _value == 0:
+        return _timeLock
+    return _value
+
+
+@pure
+@internal
+def _isTimeLockFallbackCooldownWidening(_old: uint256, _new: uint256, _timeLock: uint256) -> bool:
+    oldValue: uint256 = self._resolveTimeLockFallback(_old, _timeLock)
+    newValue: uint256 = self._resolveTimeLockFallback(_new, _timeLock)
+    return newValue < oldValue
+
+
+@pure
+@internal
+def _isTimeLockFallbackExpiryWidening(_old: uint256, _new: uint256, _timeLock: uint256) -> bool:
+    oldValue: uint256 = self._resolveTimeLockFallback(_old, _timeLock)
+    newValue: uint256 = self._resolveTimeLockFallback(_new, _timeLock)
+    return newValue > oldValue
+
+
+@pure
+@internal
+def _isAllowedAssetsWidening(
+    _old: DynArray[address, MAX_CONFIG_ASSETS],
+    _new: DynArray[address, MAX_CONFIG_ASSETS],
+) -> bool:
+    if len(_old) == 0:
+        return False
+    if len(_new) == 0:
+        return True
+
+    for asset: address in _new:
+        if asset not in _old:
+            return True
+
+    return False
 
 
 # cheque settings validation
@@ -728,7 +1062,7 @@ def _isValidChequePeriod(_periodLength: uint256) -> bool:
 # validate cheque cooldowns
 
 
-@view
+@pure
 @internal
 def _isValidChequeCooldowns(_payCooldownBlocks: uint256, _createCooldownBlocks: uint256, _periodLength: uint256) -> bool:
     # cooldowns cannot exceed period length
@@ -765,7 +1099,7 @@ def _isValidExpensiveDelay(_expensiveDelayBlocks: uint256, _timeLock: uint256) -
 # validate cheque USD caps consistency
 
 
-@view
+@pure
 @internal
 def _isValidChequeUsdCaps(_maxChequeUsdValue: uint256, _perPeriodPaidUsdCap: uint256, _perPeriodCreatedUsdCap: uint256) -> bool:
     if _maxChequeUsdValue == 0:
@@ -783,7 +1117,7 @@ def _isValidChequeUsdCaps(_maxChequeUsdValue: uint256, _perPeriodPaidUsdCap: uin
 # validate instant threshold configuration
 
 
-@view
+@pure
 @internal
 def _isValidInstantThreshold(_instantUsdThreshold: uint256, _expensiveDelayBlocks: uint256) -> bool:
     # instant threshold cannot be zero
@@ -835,6 +1169,7 @@ def _getChequeConfig(_userWallet: address, _creator: address, _recipient: addres
         owner = staticcall UserWalletConfig(walletConfig).owner(),
         isRecipientOnWhitelist = staticcall UserWalletConfig(walletConfig).indexOfWhitelist(_recipient) != 0,
         isCreatorManager = staticcall UserWalletConfig(walletConfig).indexOfManager(_creator) != 0,
+        isRecipientManager = staticcall UserWalletConfig(walletConfig).indexOfManager(_recipient) != 0,
         managerSettings = staticcall UserWalletConfig(walletConfig).managerSettings(_creator),
         chequeSettings = staticcall UserWalletConfig(walletConfig).chequeSettings(),
         chequeData = staticcall UserWalletConfig(walletConfig).chequePeriodData(),
@@ -842,6 +1177,7 @@ def _getChequeConfig(_userWallet: address, _creator: address, _recipient: addres
         numActiveCheques = staticcall UserWalletConfig(walletConfig).numActiveCheques(),
         isExistingPayee = staticcall UserWalletConfig(walletConfig).indexOfPayee(_recipient) != 0,
         timeLock = staticcall UserWalletConfig(walletConfig).timeLock(),
+        existingCreator = cheque.creator,
     )
 
 
@@ -867,10 +1203,65 @@ def _canPerformSecurityAction(_addr: address) -> bool:
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
 
 
+@view
+@internal
+def _isSwitchboardAddr(_addr: address) -> bool:
+    switchboard: address = staticcall Registry(UNDY_HQ).getAddr(SWITCHBOARD_ID)
+    if switchboard == empty(address):
+        return False
+    return staticcall Switchboard(switchboard).isSwitchboardAddr(_addr)
+
+
+@view
+@internal
+def _isPrivilegedUndyAddr(_addr: address) -> bool:
+    if staticcall Registry(UNDY_HQ).isValidAddr(_addr):
+        return True
+    ledger: address = staticcall Registry(UNDY_HQ).getAddr(LEDGER_ID)
+    if ledger == empty(address):
+        return False
+    return staticcall Ledger(ledger).isRegisteredBackpackItem(_addr)
+
+
+@pure
+@internal
+def _isAllowedManagerPayee(_recipient: address, _transferPerms: wcs.TransferPerms) -> bool:
+    if len(_transferPerms.allowedPayees) == 0:
+        return True
+    return _recipient in _transferPerms.allowedPayees
+
+
 # default cheque settings
 
 
 @view
+@external
+def isValidUserWalletChequeDefaults(
+    _maxNumActiveCheques: uint256,
+    _instantUsdThreshold: uint256,
+    _periodLength: uint256,
+    _expensiveDelayBlocks: uint256,
+    _defaultExpiryBlocks: uint256,
+    _timeLock: uint256,
+) -> bool:
+    return self._isValidChequeSettings(
+        _maxNumActiveCheques,
+        0,
+        _instantUsdThreshold,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        _periodLength,
+        _expensiveDelayBlocks,
+        _defaultExpiryBlocks,
+        _timeLock,
+    )
+
+
+@pure
 @external
 def createDefaultChequeSettings(
     _maxNumActiveCheques: uint256,

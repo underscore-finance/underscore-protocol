@@ -285,149 +285,6 @@ def test_valid_at_boundaries(paymaster, user_wallet, user_wallet_config, createP
     )
 
 
-#########################
-# Can Add Pending Payee #
-#########################
-
-
-def test_owner_cannot_add_pending_payee(paymaster, user_wallet, bob, charlie):
-    """Test that owner cannot add pending payee (they add directly)"""
-    # Owner should return False for canAddPendingPayee
-    assert not paymaster.canAddPendingPayee(user_wallet, charlie, bob)
-
-
-def test_manager_can_add_pending_payee_with_permission(createGlobalManagerSettings, createTransferPerms, createManagerSettings, paymaster, user_wallet, user_wallet_config, alice, charlie, high_command):
-    """Test manager with canAddPendingPayee permission"""
-    # Set global permissions to allow adding pending payees
-    global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
-    new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
-    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
-    
-    # Add manager with permission to add pending payees
-    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
-    new_manager_settings = createManagerSettings(_transferPerms=manager_transfer_perms)
-    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
-    
-    # Manager should be able to add pending payee
-    assert paymaster.canAddPendingPayee(user_wallet, charlie, alice)
-
-
-def test_manager_cannot_add_pending_payee_without_permission(createGlobalManagerSettings, createTransferPerms, createManagerSettings, paymaster, user_wallet, user_wallet_config, alice, charlie, high_command):
-    """Test manager without canAddPendingPayee permission"""
-    # Set global permissions to allow adding pending payees
-    global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
-    new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
-    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
-    
-    # Add manager WITHOUT permission to add pending payees
-    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=False)
-    new_manager_settings = createManagerSettings(_transferPerms=manager_transfer_perms)
-    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
-    
-    # Manager should NOT be able to add pending payee
-    assert not paymaster.canAddPendingPayee(user_wallet, charlie, alice)
-
-
-def test_global_permissions_restrict_manager_add_pending_payee(createGlobalManagerSettings, createTransferPerms, createManagerSettings, paymaster, user_wallet, user_wallet_config, alice, charlie, high_command):
-    """Test that global permissions can restrict manager from adding pending payees"""
-    # Set global permissions to DENY adding pending payees
-    global_transfer_perms = createTransferPerms(_canAddPendingPayee=False)
-    new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
-    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
-    
-    # Add manager with permission to add pending payees
-    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
-    new_manager_settings = createManagerSettings(_transferPerms=manager_transfer_perms)
-    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
-    
-    # Manager should NOT be able to add pending payee (global restricts)
-    assert not paymaster.canAddPendingPayee(user_wallet, charlie, alice)
-
-
-def test_non_manager_cannot_add_pending_payee(paymaster, user_wallet, alice, charlie):
-    """Test that non-manager cannot add pending payee"""
-    # Non-manager should not be able to add pending payee
-    assert not paymaster.canAddPendingPayee(user_wallet, charlie, alice)
-
-
-def test_inactive_manager_cannot_add_pending_payee(createGlobalManagerSettings, createTransferPerms, createManagerSettings, paymaster, user_wallet, user_wallet_config, alice, charlie, high_command):
-    """Test that inactive manager cannot add pending payee"""
-    # This test verifies that a manager set up to start in the future cannot perform actions
-    # We'll do this by adding a manager with a very high start block
-    
-    # Set global permissions to allow adding pending payees
-    global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
-    new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
-    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
-    
-    # Add manager with permission but starts in far future
-    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
-    new_manager_settings = createManagerSettings(
-        _transferPerms=manager_transfer_perms,
-        _startBlock=999999999  # Starts in far future
-    )
-    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
-    
-    # Manager should NOT be able to add pending payee (not active yet)
-    assert not paymaster.canAddPendingPayee(user_wallet, charlie, alice)
-
-
-def test_expired_manager_cannot_add_pending_payee(createGlobalManagerSettings, createTransferPerms, createManagerSettings, paymaster, user_wallet, user_wallet_config, alice, charlie, high_command):
-    """Test that expired manager cannot add pending payee"""
-    # Set global permissions to allow adding pending payees
-    global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
-    new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
-    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
-    
-    # Add manager with permission that will expire soon
-    current_block = boa.env.evm.patch.block_number
-    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
-    new_manager_settings = createManagerSettings(
-        _transferPerms=manager_transfer_perms,
-        _expiryBlock=current_block + 10  # Will expire in 10 blocks
-    )
-    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
-    
-    # Time travel past expiry
-    boa.env.time_travel(blocks=20)
-    
-    # Manager should NOT be able to add pending payee (expired)
-    assert not paymaster.canAddPendingPayee(user_wallet, charlie, alice)
-
-
-def test_cannot_add_pending_payee_if_already_pending(createGlobalManagerSettings, createTransferPerms, createManagerSettings, createPayeeLimits, paymaster, user_wallet, user_wallet_config, alice, charlie, high_command):
-    """Test that cannot add pending payee if already pending"""
-    # Set global permissions to allow adding pending payees
-    global_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
-    new_global_manager_settings = createGlobalManagerSettings(_transferPerms=global_transfer_perms)
-    user_wallet_config.setGlobalManagerSettings(new_global_manager_settings, sender=high_command.address)
-    
-    # Add manager with permission to add pending payees
-    manager_transfer_perms = createTransferPerms(_canAddPendingPayee=True)
-    new_manager_settings = createManagerSettings(_transferPerms=manager_transfer_perms)
-    user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
-    
-    # First, add a pending payee
-    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
-    paymaster.addPendingPayee(
-        user_wallet,
-        charlie,  # payee
-        False,  # canPull
-        2 * ONE_DAY_IN_BLOCKS,  # periodLength
-        10,  # maxNumTxsPerPeriod
-        0,  # txCooldownBlocks
-        True,  # failOnZeroPrice
-        ZERO_ADDRESS,  # primaryAsset
-        False,  # onlyPrimaryAsset
-        createPayeeLimits(),  # unitLimits
-        usd_limits,  # usdLimits
-        sender=alice
-    )
-    
-    # Now manager should NOT be able to add pending payee again
-    assert not paymaster.canAddPendingPayee(user_wallet, charlie, alice)
-
-
 ########################
 # New Payee Validation #
 ########################
@@ -561,6 +418,64 @@ def test_invalid_new_payee_is_whitelisted(paymaster, user_wallet, user_wallet_co
         False,  # onlyPrimaryAsset
         createPayeeLimits(),  # unitLimits
         usd_limits  # usdLimits
+    )
+
+
+def test_invalid_new_payee_is_manager(paymaster, user_wallet, user_wallet_config, high_command, createPayeeLimits, createManagerSettings, alice):
+    """Public helper mirrors addPayee manager rejection"""
+    user_wallet_config.addManager(alice, createManagerSettings(), sender=high_command.address)
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert not paymaster.isValidNewPayee(
+        user_wallet,
+        alice,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits,
+    )
+
+
+def test_invalid_new_payee_is_privileged_address(paymaster, user_wallet, createPayeeLimits):
+    """Public helper mirrors addPayee privileged-address rejection"""
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert not paymaster.isValidNewPayee(
+        user_wallet,
+        paymaster.address,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits,
+    )
+
+
+def test_valid_new_payee_can_be_other_user_wallet(paymaster, user_wallet, ambassador_wallet, createPayeeLimits):
+    """Other user wallets remain valid payees"""
+    usd_limits = createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)
+
+    assert paymaster.isValidNewPayee(
+        user_wallet,
+        ambassador_wallet.address,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        usd_limits,
     )
 
 
@@ -993,6 +908,45 @@ def test_invalid_payee_update_not_registered(paymaster, user_wallet, createPayee
         False,  # onlyPrimaryAsset
         createPayeeLimits(),  # unitLimits
         createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS)  # usdLimits
+    )
+
+
+def test_invalid_payee_update_is_manager(paymaster, user_wallet, user_wallet_config, high_command, createPayeeLimits, createPayeeSettings, createManagerSettings, alice):
+    """Public helper mirrors updatePayee manager rejection"""
+    user_wallet_config.addManager(alice, createManagerSettings(), sender=high_command.address)
+    user_wallet_config.addPayee(alice, createPayeeSettings(), sender=paymaster.address)
+
+    assert not paymaster.isValidPayeeUpdate(
+        user_wallet,
+        alice,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
+    )
+
+
+def test_invalid_payee_update_is_privileged_address(paymaster, user_wallet, user_wallet_config, createPayeeLimits, createPayeeSettings):
+    """Public helper mirrors updatePayee privileged-address rejection"""
+    user_wallet_config.addPayee(paymaster.address, createPayeeSettings(), sender=paymaster.address)
+
+    assert not paymaster.isValidPayeeUpdate(
+        user_wallet,
+        paymaster.address,
+        False,
+        2 * ONE_DAY_IN_BLOCKS,
+        10,
+        0,
+        True,
+        ZERO_ADDRESS,
+        False,
+        createPayeeLimits(),
+        createPayeeLimits(_perTxCap=1000 * EIGHTEEN_DECIMALS),
     )
 
 
@@ -1471,4 +1425,3 @@ def test_invalid_any_usd_limit_requires_fail_on_zero_price(paymaster, user_walle
         user_wallet, 2 * ONE_DAY_IN_BLOCKS, PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
         ONE_DAY_IN_BLOCKS, 10, 0, False, usd_limits_3, True
     )
-

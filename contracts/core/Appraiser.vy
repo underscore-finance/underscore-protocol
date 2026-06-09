@@ -98,6 +98,7 @@ def __init__(
 ##################
 
 
+@view
 @external
 def calculateYieldProfits(
     _asset: address,
@@ -108,7 +109,8 @@ def calculateYieldProfits(
     _legoBook: address,
 ) -> (uint256, uint256, uint256):
     ledger: address = addys._getLedgerAddr() # cannot allow this to be passed in as param
-    assert staticcall Ledger(ledger).isUserWallet(msg.sender) # dev: no perms
+    if not staticcall Ledger(ledger).isUserWallet(msg.sender):
+        return 0, 0, 0
 
     # if paused, fail gracefully
     if deptBasics.isPaused:
@@ -167,7 +169,7 @@ def calculateYieldProfitsNoUpdate(
 # rebasing assets
 
 
-@view
+@pure
 @internal
 def _handleRebaseYieldAsset(
     _currentBalance: uint256,
@@ -195,7 +197,7 @@ def _handleRebaseYieldAsset(
 # normal yield assets
 
 
-@view
+@pure
 @internal
 def _handleNormalYieldAsset(
     _currentBalance: uint256,

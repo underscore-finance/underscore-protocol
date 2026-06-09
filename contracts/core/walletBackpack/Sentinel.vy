@@ -180,8 +180,8 @@ def _checkManagerPermsAndLimitsPreAction(
             if lid != 0 and lid not in _legoPerms.allowedLegos:
                 return False
 
-    # payee allowlists only apply to standard transfers, not cheque payments
-    if _txAction == ws.ActionType.TRANSFER and _txRecipient != empty(address) and len(_transferPerms.allowedPayees) != 0:
+    # Whitelisted recipients are rewritten to empty(address) by wallet config and bypass this.
+    if _txAction in (ws.ActionType.TRANSFER | ws.ActionType.PAY_CHEQUE) and _txRecipient != empty(address) and len(_transferPerms.allowedPayees) != 0:
         if _txRecipient not in _transferPerms.allowedPayees:
             return False
 
@@ -436,7 +436,8 @@ def isValidPayee(
     c: wcs.RecipientConfigBundle = self._getPayeeConfigs(_user, _recipient)
     canPay: bool = False
     na: wcs.PayeeData = empty(wcs.PayeeData)
-    canPay, na = self._isValidPayeeAndGetData(c.isWhitelisted, c.isOwner, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
+    didUpdate: bool = False
+    canPay, na, didUpdate = self._isValidPayeeAndGetData(c.isWhitelisted, c.isPayee, _asset, _amount, _txUsdValue, c.config, c.globalConfig, c.data)
     return canPay
 
 
@@ -447,7 +448,6 @@ def isValidPayee(
 @external
 def isValidPayeeAndGetData(
     _isWhitelisted: bool,
-    _isOwner: bool,
     _isPayee: bool,
     _asset: address,
     _amount: uint256,
@@ -455,8 +455,8 @@ def isValidPayeeAndGetData(
     _config: wcs.PayeeSettings,
     _globalConfig: wcs.GlobalPayeeSettings,
     _payeeData: wcs.PayeeData,
-) -> (bool, wcs.PayeeData):
-    return self._isValidPayeeAndGetData(_isWhitelisted, _isOwner, _isPayee, _asset, _amount, _txUsdValue, _config, _globalConfig, _payeeData)
+) -> (bool, wcs.PayeeData, bool):
+    return self._isValidPayeeAndGetData(_isWhitelisted, _isPayee, _asset, _amount, _txUsdValue, _config, _globalConfig, _payeeData)
 
 
 # core logic -- is valid payee
@@ -466,7 +466,6 @@ def isValidPayeeAndGetData(
 @internal
 def _isValidPayeeAndGetData(
     _isWhitelisted: bool,
-    _isOwner: bool,
     _isPayee: bool,
     _asset: address,
     _amount: uint256,
@@ -474,25 +473,25 @@ def _isValidPayeeAndGetData(
     _payeeConfig: wcs.PayeeSettings,
     _globalConfig: wcs.GlobalPayeeSettings,
     _payeeData: wcs.PayeeData,
-) -> (bool, wcs.PayeeData):
+) -> (bool, wcs.PayeeData, bool):
     # whitelisted
     if _isWhitelisted:
-        return True, empty(wcs.PayeeData)
+        return True, empty(wcs.PayeeData), False
 
     # registered payee
     if not _isPayee:
-        return False, empty(wcs.PayeeData)
+        return False, empty(wcs.PayeeData), False
 
     # get payee data
     payeeData: wcs.PayeeData = self._getLatestPayeeData(_payeeData, _payeeConfig.periodLength)
 
     # check specific payee settings
     if not self._checkSpecificPayeeSettings(_asset, _amount, _txUsdValue, payeeData, _payeeConfig):
-        return False, empty(wcs.PayeeData)
+        return False, empty(wcs.PayeeData), False
 
     # check global payee settings
     if not self._checkGlobalPayeeSettings(_txUsdValue, payeeData, _globalConfig):
-        return False, empty(wcs.PayeeData)
+        return False, empty(wcs.PayeeData), False
 
     # update payee data
     payeeData.numTxsInPeriod += 1
@@ -506,7 +505,7 @@ def _isValidPayeeAndGetData(
         payeeData.totalUnitsInPeriod += _amount
         payeeData.totalUnits += _amount
 
-    return True, payeeData
+    return True, payeeData, True
 
 
 # specific payee settings
@@ -602,7 +601,7 @@ def _getLatestPayeeData(_payeeData: wcs.PayeeData, _periodLength: uint256) -> wc
 # check USD limits
 
 
-@view
+@pure
 @internal
 def _checkUsdLimits(_txUsdValue: uint256, _limits: wcs.PayeeLimits, _payeeData: wcs.PayeeData) -> bool:
     if _limits.perTxCap != 0:
@@ -623,7 +622,7 @@ def _checkUsdLimits(_txUsdValue: uint256, _limits: wcs.PayeeLimits, _payeeData: 
 # check unit limits
 
 
-@view
+@pure
 @internal
 def _checkUnitLimits(_amount: uint256, _limits: wcs.PayeeLimits, _payeeData: wcs.PayeeData) -> bool:
     if _limits.perTxCap != 0:
@@ -656,64 +655,64 @@ def isValidChequeAndGetData(
     _globalConfig: wcs.ChequeSettings,
     _chequeData: wcs.ChequeData,
     _isManager: bool,
-) -> (bool, wcs.ChequeData):
+) -> (bool, wcs.ChequeData, bool):
 
     # check if cheque is active
     if not _cheque.active:
-        return False, empty(wcs.ChequeData)
+        return False, empty(wcs.ChequeData), False
 
     # check if within expiry and unlock blocks
     if block.number >= _cheque.expiryBlock or block.number < _cheque.unlockBlock:
-        return False, empty(wcs.ChequeData)
+        return False, empty(wcs.ChequeData), False
 
     # no recipient or asset
     if empty(address) in [_cheque.recipient, _cheque.asset]:
-        return False, empty(wcs.ChequeData)
+        return False, empty(wcs.ChequeData), False
 
     # check asset matches
     if _cheque.asset != _asset:
-        return False, empty(wcs.ChequeData)
+        return False, empty(wcs.ChequeData), False
 
     # check amount matches cheque amount
     if _amount != _cheque.amount:
-        return False, empty(wcs.ChequeData)
+        return False, empty(wcs.ChequeData), False
 
     # check if asset is allowed in global config
     if len(_globalConfig.allowedAssets) != 0:
         if _asset not in _globalConfig.allowedAssets:
-            return False, empty(wcs.ChequeData)
+            return False, empty(wcs.ChequeData), False
 
     # check if USD value is zero
     if _txUsdValue == 0:
-        return False, empty(wcs.ChequeData)
+        return False, empty(wcs.ChequeData), False
 
     # check max cheque USD value
     if _globalConfig.maxChequeUsdValue != 0:
         if _txUsdValue > _globalConfig.maxChequeUsdValue:
-            return False, empty(wcs.ChequeData)
+            return False, empty(wcs.ChequeData), False
 
     # check if manager can pay
     if _isManager:
         if not _globalConfig.canManagerPay or not _cheque.canManagerPay:
-            return False, empty(wcs.ChequeData)
+            return False, empty(wcs.ChequeData), False
 
     # get latest cheque data
     chequeData: wcs.ChequeData = self._getLatestChequeData(_chequeData, _globalConfig.periodLength)
 
     # check pay cooldown
-    if _globalConfig.payCooldownBlocks != 0:
+    if _globalConfig.payCooldownBlocks != 0 and chequeData.lastChequePaidBlock != 0:
         if block.number < chequeData.lastChequePaidBlock + _globalConfig.payCooldownBlocks:
-            return False, empty(wcs.ChequeData)
+            return False, empty(wcs.ChequeData), False
 
     # check max num cheques paid per period
     if _globalConfig.maxNumChequesPaidPerPeriod != 0:
         if chequeData.numChequesPaidInPeriod >= _globalConfig.maxNumChequesPaidPerPeriod:
-            return False, empty(wcs.ChequeData)
+            return False, empty(wcs.ChequeData), False
 
     # check per period paid USD cap
     if _globalConfig.perPeriodPaidUsdCap != 0:
         if chequeData.totalUsdValuePaidInPeriod + _txUsdValue > _globalConfig.perPeriodPaidUsdCap:
-            return False, empty(wcs.ChequeData)
+            return False, empty(wcs.ChequeData), False
 
     # update cheque data
     chequeData.numChequesPaidInPeriod += 1
@@ -722,7 +721,7 @@ def isValidChequeAndGetData(
     chequeData.totalUsdValuePaid += _txUsdValue
     chequeData.lastChequePaidBlock = block.number
 
-    return True, chequeData
+    return True, chequeData, True
 
 
 # get latest cheque data (period reset)
@@ -782,13 +781,11 @@ def _getPayeeConfigs(_userWallet: address, _recipient: address) -> wcs.Recipient
     userWalletConfig: address = staticcall UserWallet(_userWallet).walletConfig()
     isWhitelisted: bool = staticcall UserWalletConfig(userWalletConfig).indexOfWhitelist(_recipient) != 0
 
-    isOwner: bool = False
     isPayee: bool = False
     config: wcs.PayeeSettings = empty(wcs.PayeeSettings)
     globalConfig: wcs.GlobalPayeeSettings = empty(wcs.GlobalPayeeSettings)
     data: wcs.PayeeData = empty(wcs.PayeeData)
     if not isWhitelisted:
-        isOwner = _recipient == staticcall UserWalletConfig(userWalletConfig).owner()
         isPayee = staticcall UserWalletConfig(userWalletConfig).indexOfPayee(_recipient) != 0
         config = staticcall UserWalletConfig(userWalletConfig).payeeSettings(_recipient)
         globalConfig = staticcall UserWalletConfig(userWalletConfig).globalPayeeSettings()
@@ -796,7 +793,6 @@ def _getPayeeConfigs(_userWallet: address, _recipient: address) -> wcs.Recipient
 
     return wcs.RecipientConfigBundle(
         isWhitelisted = isWhitelisted,
-        isOwner = isOwner,
         isPayee = isPayee,
         config = config,
         globalConfig = globalConfig,

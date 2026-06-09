@@ -37,8 +37,8 @@ from interfaces import WalletStructs as ws
 interface Sentinel:
     def canSignerPerformActionWithConfig(_isOwner: bool, _isManager: bool, _data: wcs.ManagerData, _config: wcs.ManagerSettings, _globalConfig: wcs.GlobalManagerSettings, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _payee: address = empty(address)) -> bool: view
     def checkManagerLimitsPostTx(_txUsdValue: uint256, _specificLimits: wcs.ManagerLimits, _globalLimits: wcs.ManagerLimits, _managerPeriod: uint256, _data: wcs.ManagerData, _needsVaultApproval: bool, _underlyingAsset: address, _vaultToken: address, _isSwap: bool, _specificSwapPerms: wcs.SwapPerms, _globalSwapPerms: wcs.SwapPerms, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address) -> (bool, wcs.ManagerData): view
-    def isValidPayeeAndGetData(_isWhitelisted: bool, _isOwner: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData): view
-    def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData): view
+    def isValidPayeeAndGetData(_isWhitelisted: bool, _isPayee: bool, _asset: address, _amount: uint256, _txUsdValue: uint256, _config: wcs.PayeeSettings, _globalConfig: wcs.GlobalPayeeSettings, _data: wcs.PayeeData) -> (bool, wcs.PayeeData, bool): view
+    def isValidChequeAndGetData(_asset: address, _amount: uint256, _txUsdValue: uint256, _cheque: wcs.Cheque, _globalConfig: wcs.ChequeSettings, _chequeData: wcs.ChequeData, _isManager: bool) -> (bool, wcs.ChequeData, bool): view
 
 interface Ledger:
     def isRegisteredBackpackItem(_addr: address) -> bool: view
@@ -74,6 +74,7 @@ highCommand: public(address)
 paymaster: public(address)
 chequeBook: public(address)
 migrator: public(address)
+actionDataProvider: public(address)
 
 # pending changes
 pendingUpdates: public(HashMap[wcs.BackpackType, PendingBackpackItem]) # type -> config
@@ -136,6 +137,12 @@ def addPendingMigrator(_addr: address) -> bool:
     return self._addPendingBackpackItem(wcs.BackpackType.WALLET_MIGRATOR, _addr)
 
 
+@external
+def addPendingActionDataProvider(_addr: address) -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._addPendingBackpackItem(wcs.BackpackType.WALLET_ACTION_DATA_PROVIDER, _addr)
+
+
 # add item
 
 
@@ -181,6 +188,8 @@ def _canAddBackpackItem(_backpackType: wcs.BackpackType, _addr: address) -> bool
         return self._isValidAddr(_addr, self.chequeBook)
     elif _backpackType == wcs.BackpackType.WALLET_MIGRATOR:
         return self._isValidAddr(_addr, self.migrator)
+    elif _backpackType == wcs.BackpackType.WALLET_ACTION_DATA_PROVIDER:
+        return self._isValidAddr(_addr, self.actionDataProvider)
     return False
 
 
@@ -204,8 +213,8 @@ def _isValidSentinel(_addr: address) -> bool:
     )
 
     payeeData: wcs.PayeeData = empty(wcs.PayeeData)
-    isValid, payeeData = staticcall Sentinel(_addr).isValidPayeeAndGetData(
-        False,
+    didUpdate: bool = False
+    isValid, payeeData, didUpdate = staticcall Sentinel(_addr).isValidPayeeAndGetData(
         False,
         False,
         empty(address),
@@ -235,7 +244,8 @@ def _isValidSentinel(_addr: address) -> bool:
     )
 
     chequeData: wcs.ChequeData = empty(wcs.ChequeData)
-    isValid, chequeData = staticcall Sentinel(_addr).isValidChequeAndGetData(
+    didPay: bool = False
+    isValid, chequeData, didPay = staticcall Sentinel(_addr).isValidChequeAndGetData(
         empty(address),
         0,
         0,
@@ -296,6 +306,12 @@ def confirmPendingMigrator() -> bool:
     return self._confirmBackpackItem(wcs.BackpackType.WALLET_MIGRATOR, msg.sender)
 
 
+@external
+def confirmPendingActionDataProvider() -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._confirmBackpackItem(wcs.BackpackType.WALLET_ACTION_DATA_PROVIDER, msg.sender)
+
+
 # confirm new item
 
 
@@ -339,6 +355,8 @@ def _setBackpackItem(_backpackType: wcs.BackpackType, _addr: address):
         self.chequeBook = _addr
     elif _backpackType == wcs.BackpackType.WALLET_MIGRATOR:
         self.migrator = _addr
+    elif _backpackType == wcs.BackpackType.WALLET_ACTION_DATA_PROVIDER:
+        self.actionDataProvider = _addr
 
     # register in ledger
     extcall Ledger(addys._getLedgerAddr()).registerBackpackItem(_addr)
@@ -383,6 +401,12 @@ def cancelPendingChequeBook() -> bool:
 def cancelPendingMigrator() -> bool:
     assert self._canPerformAction(msg.sender) # dev: no perms
     return self._cancelPendingBackpackItem(wcs.BackpackType.WALLET_MIGRATOR, msg.sender)
+
+
+@external
+def cancelPendingActionDataProvider() -> bool:
+    assert self._canPerformAction(msg.sender) # dev: no perms
+    return self._cancelPendingBackpackItem(wcs.BackpackType.WALLET_ACTION_DATA_PROVIDER, msg.sender)
 
 
 # cancel pending item

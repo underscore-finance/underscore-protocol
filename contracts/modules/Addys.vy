@@ -173,7 +173,7 @@ def _isLegoBookAddr(_addr: address) -> bool:
 # ledger
 
 
-@view
+@pure
 @internal
 def _getLedgerId() -> uint256:
     return LEDGER_ID
@@ -188,7 +188,7 @@ def _getLedgerAddr() -> address:
 # mission control
 
 
-@view
+@pure
 @internal
 def _getMissionControlId() -> uint256:
     return MISSION_CONTROL_ID
@@ -203,7 +203,7 @@ def _getMissionControlAddr() -> address:
 # lego book
 
 
-@view
+@pure
 @internal
 def _getLegoBookId() -> uint256:
     return LEGO_BOOK_ID
@@ -218,7 +218,7 @@ def _getLegoBookAddr() -> address:
 # switchboard
 
 
-@view
+@pure
 @internal
 def _getSwitchboardId() -> uint256:
     return SWITCHBOARD_ID
@@ -233,7 +233,7 @@ def _getSwitchboardAddr() -> address:
 # hatchery
 
 
-@view
+@pure
 @internal
 def _getHatcheryId() -> uint256:
     return HATCHERY_ID
@@ -248,7 +248,7 @@ def _getHatcheryAddr() -> address:
 # loot distributor
 
 
-@view
+@pure
 @internal
 def _getLootDistributorId() -> uint256:
     return LOOT_DISTRIBUTOR_ID
@@ -263,7 +263,7 @@ def _getLootDistributorAddr() -> address:
 # appraiser
 
 
-@view
+@pure
 @internal
 def _getAppraiserId() -> uint256:
     return APPRAISER_ID
@@ -278,7 +278,7 @@ def _getAppraiserAddr() -> address:
 # wallet backpack
 
 
-@view
+@pure
 @internal
 def _getWalletBackpackId() -> uint256:
     return WALLET_BACKPACK_ID
@@ -293,7 +293,7 @@ def _getWalletBackpackAddr() -> address:
 # billing
 
 
-@view
+@pure
 @internal
 def _getBillingId() -> uint256:
     return BILLING_ID
@@ -308,7 +308,7 @@ def _getBillingAddr() -> address:
 # vault registry
 
 
-@view
+@pure
 @internal
 def _getVaultRegistryId() -> uint256:
     return VAULT_REGISTRY_ID
@@ -323,7 +323,7 @@ def _getVaultRegistryAddr() -> address:
 # helpers
 
 
-@view
+@pure
 @internal
 def _getHelpersId() -> uint256:
     return HELPERS_ID

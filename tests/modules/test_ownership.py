@@ -318,13 +318,89 @@ def test_set_ownership_timelock_basic(mock_ownership, bob, fork):
     # Check state
     assert mock_ownership.ownershipTimeLock() == new_timelock
     
-    # Set to min
+    # Decrease stages a pending timelock under the current delay
     mock_ownership.setOwnershipTimeLock(min_timelock, sender=bob)
+    assert mock_ownership.ownershipTimeLock() == new_timelock
+
+    pending = mock_ownership.pendingOwnershipTimeLock()
+    assert pending.newTimeLock == min_timelock
+    assert pending.initiatedBlock == boa.env.evm.patch.block_number
+    assert pending.confirmBlock == pending.initiatedBlock + new_timelock
+    assert pending.currentOwner == bob
+
+    boa.env.time_travel(blocks=new_timelock)
+    mock_ownership.confirmPendingOwnershipTimeLock(sender=bob)
     assert mock_ownership.ownershipTimeLock() == min_timelock
     
     # Set to max
     mock_ownership.setOwnershipTimeLock(max_timelock, sender=bob)
     assert mock_ownership.ownershipTimeLock() == max_timelock
+
+
+def test_pending_ownership_timelock_cancel_double_pending_and_events(
+    mock_ownership, bob, charlie, mission_control, switchboard_alpha, fork
+):
+    min_timelock = PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"]
+    new_timelock = min_timelock + 100
+    mock_ownership.setOwnershipTimeLock(new_timelock, sender=bob)
+
+    mock_ownership.setOwnershipTimeLock(min_timelock, sender=bob)
+    set_event = filter_logs(mock_ownership, "PendingOwnershipTimeLockSet")[0]
+    pending = mock_ownership.pendingOwnershipTimeLock()
+    assert set_event.newTimeLock == min_timelock
+    assert set_event.initiatedBlock == pending.initiatedBlock
+    assert set_event.confirmBlock == pending.confirmBlock
+    assert set_event.currentOwner == bob
+
+    with boa.reverts("pending time lock already exists"):
+        mock_ownership.setOwnershipTimeLock(min_timelock, sender=bob)
+
+    with boa.reverts("no perms"):
+        mock_ownership.cancelPendingOwnershipTimeLock(sender=charlie)
+
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+    mock_ownership.cancelPendingOwnershipTimeLock(sender=charlie)
+    cancel_event = filter_logs(mock_ownership, "PendingOwnershipTimeLockCancelled")[0]
+    assert mock_ownership.pendingOwnershipTimeLock().confirmBlock == 0
+    assert cancel_event.newTimeLock == min_timelock
+    assert cancel_event.confirmBlock == pending.confirmBlock
+    assert cancel_event.cancelledBy == charlie
+
+
+def test_pending_ownership_timelock_confirm_event(mock_ownership, bob, fork):
+    min_timelock = PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"]
+    new_timelock = min_timelock + 100
+    mock_ownership.setOwnershipTimeLock(new_timelock, sender=bob)
+    mock_ownership.setOwnershipTimeLock(min_timelock, sender=bob)
+    pending = mock_ownership.pendingOwnershipTimeLock()
+
+    boa.env.time_travel(blocks=pending.confirmBlock - boa.env.evm.patch.block_number)
+    mock_ownership.confirmPendingOwnershipTimeLock(sender=bob)
+
+    event = filter_logs(mock_ownership, "PendingOwnershipTimeLockConfirmed")[0]
+    assert event.oldTimeLock == new_timelock
+    assert event.newTimeLock == min_timelock
+    assert event.initiatedBlock == pending.initiatedBlock
+    assert event.confirmBlock == pending.confirmBlock
+    assert event.confirmedBy == bob
+
+
+def test_set_ownership_timelock_same_value_preserves_pending_decrease(mock_ownership, bob, fork):
+    min_timelock = PARAMS[fork]["UNDY_HQ_MIN_GOV_TIMELOCK"]
+    new_timelock = min_timelock + 100
+    mock_ownership.setOwnershipTimeLock(new_timelock, sender=bob)
+    mock_ownership.setOwnershipTimeLock(min_timelock, sender=bob)
+    pending_before = mock_ownership.pendingOwnershipTimeLock()
+
+    mock_ownership.setOwnershipTimeLock(new_timelock, sender=bob)
+
+    pending_after = mock_ownership.pendingOwnershipTimeLock()
+    assert mock_ownership.ownershipTimeLock() == new_timelock
+    assert pending_after.newTimeLock == pending_before.newTimeLock
+    assert pending_after.initiatedBlock == pending_before.initiatedBlock
+    assert pending_after.confirmBlock == pending_before.confirmBlock
+    assert pending_after.currentOwner == pending_before.currentOwner
+    assert filter_logs(mock_ownership, "PendingOwnershipTimeLockCancelled") == []
 
 
 def test_set_ownership_timelock_no_permissions(mock_ownership, alice, fork):

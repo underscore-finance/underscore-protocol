@@ -31,7 +31,7 @@ def getAllFTokens() -> DynArray[address, MAX_VAL]:
 # compound v3
 
 
-@view
+@pure
 @external
 def factory(_asset: address) -> address:
     return _asset
@@ -40,13 +40,13 @@ def factory(_asset: address) -> address:
 # euler 
 
 
-@view
+@pure
 @external
 def isValidDeployment(_vault: address) -> bool:
     return True
 
 
-@view
+@pure
 @external
 def isProxy(_vault: address) -> bool:
     return True
@@ -55,7 +55,7 @@ def isProxy(_vault: address) -> bool:
 # morpho
 
 
-@view
+@pure
 @external
 def isMetaMorpho(_vault: address) -> bool:
     return True
@@ -64,13 +64,13 @@ def isMetaMorpho(_vault: address) -> bool:
 # sky
 
 
-@view
+@pure
 @external
 def usds() -> address:
     return empty(address)
 
 
-@view
+@pure
 @external
 def susds() -> address:
     return empty(address)

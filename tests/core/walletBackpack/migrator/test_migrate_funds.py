@@ -6,6 +6,53 @@ from contracts.core.userWallet import UserWallet, UserWalletConfig
 from conf_utils import filter_logs
 
 
+def stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, *, sender):
+    restrictive = createChequeSettings(
+        _maxNumActiveCheques=2,
+        _maxChequeUsdValue=300 * EIGHTEEN_DECIMALS,
+        _instantUsdThreshold=25 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *restrictive, sender=sender)
+
+    widening = createChequeSettings(
+        _maxNumActiveCheques=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *widening, sender=sender)
+
+
+def stage_pending_time_lock(user_wallet_config, *, sender):
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=sender)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=sender)
+
+
+def stage_pending_ownership_time_lock(user_wallet_config, *, sender):
+    current_time_lock = user_wallet_config.ownershipTimeLock()
+    user_wallet_config.setOwnershipTimeLock(current_time_lock + 1, sender=sender)
+    user_wallet_config.setOwnershipTimeLock(current_time_lock, sender=sender)
+
+
+def ready_pending_migration(migrator, from_wallet, to_wallet, *, sender):
+    migrator.initiateMigration(from_wallet, to_wallet, sender=sender)
+    pending = UserWalletConfig.at(from_wallet.walletConfig()).pendingMigration()
+    blocks = pending.confirmBlock - boa.env.evm.patch.block_number
+    if blocks > 0:
+        boa.env.time_travel(blocks=blocks)
+    return pending
+
+
 ########################
 # Migration Validation #
 ########################
@@ -22,6 +69,202 @@ def test_can_migrate_funds_valid(migrator, user_wallet, hatchery, bob):
     assert migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
 
 
+def test_self_migration_is_rejected(migrator, user_wallet, bob):
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, user_wallet, bob)
+
+    with boa.reverts("invalid migration"):
+        migrator.initiateMigration(user_wallet, user_wallet, sender=bob)
+
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, user_wallet, sender=bob)
+
+    with boa.reverts("invalid migration"):
+        migrator.migrateAll(user_wallet, user_wallet, sender=bob)
+
+
+def test_initiate_migration_rejects_empty_destination(migrator, user_wallet, bob):
+    with boa.reverts("invalid migration"):
+        migrator.initiateMigration(user_wallet, ZERO_ADDRESS, sender=bob)
+
+
+def test_initiate_migration_rejects_existing_pending(migrator, user_wallet, hatchery, bob):
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    other_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    migrator.initiateMigration(user_wallet, to_wallet, sender=bob)
+    with boa.reverts("pending migration exists"):
+        migrator.initiateMigration(user_wallet, other_wallet, sender=bob)
+
+
+def test_cancel_pending_migration_rejects_non_user_wallet(migrator, alice, bob):
+    with boa.reverts("invalid user wallet"):
+        migrator.cancelPendingMigration(alice, sender=bob)
+
+
+def test_cancel_pending_migration_rejects_no_pending(migrator, user_wallet, bob):
+    with boa.reverts("no pending migration"):
+        migrator.cancelPendingMigration(user_wallet, sender=bob)
+
+
+def test_migrate_funds_requires_pending_migration_when_instant_disabled(
+    migrator, user_wallet, hatchery, bob, alpha_token, prepareAssetForMigration
+):
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    prepareAssetForMigration(user_wallet, alpha_token, 100 * EIGHTEEN_DECIMALS)
+
+    assert migrator.instantMigrationEnabled() is False
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
+
+
+def test_migrate_funds_reverts_before_confirm_block(
+    migrator, user_wallet, hatchery, bob, alpha_token, prepareAssetForMigration
+):
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    prepareAssetForMigration(user_wallet, alpha_token, 100 * EIGHTEEN_DECIMALS)
+
+    migrator.initiateMigration(user_wallet, to_wallet, sender=bob)
+    pending = UserWalletConfig.at(user_wallet.walletConfig()).pendingMigration()
+    assert boa.env.evm.patch.block_number < pending.confirmBlock
+
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
+
+
+def test_migrate_funds_exact_confirm_block_succeeds_and_clears_pending(
+    migrator, user_wallet, hatchery, bob, alpha_token, prepareAssetForMigration
+):
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    prepareAssetForMigration(user_wallet, alpha_token, 100 * EIGHTEEN_DECIMALS)
+
+    pending = ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
+    assert boa.env.evm.patch.block_number == pending.confirmBlock
+
+    assert migrator.migrateFunds(user_wallet, to_wallet, sender=bob) == 1
+    assert UserWalletConfig.at(user_wallet.walletConfig()).pendingMigration().confirmBlock == 0
+
+    event = filter_logs(migrator, "PendingMigrationConfirmed")[0]
+    assert event.fromWallet == user_wallet.address
+    assert event.toWallet == to_wallet.address
+    assert event.initiatedBlock == pending.initiatedBlock
+    assert event.confirmBlock == pending.confirmBlock
+
+
+def test_migrate_funds_destination_mismatch_reverts(migrator, user_wallet, hatchery, bob, alpha_token, prepareAssetForMigration):
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    other_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    prepareAssetForMigration(user_wallet, alpha_token, 100 * EIGHTEEN_DECIMALS)
+
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, other_wallet, sender=bob)
+
+
+def test_migrate_funds_rejects_destination_migrator_mismatch(
+    migrator, hatchery, bob, cheque_book, switchboard_alpha, alpha_token, prepareAssetForMigration
+):
+    """Standalone funds migration requires the destination config to trust this migrator."""
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    prepareAssetForMigration(from_wallet, alpha_token, 100 * EIGHTEEN_DECIMALS)
+
+    assert migrator.setInstantMigrationEnabled(True, sender=switchboard_alpha.address)
+    UserWalletConfig.at(to_wallet.walletConfig()).setMigrator(cheque_book.address, sender=bob)
+
+    assert not migrator.canMigrateFundsToNewWallet(from_wallet, to_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(from_wallet, to_wallet, sender=bob)
+
+
+def test_migrate_funds_rejects_empty_destination_migrator(migrator, hatchery, bob):
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_config = UserWalletConfig.at(to_wallet.walletConfig())
+    to_config.eval("self.migrator = empty(address)")
+
+    assert to_config.migrator() == ZERO_ADDRESS
+    assert not migrator.canMigrateFundsToNewWallet(from_wallet, to_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.initiateMigration(from_wallet, to_wallet, sender=bob)
+
+
+def test_owner_change_invalidates_pending_migration(migrator, user_wallet, hatchery, bob, alice, alpha_token, prepareAssetForMigration):
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    prepareAssetForMigration(user_wallet, alpha_token, 100 * EIGHTEEN_DECIMALS)
+
+    pending = ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    wallet_config.changeOwnership(alice, sender=bob)
+    boa.env.time_travel(blocks=wallet_config.timeLock())
+    wallet_config.confirmOwnershipChange(sender=alice)
+    assert boa.env.evm.patch.block_number >= pending.confirmBlock
+
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, to_wallet, sender=alice)
+
+
+def test_cancel_pending_migration_access_controls_and_event(
+    migrator, user_wallet, hatchery, bob, alice, charlie, mission_control, switchboard_alpha
+):
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    migrator.initiateMigration(user_wallet, to_wallet, sender=bob)
+    initiated_event = filter_logs(migrator, "PendingMigrationInitiated")[0]
+    assert initiated_event.fromWallet == user_wallet.address
+    assert initiated_event.toWallet == to_wallet.address
+    assert initiated_event.currentOwner == bob
+
+    with boa.reverts("no perms"):
+        migrator.cancelPendingMigration(user_wallet, sender=alice)
+
+    pending = UserWalletConfig.at(user_wallet.walletConfig()).pendingMigration()
+    assert initiated_event.initiatedBlock == pending.initiatedBlock
+    assert initiated_event.confirmBlock == pending.confirmBlock
+    assert migrator.cancelPendingMigration(user_wallet, sender=bob)
+    assert UserWalletConfig.at(user_wallet.walletConfig()).pendingMigration().confirmBlock == 0
+    event = filter_logs(migrator, "PendingMigrationCancelled")[0]
+    assert event.fromWallet == user_wallet.address
+    assert event.toWallet == to_wallet.address
+    assert event.cancelledBy == bob
+    assert event.confirmBlock == pending.confirmBlock
+
+    migrator.initiateMigration(user_wallet, to_wallet, sender=bob)
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+    assert migrator.cancelPendingMigration(user_wallet, sender=charlie)
+
+
+def test_instant_migration_enabled_bypass_and_access_control(
+    migrator, user_wallet, hatchery, bob, switchboard_alpha, alpha_token, prepareAssetForMigration
+):
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    prepareAssetForMigration(user_wallet, alpha_token, 100 * EIGHTEEN_DECIMALS)
+
+    with boa.reverts("no perms"):
+        migrator.setInstantMigrationEnabled(True, sender=bob)
+
+    assert migrator.setInstantMigrationEnabled(True, sender=switchboard_alpha.address)
+    event = filter_logs(migrator, "InstantMigrationEnabledSet")[0]
+    assert event.isEnabled is True
+    assert event.caller == switchboard_alpha.address
+
+    assert migrator.migrateFunds(user_wallet, to_wallet, sender=bob) == 1
+    assert UserWalletConfig.at(user_wallet.walletConfig()).pendingMigration().confirmBlock == 0
+
+
+def test_initiate_migration_blocked_when_instant_enabled(migrator, user_wallet, hatchery, bob, switchboard_alpha):
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+
+    assert migrator.setInstantMigrationEnabled(True, sender=switchboard_alpha.address)
+    with boa.reverts("instant migration enabled"):
+        migrator.initiateMigration(user_wallet, to_wallet, sender=bob)
+
+    assert wallet_config.pendingMigration().confirmBlock == 0
+
+    assert migrator.setInstantMigrationEnabled(False, sender=switchboard_alpha.address)
+    assert migrator.initiateMigration(user_wallet, to_wallet, sender=bob)
+    assert wallet_config.pendingMigration().toWallet == to_wallet.address
+
+
 # Test wallet validation failures
 def test_cannot_migrate_non_underscore_wallets(migrator, user_wallet, bob, alice):
     """Test that migration fails if either wallet is not an Underscore wallet"""
@@ -36,13 +279,38 @@ def test_cannot_migrate_non_underscore_wallets(migrator, user_wallet, bob, alice
 
 
 # Test ownership validation
-def test_cannot_migrate_if_not_owner(migrator, user_wallet, hatchery, bob, alice):
-    """Test that only the owner can initiate migration"""
+def test_cannot_migrate_if_not_owner_or_switchboard(migrator, user_wallet, hatchery, bob, alice):
+    """Test that arbitrary non-owners cannot initiate migration"""
     # Create new wallet owned by bob
     new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     
     # Alice (not owner) cannot migrate bob's wallet
     assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, alice)
+
+
+def test_switchboard_can_initiate_and_migrate_funds(
+    migrator, user_wallet, hatchery, bob, switchboard_alpha, alpha_token, prepareAssetForMigration
+):
+    """Test that Switchboard can execute migration for same-owner wallets"""
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    prepareAssetForMigration(user_wallet, alpha_token, 100 * EIGHTEEN_DECIMALS)
+
+    assert migrator.canMigrateFundsToNewWallet(user_wallet, to_wallet, switchboard_alpha.address)
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=switchboard_alpha.address)
+    assert migrator.migrateFunds(user_wallet, to_wallet, sender=switchboard_alpha.address) == 1
+
+    assert alpha_token.balanceOf(user_wallet) == 0
+    assert alpha_token.balanceOf(to_wallet) == 100 * EIGHTEEN_DECIMALS
+
+
+def test_security_signer_cannot_execute_funds_migration(
+    migrator, user_wallet, hatchery, bob, charlie, mission_control, switchboard_alpha
+):
+    """Test that security signers can cancel but cannot execute migrations"""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, charlie)
 
 
 def test_cannot_migrate_with_different_owners(migrator, user_wallet, hatchery, bob, alice):
@@ -72,6 +340,23 @@ def test_cannot_migrate_frozen_wallets(migrator, user_wallet, user_wallet_config
     assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
 
 
+def test_cannot_migrate_ejected_wallets(migrator, user_wallet, user_wallet_config, hatchery, bob, switchboard_alpha):
+    """Eject mode blocks funds migration from either side of the pair."""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    new_wallet_config = UserWalletConfig.at(new_wallet.walletConfig())
+
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.initiateMigration(user_wallet, new_wallet, sender=bob)
+
+    user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
+    new_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.initiateMigration(user_wallet, new_wallet, sender=bob)
+
+
 # Test pending ownership change restriction
 def test_cannot_migrate_with_pending_owner_change(migrator, user_wallet, user_wallet_config, hatchery, bob, alice):
     """Test that wallets with pending ownership changes cannot be migrated"""
@@ -98,6 +383,71 @@ def test_cannot_migrate_with_pending_owner_change(migrator, user_wallet, user_wa
     # Test migrateFunds fails with proper revert
     with boa.reverts("invalid migration"):
         migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+
+
+def test_cannot_migrate_with_pending_cheque_settings(
+    migrator, user_wallet, hatchery, bob, cheque_book, createChequeSettings
+):
+    """Funds migration should be blocked if either wallet has pending cheque settings"""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+
+    stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, sender=bob)
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address)
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+    stage_pending_cheque_settings(cheque_book, new_wallet, createChequeSettings, sender=bob)
+    assert cheque_book.hasPendingChequeSettings(new_wallet.address)
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+    cheque_book.cancelPendingChequeSettings(new_wallet.address, sender=bob)
+
+
+def test_cannot_migrate_with_pending_time_lock(migrator, user_wallet, user_wallet_config, hatchery, bob):
+    """Funds migration should be blocked if either wallet has a pending time lock change"""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    new_wallet_config = UserWalletConfig.at(new_wallet.walletConfig())
+
+    stage_pending_time_lock(user_wallet_config, sender=bob)
+    assert user_wallet_config.pendingTimeLock().confirmBlock != 0
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+    user_wallet_config.cancelPendingTimeLock(sender=bob)
+    assert migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+
+    stage_pending_time_lock(new_wallet_config, sender=bob)
+    assert new_wallet_config.pendingTimeLock().confirmBlock != 0
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+    new_wallet_config.cancelPendingTimeLock(sender=bob)
+    assert migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+
+
+def test_cannot_migrate_with_pending_ownership_time_lock(migrator, user_wallet, user_wallet_config, hatchery, bob):
+    """Funds migration should be blocked if either wallet has a pending ownership time lock change"""
+    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    new_wallet_config = UserWalletConfig.at(new_wallet.walletConfig())
+
+    stage_pending_ownership_time_lock(user_wallet_config, sender=bob)
+    assert user_wallet_config.pendingOwnershipTimeLock().confirmBlock != 0
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+    user_wallet_config.cancelPendingOwnershipTimeLock(sender=bob)
+    assert migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+
+    stage_pending_ownership_time_lock(new_wallet_config, sender=bob)
+    assert new_wallet_config.pendingOwnershipTimeLock().confirmBlock != 0
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
+    with boa.reverts("invalid migration"):
+        migrator.migrateFunds(user_wallet, new_wallet, sender=bob)
+    new_wallet_config.cancelPendingOwnershipTimeLock(sender=bob)
+    assert migrator.canMigrateFundsToNewWallet(user_wallet, new_wallet, bob)
 
 
 # Test group ID restriction
@@ -143,7 +493,7 @@ def test_cannot_migrate_with_whitelisted_addresses(migrator, user_wallet, hatche
 
 # Test cheque restrictions
 def test_cannot_migrate_with_active_cheques(migrator, hatchery, bob, alice, user_wallet, user_wallet_config, cheque_book, alpha_token, mock_ripe):
-    """Test that toWallet cannot have active cheques"""
+    """Test that source and destination wallets cannot have active cheques"""
     ONE_WEEK_IN_BLOCKS = 7 * ONE_DAY_IN_BLOCKS
 
     # Get timeLock value
@@ -198,8 +548,12 @@ def test_cannot_migrate_with_active_cheques(migrator, hatchery, bob, alice, user
     # Create a new source wallet
     from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
 
-    # Cannot migrate from new wallet to user_wallet (which has active cheques)
+    # Cannot migrate to user_wallet (which has active cheques)
     assert not migrator.canMigrateFundsToNewWallet(from_wallet, user_wallet, bob)
+
+    # Cannot migrate from user_wallet (which has active cheques)
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    assert not migrator.canMigrateFundsToNewWallet(user_wallet, to_wallet, bob)
 
 
 # Test manager restrictions - no starting agent
@@ -285,6 +639,7 @@ def test_migration_bundle_data(migrator, user_wallet, user_wallet_config, bob):
     # Verify bundle data matches wallet config
     assert bundle.owner == bob
     assert bundle.isFrozen == user_wallet_config.isFrozen()
+    assert bundle.inEjectMode == user_wallet_config.inEjectMode()
     assert bundle.numPayees == user_wallet_config.numPayees()
     assert bundle.numWhitelisted == user_wallet_config.numWhitelisted()
     assert bundle.numManagers == user_wallet_config.numManagers()
@@ -338,6 +693,7 @@ def test_migrate_funds_no_assets(migrator, hatchery, bob):
     to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
     
     # Should fail because from_wallet has no assets (only ETH at index 0)
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
     with boa.reverts("no assets to migrate"):
         migrator.migrateFunds(from_wallet, to_wallet, sender=bob)
 
@@ -359,12 +715,18 @@ def test_migrate_funds_single_asset(migrator, user_wallet, hatchery, bob, alpha_
     initial_usd_value = asset_data.usdValue
     
     # Migrate funds
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
     num_migrated = migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
     
     # Verify migration results
     assert num_migrated == 1
     assert alpha_token.balanceOf(user_wallet) == 0
     assert alpha_token.balanceOf(to_wallet) == amount
+    dest_data = to_wallet.assetData(alpha_token)
+    assert to_wallet.numAssets() == 2
+    assert to_wallet.indexOfAsset(alpha_token) != 0
+    assert dest_data.assetBalance == amount
+    assert dest_data.usdValue == initial_usd_value
     
     # Check event
     event = filter_logs(migrator, "FundsMigrated")[0]
@@ -389,6 +751,7 @@ def test_migrate_funds_multiple_assets(migrator, user_wallet, hatchery, bob, alp
     expected_total_usd = alpha_usd + bravo_usd
     
     # Migrate funds
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
     num_migrated = migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
     
     # Verify migration results
@@ -397,11 +760,39 @@ def test_migrate_funds_multiple_assets(migrator, user_wallet, hatchery, bob, alp
     assert bravo_token.balanceOf(user_wallet) == 0
     assert alpha_token.balanceOf(to_wallet) == alpha_amount
     assert bravo_token.balanceOf(to_wallet) == bravo_amount
+    assert to_wallet.numAssets() == 3
+    assert to_wallet.indexOfAsset(alpha_token) != 0
+    assert to_wallet.indexOfAsset(bravo_token) != 0
+    assert to_wallet.assetData(alpha_token).assetBalance == alpha_amount
+    assert to_wallet.assetData(bravo_token).assetBalance == bravo_amount
     
     # Check event
     event = filter_logs(migrator, "FundsMigrated")[0]
     assert event.numAssetsMigrated == 2
     assert event.totalUsdValue == expected_total_usd
+
+
+def test_migrate_funds_destination_existing_asset_updates_without_duplicate(
+    migrator, hatchery, bob, alpha_token, prepareAssetForMigration
+):
+    """Migrating an asset already held by the destination updates aggregate asset data."""
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    source_amount = prepareAssetForMigration(from_wallet, alpha_token, 60 * EIGHTEEN_DECIMALS)
+    existing_amount = prepareAssetForMigration(to_wallet, alpha_token, 40 * EIGHTEEN_DECIMALS)
+    original_num_assets = to_wallet.numAssets()
+    original_index = to_wallet.indexOfAsset(alpha_token)
+
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    assert migrator.migrateFunds(from_wallet, to_wallet, sender=bob) == 1
+
+    total_amount = source_amount + existing_amount
+    dest_data = to_wallet.assetData(alpha_token)
+    assert to_wallet.numAssets() == original_num_assets
+    assert to_wallet.indexOfAsset(alpha_token) == original_index
+    assert alpha_token.balanceOf(to_wallet) == total_amount
+    assert dest_data.assetBalance == total_amount
+    assert dest_data.usdValue == total_amount * 2
 
 
 def test_migrate_funds_skip_zero_balance(migrator, user_wallet, hatchery, bob, alpha_token, bravo_token, charlie_token, bravo_token_whale, charlie_token_whale, prepareAssetForMigration):
@@ -425,6 +816,7 @@ def test_migrate_funds_skip_zero_balance(migrator, user_wallet, hatchery, bob, a
     assert charlie_token.balanceOf(user_wallet) == charlie_amount
     
     # Migrate funds
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
     num_migrated = migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
     
     # Should only migrate 2 assets (alpha and charlie, not bravo)
@@ -449,6 +841,7 @@ def test_migrate_funds_preserves_usd_values(migrator, user_wallet, hatchery, bob
     expected_total_usd = alpha_data.usdValue + bravo_data.usdValue
     
     # Migrate funds
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
     migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
     
     # Check event USD value matches sum of individual asset USD values
@@ -493,6 +886,7 @@ def test_migrate_funds_deregisters_assets_from_source_wallet(migrator, user_wall
     assert user_wallet.indexOfAsset(bravo_token) == 2
     
     # Migrate funds
+    ready_pending_migration(migrator, user_wallet, to_wallet, sender=bob)
     num_migrated = migrator.migrateFunds(user_wallet, to_wallet, sender=bob)
     assert num_migrated == 2
     
@@ -513,4 +907,63 @@ def test_migrate_funds_deregisters_assets_from_source_wallet(migrator, user_wall
     assert user_wallet.assets(0) == ZERO_ADDRESS  # ETH placeholder
 
 
-    
+def test_migrate_funds_deregistration_cap_leaves_excess_assets_tracked(
+    migrator, hatchery, bob, governance, prepareAssetForMigration
+):
+    """Only the first MAX_DEREGISTER_ASSETS migrated assets are deregistered."""
+    from contracts.mock import MockErc20
+
+    from_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    to_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    tokens = []
+
+    for i in range(26):
+        token = MockErc20.deploy(governance, f"Migration Token {i}", f"MIG{i}", 18, 1_000_000)
+        amount = (i + 1) * EIGHTEEN_DECIMALS
+        prepareAssetForMigration(from_wallet, token, amount, governance.address)
+        tokens.append((token, amount))
+
+    assert from_wallet.numAssets() == 27
+    ready_pending_migration(migrator, from_wallet, to_wallet, sender=bob)
+    assert migrator.migrateFunds(from_wallet, to_wallet, sender=bob) == 26
+
+    for token, amount in tokens:
+        assert token.balanceOf(from_wallet) == 0
+        assert token.balanceOf(to_wallet) == amount
+
+    for token, _ in tokens[:25]:
+        assert from_wallet.indexOfAsset(token) == 0
+
+    last_token = tokens[-1][0]
+    assert from_wallet.indexOfAsset(last_token) != 0
+    assert from_wallet.numAssets() == 2
+
+
+def test_migrator_can_update_asset_data(
+    migrator, user_wallet, alpha_token, alpha_token_whale, mock_ripe
+):
+    """The configured migrator can refresh wallet asset data directly."""
+    amount = 10 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, 3 * EIGHTEEN_DECIMALS)
+    alpha_token.transfer(user_wallet, amount, sender=alpha_token_whale)
+
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    wallet_config.updateAssetData(0, alpha_token, False, sender=migrator.address)
+
+    data = user_wallet.assetData(alpha_token)
+    assert user_wallet.indexOfAsset(alpha_token) != 0
+    assert data.assetBalance == amount
+    assert data.usdValue == amount * 3
+
+
+def test_unauthorized_caller_cannot_update_asset_data(
+    user_wallet, alpha_token, alpha_token_whale, mock_ripe, alice
+):
+    """Non-switchboard, non-migrator callers still need security permissions."""
+    amount = 10 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token, 3 * EIGHTEEN_DECIMALS)
+    alpha_token.transfer(user_wallet, amount, sender=alpha_token_whale)
+
+    wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
+    with boa.reverts("no perms"):
+        wallet_config.updateAssetData(0, alpha_token, False, sender=alice)

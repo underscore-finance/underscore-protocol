@@ -17,6 +17,7 @@ flag BackpackType:
     WALLET_PAYMASTER
     WALLET_CHEQUE_BOOK
     WALLET_MIGRATOR
+    WALLET_ACTION_DATA_PROVIDER
 
 # payees
 
@@ -51,25 +52,25 @@ struct GlobalPayeeSettings:
     txCooldownBlocks: uint256
     failOnZeroPrice: bool
     usdLimits: PayeeLimits
-    canPayOwner: bool
     canPull: bool
+
+struct PendingGlobalPayeeSettings:
+    settings: GlobalPayeeSettings
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
 
 struct PayeeLimits:
     perTxCap: uint256
     perPeriodCap: uint256
     lifetimeCap: uint256
 
-struct PendingPayee:
-    settings: PayeeSettings
-    initiatedBlock: uint256
-    confirmBlock: uint256
-    currentOwner: address
-
 struct PayeeManagementBundle:
     owner: address
     wallet: address
     isRegisteredPayee: bool
     isWhitelisted: bool
+    isManager: bool
     isExistingCheque: bool
     payeeSettings: PayeeSettings
     globalPayeeSettings: GlobalPayeeSettings
@@ -78,7 +79,6 @@ struct PayeeManagementBundle:
 
 struct RecipientConfigBundle:
     isWhitelisted: bool
-    isOwner: bool
     isPayee: bool
     config: PayeeSettings
     globalConfig: GlobalPayeeSettings
@@ -91,6 +91,7 @@ struct WhitelistConfigBundle:
     pendingWhitelist: PendingWhitelist
     isExistingPayee: bool
     isExistingCheque: bool
+    isExistingManager: bool
     timeLock: uint256
     walletConfig: address
     isManager: bool
@@ -99,6 +100,30 @@ struct WhitelistConfigBundle:
     globalWhitelistPerms: WhitelistPerms
 
 struct PendingWhitelist:
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
+
+struct PendingTimeLock:
+    newTimeLock: uint256
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
+
+struct InstantActionSettings:
+    canInstantAddManager: bool
+    canInstantAddPayee: bool
+    canInstantSetGlobalPayeeSettings: bool
+    canInstantSetChequeSettings: bool
+
+struct PendingInstantActionSettings:
+    settings: InstantActionSettings
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
+
+struct PendingMigration:
+    toWallet: address
     initiatedBlock: uint256
     confirmBlock: uint256
     currentOwner: address
@@ -136,6 +161,12 @@ struct ChequeSettings:
     canManagerPay: bool
     canBePulled: bool
 
+struct PendingChequeSettings:
+    settings: ChequeSettings
+    initiatedBlock: uint256
+    confirmBlock: uint256
+    currentOwner: address
+
 struct ChequeData:
     numChequesPaidInPeriod: uint256
     totalUsdValuePaidInPeriod: uint256
@@ -155,6 +186,7 @@ struct ChequeManagementBundle:
     owner: address
     isRecipientOnWhitelist: bool
     isCreatorManager: bool
+    isRecipientManager: bool
     managerSettings: ManagerSettings
     chequeSettings: ChequeSettings
     chequeData: ChequeData
@@ -162,6 +194,7 @@ struct ChequeManagementBundle:
     numActiveCheques: uint256
     isExistingPayee: bool
     timeLock: uint256
+    existingCreator: address
 
 # managers
 
@@ -220,7 +253,6 @@ struct SwapPerms:
     maxSlippage: uint256
 
 struct WhitelistPerms:
-    canAddPending: bool
     canConfirm: bool
     canCancel: bool
     canRemove: bool
@@ -228,7 +260,6 @@ struct WhitelistPerms:
 struct TransferPerms:
     canTransfer: bool
     canCreateCheque: bool
-    canAddPendingPayee: bool
     allowedPayees: DynArray[address, MAX_ALLOWED_PAYEES]
 
 struct ManagerConfigBundle:
@@ -242,6 +273,8 @@ struct ManagerConfigBundle:
 struct ManagerSettingsBundle:
     owner: address
     isManager: bool
+    isPayee: bool
+    isWhitelisted: bool
     timeLock: uint256
     walletConfig: address
     legoBook: address
@@ -252,6 +285,7 @@ struct ManagerSettingsBundle:
 struct MigrationConfigBundle:
     owner: address
     isFrozen: bool
+    inEjectMode: bool
     numPayees: uint256
     numWhitelisted: uint256
     numManagers: uint256

@@ -8,6 +8,15 @@ __pycache__
 # dev environment
 .vscode
 
+# Claude Code / Claude artifacts
+.claude/
+.claude
+**/.claude/
+.claude.json
+.claude-*
+CLAUDE.md
+CLAUDE.local.md
+
 .DS_Store
 
 out/

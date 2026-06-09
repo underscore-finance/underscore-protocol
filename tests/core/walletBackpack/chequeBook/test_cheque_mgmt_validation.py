@@ -1427,7 +1427,6 @@ def _create_global_manager_settings_for_can_create(
         _transferPerms=createTransferPerms(
             _canTransfer=True,
             _canCreateCheque=_can_create_cheque,
-            _canAddPendingPayee=True,
             _allowedPayees=[],
         ),
         _allowedAssets=_allowed_assets,
@@ -1441,7 +1440,7 @@ def test_canCreateCheque_owner_can_always_create(
     manager_settings = createManagerSettings(
         _startBlock=boa.env.evm.patch.block_number + 1000,
         _expiryBlock=0,
-        _transferPerms=(False, False, False, []),
+        _transferPerms=(False, False, []),
         _allowedAssets=[bravo_token.address],
     )
     global_manager_settings = _create_global_manager_settings_for_can_create(
@@ -1488,7 +1487,7 @@ def test_canCreateCheque_manager_cannot_create_when_globally_disabled(
 ):
     """Test that managers cannot create cheques when globally disabled"""
     manager_settings = createManagerSettings(
-        _transferPerms=(True, True, True, [])
+        _transferPerms=(True, True, [])
     )
     global_manager_settings = _create_global_manager_settings_for_can_create(
         createGlobalManagerSettings,
@@ -1511,7 +1510,7 @@ def test_canCreateCheque_manager_cannot_create_when_global_manager_disabled(
 ):
     """Test that managers cannot create cheques when global manager settings disable it"""
     manager_settings = createManagerSettings(
-        _transferPerms=(True, True, True, [])
+        _transferPerms=(True, True, [])
     )
     global_manager_settings = _create_global_manager_settings_for_can_create(
         createGlobalManagerSettings,
@@ -1537,7 +1536,6 @@ def test_canCreateCheque_manager_cannot_create_without_permission(
     transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=False,
-        _canAddPendingPayee=True,
         _allowedPayees=[]
     )
     manager_settings = createManagerSettings(
@@ -1566,7 +1564,6 @@ def test_canCreateCheque_manager_can_create_with_permission(
     transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=True,
-        _canAddPendingPayee=True,
         _allowedPayees=[]
     )
     manager_settings = createManagerSettings(
@@ -1834,7 +1831,6 @@ def test_canCreateCheque_complex_scenario_all_conditions_met(
     transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=True,
-        _canAddPendingPayee=True,
         _allowedPayees=[]
     )
     manager_settings = createManagerSettings(

@@ -40,6 +40,11 @@ struct AgentConfig:
     startingAgent: address
     startingAgentActivationLength: uint256
 
+flag StarterAgentType:
+    PROD
+    STAGING
+    DEV
+
 struct ManagerConfig:
     managerPeriod: uint256
     managerActivationLength: uint256

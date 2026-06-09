@@ -60,13 +60,40 @@ class CONFIG_ACTION_TYPE(IntFlag):
     STARTER_AGENT_PARAMS = 128  # 2^7
     MANAGER_CONFIG = 256  # 2^8
     PAYEE_CONFIG = 512  # 2^9
-    CAN_PERFORM_SECURITY_ACTION = 1024  # 2^10
-    ASSET_CONFIG = 2048  # 2^11
-    ASSET_TX_FEES = 4096  # 2^12
-    ASSET_AMBASSADOR_REV_SHARE = 8192  # 2^13
-    ASSET_YIELD_CONFIG = 16384  # 2^14
-    IS_STABLECOIN = 32768  # 2^15
-    AGENT_WRAPPER_SENDER = 65536  # 2^16
+    ASSET_CONFIG = 1024  # 2^10
+    ASSET_TX_FEES = 2048  # 2^11
+    ASSET_AMBASSADOR_REV_SHARE = 4096  # 2^12
+    ASSET_YIELD_CONFIG = 8192  # 2^13
+    IS_STABLECOIN = 16384  # 2^14
+    AGENT_WRAPPER_SENDER = 32768  # 2^15
+    CHEQUE_CONFIG = 65536  # 2^16
+
+
+# Action types for SwitchboardBravo configuration operations.
+# These match the Vyper flag enum (powers of 2).
+class BRAVO_ACTION_TYPE(IntFlag):
+    RECOVER_FUNDS = 1  # 2^0
+    RECOVER_FUNDS_MANY = 2  # 2^1
+    RECOVER_NFT = 4  # 2^2
+    LOOT_ADJUST = 8  # 2^3
+    RECOVER_DEPOSIT_REWARDS = 16  # 2^4
+    SET_EJECTION_MODE = 32  # 2^5
+    CAN_PERFORM_SECURITY_ACTION = 64  # 2^6
+    ENABLE_INSTANT_MIGRATION = 128  # 2^7
+    ENABLE_CAN_INSTANT_ADD_MANAGER = 256  # 2^8
+    ENABLE_CAN_INSTANT_ADD_PAYEE = 512  # 2^9
+    ENABLE_CAN_INSTANT_SET_GLOBAL_PAYEE_SETTINGS = 1024  # 2^10
+    ENABLE_CAN_INSTANT_SET_CHEQUE_SETTINGS = 2048  # 2^11
+    RIPE_REWARDS_CONFIG = 4096  # 2^12
+    ENABLE_HATCHERY_DEFAULT_INSTANT_SETTINGS = 8192  # 2^13
+
+
+# Starter agent selectors for Hatchery wallet creation.
+# These match the Vyper flag enum (powers of 2).
+class STARTER_AGENT_TYPE(IntFlag):
+    PROD = 1  # 2^0
+    STAGING = 2  # 2^1
+    DEV = 4  # 2^2
 
 
 # Backpack types for WalletBackpack
@@ -78,3 +105,4 @@ class BACKPACK_TYPE(IntFlag):
     WALLET_PAYMASTER = 8  # 2^3
     WALLET_CHEQUE_BOOK = 16  # 2^4
     WALLET_MIGRATOR = 32  # 2^5
+    WALLET_ACTION_DATA_PROVIDER = 64  # 2^6

@@ -472,7 +472,7 @@ def _getLatestSnapshot(
     )
 
 
-@view
+@pure
 @internal
 def _throttleUpside(_newValue: uint256, _prevValue: uint256, _maxUpside: uint256) -> uint256:
     if _maxUpside == 0 or _prevValue == 0 or _newValue == 0:
@@ -497,13 +497,13 @@ def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig):
     )
 
 
-@view
+@pure
 @external
 def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool:
     return self._isValidPriceConfig(_config)
 
 
-@view
+@pure
 @internal
 def _isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool:
     if _config.minSnapshotDelay > ONE_WEEK_SECONDS:

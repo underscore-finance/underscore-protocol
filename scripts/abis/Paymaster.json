@@ -244,11 +244,6 @@
         "indexed": false
       },
       {
-        "name": "canPayOwner",
-        "type": "bool",
-        "indexed": false
-      },
-      {
         "name": "canPull",
         "type": "bool",
         "indexed": false
@@ -273,7 +268,7 @@
     "type": "event"
   },
   {
-    "name": "PayeePending",
+    "name": "PendingGlobalPayeeSettingsSet",
     "inputs": [
       {
         "name": "user",
@@ -281,99 +276,7 @@
         "indexed": true
       },
       {
-        "name": "payee",
-        "type": "address",
-        "indexed": true
-      },
-      {
-        "name": "confirmBlock",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "addedBy",
-        "type": "address",
-        "indexed": true
-      },
-      {
-        "name": "canPull",
-        "type": "bool",
-        "indexed": false
-      },
-      {
-        "name": "periodLength",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "maxNumTxsPerPeriod",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "txCooldownBlocks",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "failOnZeroPrice",
-        "type": "bool",
-        "indexed": false
-      },
-      {
-        "name": "primaryAsset",
-        "type": "address",
-        "indexed": false
-      },
-      {
-        "name": "onlyPrimaryAsset",
-        "type": "bool",
-        "indexed": false
-      },
-      {
-        "name": "unitPerTxCap",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "unitPerPeriodCap",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "unitLifetimeCap",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "usdPerTxCap",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "usdPerPeriodCap",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "usdLifetimeCap",
-        "type": "uint256",
-        "indexed": false
-      }
-    ],
-    "anonymous": false,
-    "type": "event"
-  },
-  {
-    "name": "PayeePendingConfirmed",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true
-      },
-      {
-        "name": "payee",
+        "name": "initiatedBy",
         "type": "address",
         "indexed": true
       },
@@ -386,18 +289,40 @@
         "name": "confirmBlock",
         "type": "uint256",
         "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "PendingGlobalPayeeSettingsConfirmed",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true
       },
       {
         "name": "confirmedBy",
         "type": "address",
         "indexed": true
+      },
+      {
+        "name": "initiatedBlock",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "confirmBlock",
+        "type": "uint256",
+        "indexed": false
       }
     ],
     "anonymous": false,
     "type": "event"
   },
   {
-    "name": "PayeePendingCancelled",
+    "name": "PendingGlobalPayeeSettingsCancelled",
     "inputs": [
       {
         "name": "user",
@@ -405,7 +330,12 @@
         "indexed": true
       },
       {
-        "name": "payee",
+        "name": "cancelledBy",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "currentOwner",
         "type": "address",
         "indexed": true
       },
@@ -418,15 +348,78 @@
         "name": "confirmBlock",
         "type": "uint256",
         "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "CanInstantAddPayeeSet",
+    "inputs": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "indexed": false
       },
       {
-        "name": "cancelledBy",
+        "name": "caller",
         "type": "address",
         "indexed": true
       }
     ],
     "anonymous": false,
     "type": "event"
+  },
+  {
+    "name": "CanInstantSetGlobalPayeeSettingsSet",
+    "inputs": [
+      {
+        "name": "isEnabled",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanInstantAddPayee",
+    "inputs": [
+      {
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setCanInstantSetGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "_isEnabled",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
   },
   {
     "stateMutability": "nonpayable",
@@ -494,6 +487,124 @@
   {
     "stateMutability": "nonpayable",
     "type": "function",
+    "name": "setGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_defaultPeriodLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_startDelay",
+        "type": "uint256"
+      },
+      {
+        "name": "_activationLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxNumTxsPerPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_txCooldownBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_failOnZeroPrice",
+        "type": "bool"
+      },
+      {
+        "name": "_usdLimits",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "perTxCap",
+            "type": "uint256"
+          },
+          {
+            "name": "perPeriodCap",
+            "type": "uint256"
+          },
+          {
+            "name": "lifetimeCap",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_canPull",
+        "type": "bool"
+      },
+      {
+        "name": "_shouldApplyInstantly",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "hasPendingGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "confirmPendingGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "cancelPendingGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
     "name": "addPayee",
     "inputs": [
       {
@@ -749,6 +860,103 @@
       {
         "name": "_activationLength",
         "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "addPayee",
+    "inputs": [
+      {
+        "name": "_userWallet",
+        "type": "address"
+      },
+      {
+        "name": "_payee",
+        "type": "address"
+      },
+      {
+        "name": "_canPull",
+        "type": "bool"
+      },
+      {
+        "name": "_periodLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_maxNumTxsPerPeriod",
+        "type": "uint256"
+      },
+      {
+        "name": "_txCooldownBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_failOnZeroPrice",
+        "type": "bool"
+      },
+      {
+        "name": "_primaryAsset",
+        "type": "address"
+      },
+      {
+        "name": "_onlyPrimaryAsset",
+        "type": "bool"
+      },
+      {
+        "name": "_unitLimits",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "perTxCap",
+            "type": "uint256"
+          },
+          {
+            "name": "perPeriodCap",
+            "type": "uint256"
+          },
+          {
+            "name": "lifetimeCap",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_usdLimits",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "perTxCap",
+            "type": "uint256"
+          },
+          {
+            "name": "perPeriodCap",
+            "type": "uint256"
+          },
+          {
+            "name": "lifetimeCap",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_startDelay",
+        "type": "uint256"
+      },
+      {
+        "name": "_activationLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_shouldStartInstantly",
+        "type": "bool"
       }
     ],
     "outputs": [
@@ -847,315 +1055,6 @@
     "stateMutability": "nonpayable",
     "type": "function",
     "name": "removePayee",
-    "inputs": [
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_payee",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "addPendingPayee",
-    "inputs": [
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_payee",
-        "type": "address"
-      },
-      {
-        "name": "_canPull",
-        "type": "bool"
-      },
-      {
-        "name": "_periodLength",
-        "type": "uint256"
-      },
-      {
-        "name": "_maxNumTxsPerPeriod",
-        "type": "uint256"
-      },
-      {
-        "name": "_txCooldownBlocks",
-        "type": "uint256"
-      },
-      {
-        "name": "_failOnZeroPrice",
-        "type": "bool"
-      },
-      {
-        "name": "_primaryAsset",
-        "type": "address"
-      },
-      {
-        "name": "_onlyPrimaryAsset",
-        "type": "bool"
-      },
-      {
-        "name": "_unitLimits",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "perTxCap",
-            "type": "uint256"
-          },
-          {
-            "name": "perPeriodCap",
-            "type": "uint256"
-          },
-          {
-            "name": "lifetimeCap",
-            "type": "uint256"
-          }
-        ]
-      },
-      {
-        "name": "_usdLimits",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "perTxCap",
-            "type": "uint256"
-          },
-          {
-            "name": "perPeriodCap",
-            "type": "uint256"
-          },
-          {
-            "name": "lifetimeCap",
-            "type": "uint256"
-          }
-        ]
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "addPendingPayee",
-    "inputs": [
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_payee",
-        "type": "address"
-      },
-      {
-        "name": "_canPull",
-        "type": "bool"
-      },
-      {
-        "name": "_periodLength",
-        "type": "uint256"
-      },
-      {
-        "name": "_maxNumTxsPerPeriod",
-        "type": "uint256"
-      },
-      {
-        "name": "_txCooldownBlocks",
-        "type": "uint256"
-      },
-      {
-        "name": "_failOnZeroPrice",
-        "type": "bool"
-      },
-      {
-        "name": "_primaryAsset",
-        "type": "address"
-      },
-      {
-        "name": "_onlyPrimaryAsset",
-        "type": "bool"
-      },
-      {
-        "name": "_unitLimits",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "perTxCap",
-            "type": "uint256"
-          },
-          {
-            "name": "perPeriodCap",
-            "type": "uint256"
-          },
-          {
-            "name": "lifetimeCap",
-            "type": "uint256"
-          }
-        ]
-      },
-      {
-        "name": "_usdLimits",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "perTxCap",
-            "type": "uint256"
-          },
-          {
-            "name": "perPeriodCap",
-            "type": "uint256"
-          },
-          {
-            "name": "lifetimeCap",
-            "type": "uint256"
-          }
-        ]
-      },
-      {
-        "name": "_startDelay",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "addPendingPayee",
-    "inputs": [
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_payee",
-        "type": "address"
-      },
-      {
-        "name": "_canPull",
-        "type": "bool"
-      },
-      {
-        "name": "_periodLength",
-        "type": "uint256"
-      },
-      {
-        "name": "_maxNumTxsPerPeriod",
-        "type": "uint256"
-      },
-      {
-        "name": "_txCooldownBlocks",
-        "type": "uint256"
-      },
-      {
-        "name": "_failOnZeroPrice",
-        "type": "bool"
-      },
-      {
-        "name": "_primaryAsset",
-        "type": "address"
-      },
-      {
-        "name": "_onlyPrimaryAsset",
-        "type": "bool"
-      },
-      {
-        "name": "_unitLimits",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "perTxCap",
-            "type": "uint256"
-          },
-          {
-            "name": "perPeriodCap",
-            "type": "uint256"
-          },
-          {
-            "name": "lifetimeCap",
-            "type": "uint256"
-          }
-        ]
-      },
-      {
-        "name": "_usdLimits",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "perTxCap",
-            "type": "uint256"
-          },
-          {
-            "name": "perPeriodCap",
-            "type": "uint256"
-          },
-          {
-            "name": "lifetimeCap",
-            "type": "uint256"
-          }
-        ]
-      },
-      {
-        "name": "_startDelay",
-        "type": "uint256"
-      },
-      {
-        "name": "_activationLength",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "confirmPendingPayee",
-    "inputs": [
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_payee",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "cancelPendingPayee",
     "inputs": [
       {
         "name": "_userWallet",
@@ -1528,31 +1427,6 @@
   {
     "stateMutability": "view",
     "type": "function",
-    "name": "canAddPendingPayee",
-    "inputs": [
-      {
-        "name": "_userWallet",
-        "type": "address"
-      },
-      {
-        "name": "_payee",
-        "type": "address"
-      },
-      {
-        "name": "_caller",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
     "name": "isValidGlobalPayeeSettings",
     "inputs": [
       {
@@ -1616,6 +1490,75 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "isValidGlobalPayeeSettingsWithTimeLock",
+    "inputs": [
+      {
+        "name": "_settings",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "defaultPeriodLength",
+            "type": "uint256"
+          },
+          {
+            "name": "startDelay",
+            "type": "uint256"
+          },
+          {
+            "name": "activationLength",
+            "type": "uint256"
+          },
+          {
+            "name": "maxNumTxsPerPeriod",
+            "type": "uint256"
+          },
+          {
+            "name": "txCooldownBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "failOnZeroPrice",
+            "type": "bool"
+          },
+          {
+            "name": "usdLimits",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "perTxCap",
+                "type": "uint256"
+              },
+              {
+                "name": "perPeriodCap",
+                "type": "uint256"
+              },
+              {
+                "name": "lifetimeCap",
+                "type": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "canPull",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_timeLock",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "getPayeeConfig",
     "inputs": [
       {
@@ -1646,6 +1589,10 @@
           },
           {
             "name": "isWhitelisted",
+            "type": "bool"
+          },
+          {
+            "name": "isManager",
             "type": "bool"
           },
           {
@@ -1777,10 +1724,6 @@
                 ]
               },
               {
-                "name": "canPayOwner",
-                "type": "bool"
-              },
-              {
                 "name": "canPull",
                 "type": "bool"
               }
@@ -1800,6 +1743,31 @@
   },
   {
     "stateMutability": "view",
+    "type": "function",
+    "name": "isValidUserWalletPayeeDefaults",
+    "inputs": [
+      {
+        "name": "_defaultPeriodLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_startDelay",
+        "type": "uint256"
+      },
+      {
+        "name": "_activationLength",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "pure",
     "type": "function",
     "name": "createDefaultGlobalPayeeSettings",
     "inputs": [
@@ -1862,10 +1830,6 @@
                 "type": "uint256"
               }
             ]
-          },
-          {
-            "name": "canPayOwner",
-            "type": "bool"
           },
           {
             "name": "canPull",
@@ -1948,6 +1912,113 @@
     ]
   },
   {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "pendingGlobalPayeeSettings",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "settings",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "defaultPeriodLength",
+                "type": "uint256"
+              },
+              {
+                "name": "startDelay",
+                "type": "uint256"
+              },
+              {
+                "name": "activationLength",
+                "type": "uint256"
+              },
+              {
+                "name": "maxNumTxsPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "txCooldownBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "failOnZeroPrice",
+                "type": "bool"
+              },
+              {
+                "name": "usdLimits",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "perTxCap",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "perPeriodCap",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "lifetimeCap",
+                    "type": "uint256"
+                  }
+                ]
+              },
+              {
+                "name": "canPull",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "initiatedBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "confirmBlock",
+            "type": "uint256"
+          },
+          {
+            "name": "currentOwner",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canInstantSetGlobalPayeeSettings",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "canInstantAddPayee",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "constructor",
     "inputs": [
@@ -1974,6 +2045,14 @@
       {
         "name": "_maxStartDelay",
         "type": "uint256"
+      },
+      {
+        "name": "_canInstantAddPayee",
+        "type": "bool"
+      },
+      {
+        "name": "_canInstantSetGlobalPayeeSettings",
+        "type": "bool"
       }
     ],
     "outputs": []

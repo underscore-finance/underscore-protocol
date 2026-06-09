@@ -876,55 +876,6 @@
     "type": "event"
   },
   {
-    "name": "PendingCanPerformSecurityAction",
-    "inputs": [
-      {
-        "name": "signer",
-        "type": "address",
-        "indexed": false
-      },
-      {
-        "name": "canPerform",
-        "type": "bool",
-        "indexed": false
-      },
-      {
-        "name": "confirmationBlock",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "actionId",
-        "type": "uint256",
-        "indexed": false
-      }
-    ],
-    "anonymous": false,
-    "type": "event"
-  },
-  {
-    "name": "CreatorWhitelistSet",
-    "inputs": [
-      {
-        "name": "creator",
-        "type": "address",
-        "indexed": false
-      },
-      {
-        "name": "isWhitelisted",
-        "type": "bool",
-        "indexed": false
-      },
-      {
-        "name": "caller",
-        "type": "address",
-        "indexed": false
-      }
-    ],
-    "anonymous": false,
-    "type": "event"
-  },
-  {
     "name": "ManagerConfigSet",
     "inputs": [
       {
@@ -959,54 +910,30 @@
     "type": "event"
   },
   {
-    "name": "CanPerformSecurityAction",
+    "name": "PendingChequeConfigChange",
     "inputs": [
       {
-        "name": "signer",
-        "type": "address",
-        "indexed": false
-      },
-      {
-        "name": "canPerform",
-        "type": "bool",
-        "indexed": false
-      }
-    ],
-    "anonymous": false,
-    "type": "event"
-  },
-  {
-    "name": "LockedSignerSet",
-    "inputs": [
-      {
-        "name": "signer",
-        "type": "address",
-        "indexed": false
-      },
-      {
-        "name": "isLocked",
-        "type": "bool",
-        "indexed": false
-      },
-      {
-        "name": "caller",
-        "type": "address",
-        "indexed": false
-      }
-    ],
-    "anonymous": false,
-    "type": "event"
-  },
-  {
-    "name": "PendingRipeRewardsConfigChange",
-    "inputs": [
-      {
-        "name": "ripeStakeRatio",
+        "name": "maxNumActiveCheques",
         "type": "uint256",
         "indexed": false
       },
       {
-        "name": "ripeLockDuration",
+        "name": "instantUsdThreshold",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "periodLength",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "expensiveDelayBlocks",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultExpiryBlocks",
         "type": "uint256",
         "indexed": false
       },
@@ -1018,22 +945,37 @@
       {
         "name": "actionId",
         "type": "uint256",
-        "indexed": false
+        "indexed": true
       }
     ],
     "anonymous": false,
     "type": "event"
   },
   {
-    "name": "RipeRewardsConfigSet",
+    "name": "ChequeConfigSet",
     "inputs": [
       {
-        "name": "ripeStakeRatio",
+        "name": "maxNumActiveCheques",
         "type": "uint256",
         "indexed": false
       },
       {
-        "name": "ripeLockDuration",
+        "name": "instantUsdThreshold",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "periodLength",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "expensiveDelayBlocks",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "defaultExpiryBlocks",
         "type": "uint256",
         "indexed": false
       }
@@ -2744,132 +2686,26 @@
   {
     "stateMutability": "nonpayable",
     "type": "function",
-    "name": "setCanPerformSecurityAction",
+    "name": "setChequeConfig",
     "inputs": [
       {
-        "name": "_signer",
-        "type": "address"
-      },
-      {
-        "name": "_canPerform",
-        "type": "bool"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "setCanPerformSecurityAction",
-    "inputs": [
-      {
-        "name": "_signer",
-        "type": "address"
-      },
-      {
-        "name": "_canPerform",
-        "type": "bool"
-      },
-      {
-        "name": "_missionControl",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ]
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "setCreatorWhitelist",
-    "inputs": [
-      {
-        "name": "_creator",
-        "type": "address"
-      },
-      {
-        "name": "_isWhitelisted",
-        "type": "bool"
-      }
-    ],
-    "outputs": []
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "setCreatorWhitelist",
-    "inputs": [
-      {
-        "name": "_creator",
-        "type": "address"
-      },
-      {
-        "name": "_isWhitelisted",
-        "type": "bool"
-      },
-      {
-        "name": "_missionControl",
-        "type": "address"
-      }
-    ],
-    "outputs": []
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "setLockedSigner",
-    "inputs": [
-      {
-        "name": "_signer",
-        "type": "address"
-      },
-      {
-        "name": "_isLocked",
-        "type": "bool"
-      }
-    ],
-    "outputs": []
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "setLockedSigner",
-    "inputs": [
-      {
-        "name": "_signer",
-        "type": "address"
-      },
-      {
-        "name": "_isLocked",
-        "type": "bool"
-      },
-      {
-        "name": "_missionControl",
-        "type": "address"
-      }
-    ],
-    "outputs": []
-  },
-  {
-    "stateMutability": "nonpayable",
-    "type": "function",
-    "name": "setRipeRewardsConfig",
-    "inputs": [
-      {
-        "name": "_ripeStakeRatio",
+        "name": "_maxNumActiveCheques",
         "type": "uint256"
       },
       {
-        "name": "_ripeLockDuration",
+        "name": "_instantUsdThreshold",
+        "type": "uint256"
+      },
+      {
+        "name": "_periodLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_expensiveDelayBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultExpiryBlocks",
         "type": "uint256"
       }
     ],
@@ -2883,14 +2719,26 @@
   {
     "stateMutability": "nonpayable",
     "type": "function",
-    "name": "setRipeRewardsConfig",
+    "name": "setChequeConfig",
     "inputs": [
       {
-        "name": "_ripeStakeRatio",
+        "name": "_maxNumActiveCheques",
         "type": "uint256"
       },
       {
-        "name": "_ripeLockDuration",
+        "name": "_instantUsdThreshold",
+        "type": "uint256"
+      },
+      {
+        "name": "_periodLength",
+        "type": "uint256"
+      },
+      {
+        "name": "_expensiveDelayBlocks",
+        "type": "uint256"
+      },
+      {
+        "name": "_defaultExpiryBlocks",
         "type": "uint256"
       },
       {
@@ -3395,6 +3243,45 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "pendingChequeConfig",
+    "inputs": [
+      {
+        "name": "arg0",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "maxNumActiveCheques",
+            "type": "uint256"
+          },
+          {
+            "name": "instantUsdThreshold",
+            "type": "uint256"
+          },
+          {
+            "name": "periodLength",
+            "type": "uint256"
+          },
+          {
+            "name": "expensiveDelayBlocks",
+            "type": "uint256"
+          },
+          {
+            "name": "defaultExpiryBlocks",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "pendingAddrToBool",
     "inputs": [
       {
@@ -3441,33 +3328,6 @@
           {
             "name": "agentSender",
             "type": "address"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
-    "name": "pendingRipeRewardsConfig",
-    "inputs": [
-      {
-        "name": "arg0",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple",
-        "components": [
-          {
-            "name": "stakeRatio",
-            "type": "uint256"
-          },
-          {
-            "name": "lockDuration",
-            "type": "uint256"
           }
         ]
       }

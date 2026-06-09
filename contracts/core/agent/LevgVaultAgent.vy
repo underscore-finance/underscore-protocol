@@ -81,9 +81,9 @@ WORKFLOW_BORROW_AND_EARN: constant(uint8) = 100
 WORKFLOW_DELEVERAGE: constant(uint8) = 101
 WORKFLOW_COMPOUND_YIELD: constant(uint8) = 102
 
-UNDY_HQ: public(immutable(address))
-GREEN: public(immutable(address))
-SAVINGS_GREEN: public(immutable(address))
+UNDY_HQ: immutable(address)
+GREEN: immutable(address)
+SAVINGS_GREEN: immutable(address)
 
 currentNonce: public(HashMap[address, uint256])
 
@@ -339,16 +339,14 @@ def deleverage(
 
     # mode 0: auto deleverage user (via ripe lego)
     if _mode == 0:
-        legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
-        ripeLego: address = staticcall Registry(legoBook).getAddr(ripeLegoId)
+        ripeLego: address = self._getRipeLego()
         targetAmount: uint256 = _autoDeleverageAmount if _autoDeleverageAmount != 0 else max_value(uint256)
         extcall RipeLego(ripeLego).deleverageUser(_levgWallet, targetAmount)
 
     # mode 1: deleverage with specific assets (via ripe lego)
     elif _mode == 1:
         if len(_deleverageAssets) != 0:
-            legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
-            ripeLego: address = staticcall Registry(legoBook).getAddr(ripeLegoId)
+            ripeLego: address = self._getRipeLego()
             extcall RipeLego(ripeLego).deleverageWithSpecificAssets(_deleverageAssets, _levgWallet)
 
     # mode 2: manual deleverage
@@ -583,6 +581,13 @@ def compoundYieldGains(
 
 @view
 @internal
+def _getRipeLego() -> address:
+    legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
+    return staticcall Registry(legoBook).getAddr(RIPE_LEGO_ID)
+
+
+@view
+@internal
 def _fetchPositionData(_levgWallet: address) -> (RipeAsset, RipeAsset, address, address, uint256, uint256):
     collData: RipeAsset = staticcall LevgVaultWallet(_levgWallet).collateralAsset()
     levgData: RipeAsset = staticcall LevgVaultWallet(_levgWallet).leverageAsset()
@@ -742,10 +747,6 @@ def _authenticateAccess(_levgWallet: address, _messageHash: bytes32, _sig: Signa
 
         # increment nonce for next use
         self._incrementNonce(_levgWallet)
-    else:
-        assert _sig.signature == empty(Bytes[65]) # dev: must be empty
-        assert _sig.nonce == 0 # dev: must be 0
-        assert _sig.expiration == 0 # dev: must be 0
 
 
 @view
@@ -777,13 +778,7 @@ def _verify(_messageHash: bytes32, _sig: Signature) -> address:
         is_static_call=True
     )
 
-    # return recovered address or empty if failed
-    if len(result) != 32:
-        return empty(address)
-
-    recovered: address = abi_decode(result, address)
-    assert recovered != empty(address) # dev: signature recovery failed
-    return recovered
+    return abi_decode(result, address)
 
 
 @view
@@ -808,9 +803,3 @@ def _incrementNonce(_levgWallet: address):
     oldNonce: uint256 = self.currentNonce[_levgWallet]
     self.currentNonce[_levgWallet] = oldNonce + 1
     log NonceIncremented(levgVault=_levgWallet, oldNonce=oldNonce, newNonce=oldNonce + 1)
-
-
-@view
-@external
-def getNonce(_levgWallet: address) -> uint256:
-    return self.currentNonce[_levgWallet]

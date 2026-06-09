@@ -18,30 +18,23 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+# pragma optimize codesize
 
 initializes: ownership
 exports: ownership.__interface__
 import contracts.modules.Ownership as ownership
 
 from interfaces import Wallet
-from interfaces import AgentWrapper
+from interfaces import AgentWrapperInt
+from interfaces import WalletStructs as ws
 from ethereum.ercs import IERC20
 
-interface RipeLego:
-    def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address) -> uint256: nonpayable
-
-interface Registry:
-    def getAddr(_regId: uint256) -> address: view
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 struct CollateralAsset:
     vaultId: uint256
     asset: address
     amount: uint256
-
-struct DeleverageAsset:
-    vaultId: uint256
-    asset: address
-    targetRepayAmount: uint256
 
 struct DepositYieldPosition:
     legoId: uint256
@@ -72,12 +65,10 @@ event NonceIncremented:
 currentNonce: public(HashMap[address, uint256])
 
 MAX_COLLATERAL_ASSETS: constant(uint256) = 10
-MAX_DELEVERAGE_ASSETS: constant(uint256) = 25
 MAX_YIELD_POSITIONS: constant(uint256) = 25
 MAX_INSTRUCTIONS: constant(uint256) = 15
 MAX_SWAP_INSTRUCTIONS: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
-LEGO_BOOK_ID: constant(uint256) = 3
 
 # unified signature validation
 ECRECOVER_PRECOMPILE: constant(address) = 0x0000000000000000000000000000000000000001
@@ -128,6 +119,7 @@ def addCollateralAndBorrow(
     # 1. authenticate access (action code 100)
     messageHash: bytes32 = keccak256(abi_encode(
         convert(100, uint8),
+        _agentWrapper,
         _userWallet,
         _debtLegoId,
         _addCollateralAssets,
@@ -153,7 +145,7 @@ def addCollateralAndBorrow(
             collateralAmount: uint256 = min(collateralAsset.amount, staticcall IERC20(collateralAsset.asset).balanceOf(_userWallet))
             if collateralAmount != 0:
                 collateralExtraData: bytes32 = convert(collateralAsset.vaultId, bytes32)
-                extcall AgentWrapper(_agentWrapper).addCollateral(
+                extcall AgentWrapperInt(_agentWrapper).addCollateral(
                     _userWallet,
                     _debtLegoId,
                     collateralAsset.asset,
@@ -166,7 +158,7 @@ def addCollateralAndBorrow(
         borrowAsset = RIPE_SAVINGS_GREEN if _wantsSavingsGreen else RIPE_GREEN_TOKEN
         borrowExtraData: bytes32 = convert(convert(_shouldEnterStabPool, uint256), bytes32) # encode _shouldEnterStabPool in extraData
         usdValue: uint256 = 0
-        borrowAmount, usdValue = extcall AgentWrapper(_agentWrapper).borrow(
+        borrowAmount, usdValue = extcall AgentWrapperInt(_agentWrapper).borrow(
             _userWallet,
             _debtLegoId,
             borrowAsset,
@@ -189,7 +181,7 @@ def addCollateralAndBorrow(
         tokenInResult: address = empty(address)
         amountIn: uint256 = 0
         swapUsdValue: uint256 = 0
-        tokenInResult, amountIn, swapTokenOut, swapAmountOut, swapUsdValue = extcall AgentWrapper(_agentWrapper).swapTokens(
+        tokenInResult, amountIn, swapTokenOut, swapAmountOut, swapUsdValue = extcall AgentWrapperInt(_agentWrapper).swapTokens(
             _userWallet,
             swapInstructions
         )
@@ -204,7 +196,7 @@ def addCollateralAndBorrow(
             yieldAmount = min(swapAmountOut, yieldAmount)
 
         if yieldAmount != 0:
-            extcall AgentWrapper(_agentWrapper).depositForYield(
+            extcall AgentWrapperInt(_agentWrapper).depositForYield(
                 _userWallet,
                 _yieldPosition.legoId,
                 _yieldPosition.asset,
@@ -222,7 +214,7 @@ def repayAndWithdraw(
     _agentWrapper: address,
     _userWallet: address,
     _debtLegoId: uint256,
-    _deleverageAssets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS] = [],
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS] = [],
     _yieldPosition: WithdrawYieldPosition = empty(WithdrawYieldPosition),
     _swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = [],
     _repayAsset: address = empty(address),
@@ -233,6 +225,7 @@ def repayAndWithdraw(
     # 1. authenticate access (action code 101)
     messageHash: bytes32 = keccak256(abi_encode(
         convert(101, uint8),
+        _agentWrapper,
         _userWallet,
         _debtLegoId,
         _deleverageAssets,
@@ -254,9 +247,13 @@ def repayAndWithdraw(
 
     # 2. deleverage
     if len(_deleverageAssets) != 0:
-        legoBook: address = staticcall Registry(UNDY_HQ).getAddr(LEGO_BOOK_ID)
-        debtLego: address = staticcall Registry(legoBook).getAddr(_debtLegoId)
-        extcall RipeLego(debtLego).deleverageWithSpecificAssets(_deleverageAssets, _userWallet)
+        extcall AgentWrapperInt(_agentWrapper).deleverage(
+            _userWallet,
+            _debtLegoId,
+            _deleverageAssets,
+            0,
+            empty(bytes32),
+        )
 
     # 3. withdraw from yield
     if _yieldPosition.legoId != 0 and _yieldPosition.vaultToken != empty(address):
@@ -268,7 +265,7 @@ def repayAndWithdraw(
         if vaultWithdrawAmount != 0:
             vaultTokensUsed: uint256 = 0
             txUsdValue: uint256 = 0
-            vaultTokensUsed, withdrawAsset, withdrawAmount, txUsdValue = extcall AgentWrapper(_agentWrapper).withdrawFromYield(
+            vaultTokensUsed, withdrawAsset, withdrawAmount, txUsdValue = extcall AgentWrapperInt(_agentWrapper).withdrawFromYield(
                 _userWallet,
                 _yieldPosition.legoId,
                 _yieldPosition.vaultToken,
@@ -291,7 +288,7 @@ def repayAndWithdraw(
         tokenInResult: address = empty(address)
         amountIn: uint256 = 0
         swapUsdValue: uint256 = 0
-        tokenInResult, amountIn, swapTokenOut, swapAmountOut, swapUsdValue = extcall AgentWrapper(_agentWrapper).swapTokens(
+        tokenInResult, amountIn, swapTokenOut, swapAmountOut, swapUsdValue = extcall AgentWrapperInt(_agentWrapper).swapTokens(
             _userWallet,
             swapInstructions
         )
@@ -305,7 +302,7 @@ def repayAndWithdraw(
             repayAmount = min(swapAmountOut, repayAmount)
 
         if repayAmount != 0:
-            extcall AgentWrapper(_agentWrapper).repayDebt(
+            extcall AgentWrapperInt(_agentWrapper).repayDebt(
                 _userWallet,
                 _debtLegoId,
                 _repayAsset,
@@ -317,7 +314,7 @@ def repayAndWithdraw(
     for collateralAsset: CollateralAsset in _removeCollateralAssets:
         if collateralAsset.asset != empty(address) and collateralAsset.amount != 0:
             collateralExtraData: bytes32 = convert(collateralAsset.vaultId, bytes32)
-            extcall AgentWrapper(_agentWrapper).removeCollateral(
+            extcall AgentWrapperInt(_agentWrapper).removeCollateral(
                 _userWallet,
                 _debtLegoId,
                 collateralAsset.asset,
@@ -342,6 +339,7 @@ def rebalanceYieldPositionsWithSwap(
     # 1. authenticate access (action code 102)
     messageHash: bytes32 = keccak256(abi_encode(
         convert(102, uint8),
+        _agentWrapper,
         _userWallet,
         _withdrawFrom,
         _swapInstructions,
@@ -361,7 +359,7 @@ def rebalanceYieldPositionsWithSwap(
                 vaultWithdrawAmount = min(position.vaultTokenAmount, vaultWithdrawAmount)
 
             if vaultWithdrawAmount != 0:
-                extcall AgentWrapper(_agentWrapper).withdrawFromYield(
+                extcall AgentWrapperInt(_agentWrapper).withdrawFromYield(
                     _userWallet,
                     position.legoId,
                     position.vaultToken,
@@ -375,7 +373,7 @@ def rebalanceYieldPositionsWithSwap(
         tokenIn: address = swapInstructions[0].tokenPath[0]
         swapInstructions[0].amountIn = min(swapInstructions[0].amountIn, staticcall IERC20(tokenIn).balanceOf(_userWallet))
 
-        extcall AgentWrapper(_agentWrapper).swapTokens(_userWallet, swapInstructions)
+        extcall AgentWrapperInt(_agentWrapper).swapTokens(_userWallet, swapInstructions)
 
     # 4. either deposit to yield OR transfer
     if len(_depositTo) != 0:
@@ -387,7 +385,7 @@ def rebalanceYieldPositionsWithSwap(
                     yieldAmount = min(position.amount, yieldAmount)
 
                 if yieldAmount != 0:
-                    extcall AgentWrapper(_agentWrapper).depositForYield(
+                    extcall AgentWrapperInt(_agentWrapper).depositForYield(
                         _userWallet,
                         position.legoId,
                         position.asset,
@@ -405,12 +403,11 @@ def rebalanceYieldPositionsWithSwap(
                     transferAmount = min(transfer.amount, transferAmount)
 
                 if transferAmount != 0:
-                    extcall AgentWrapper(_agentWrapper).transferFunds(
+                    extcall AgentWrapperInt(_agentWrapper).transferFunds(
                         _userWallet,
                         transfer.recipient,
                         transfer.asset,
-                        transferAmount,
-                        False
+                        transferAmount
                     )
 
 
@@ -434,6 +431,7 @@ def claimIncentivesAndSwap(
     # 1. authenticate access (action code 103)
     messageHash: bytes32 = keccak256(abi_encode(
         convert(103, uint8),
+        _agentWrapper,
         _userWallet,
         _rewardLegoId,
         _rewardToken,
@@ -450,7 +448,7 @@ def claimIncentivesAndSwap(
 
     # 2. claim incentives
     if _rewardLegoId != 0 and _rewardToken != empty(address):
-        extcall AgentWrapper(_agentWrapper).claimIncentives(
+        extcall AgentWrapperInt(_agentWrapper).claimIncentives(
             _userWallet,
             _rewardLegoId,
             _rewardToken,
@@ -463,7 +461,7 @@ def claimIncentivesAndSwap(
         swapInstructions: DynArray[Wallet.SwapInstruction, MAX_SWAP_INSTRUCTIONS] = _swapInstructions
         tokenIn: address = swapInstructions[0].tokenPath[0]
         swapInstructions[0].amountIn = min(swapInstructions[0].amountIn, staticcall IERC20(tokenIn).balanceOf(_userWallet))
-        extcall AgentWrapper(_agentWrapper).swapTokens(_userWallet, swapInstructions)
+        extcall AgentWrapperInt(_agentWrapper).swapTokens(_userWallet, swapInstructions)
 
     # 4. deposit to yield
     for position: DepositYieldPosition in _depositTo:
@@ -474,7 +472,7 @@ def claimIncentivesAndSwap(
                 yieldAmount = min(position.amount, yieldAmount)
 
             if yieldAmount != 0:
-                extcall AgentWrapper(_agentWrapper).depositForYield(
+                extcall AgentWrapperInt(_agentWrapper).depositForYield(
                     _userWallet,
                     position.legoId,
                     position.asset,
@@ -490,7 +488,7 @@ def claimIncentivesAndSwap(
                 collateralAmount: uint256 = min(collateralAsset.amount, staticcall IERC20(collateralAsset.asset).balanceOf(_userWallet))
                 if collateralAmount != 0:
                     collateralExtraData: bytes32 = convert(collateralAsset.vaultId, bytes32)
-                    extcall AgentWrapper(_agentWrapper).addCollateral(
+                    extcall AgentWrapperInt(_agentWrapper).addCollateral(
                         _userWallet,
                         _debtLegoId,
                         collateralAsset.asset,

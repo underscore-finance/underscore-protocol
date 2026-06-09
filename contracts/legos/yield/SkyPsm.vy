@@ -39,8 +39,8 @@ interface SkyPsm:
     def swapExactIn(_assetIn: address, _assetOut: address, _amountIn: uint256, _minAmountOut: uint256, _receiver: address, _referralCode: uint256) -> uint256: nonpayable
     def previewSwapExactIn(_assetIn: address, _assetOut: address, _amountIn: uint256) -> uint256: view
     def totalAssets() -> uint256: view
-    def susds() -> address: view
-    def usds() -> address: view
+    def susds() -> address: pure
+    def usds() -> address: pure
 
 interface Ledger:
     def setVaultToken(_vaultToken: address, _legoId: uint256, _underlyingAsset: address, _decimals: uint256, _isRebasing: bool): nonpayable
@@ -271,7 +271,7 @@ def isRebasing() -> bool:
     return self._isRebasing()
 
 
-@view
+@pure
 @internal
 def _isRebasing() -> bool:
     return False
@@ -631,6 +631,7 @@ def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String
     return empty(address), empty(String[64]), 0
 
 
+@pure
 @external
 def claimRewards(
     _user: address,
@@ -654,7 +655,7 @@ def claimIncentives(
     return 0, 0
 
 
-@view
+@pure
 @external
 def hasClaimableRewards(_user: address) -> bool:
     return False

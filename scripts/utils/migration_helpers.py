@@ -5,6 +5,7 @@ from scripts.utils import log
 from eth_account import Account
 import subprocess
 from eth_abi.abi import encode
+from eth_utils.abi import collapse_if_tuple
 import dotenv
 
 dotenv.load_dotenv()
@@ -143,16 +144,21 @@ def encode_constructor_args(abi: list, args: list) -> str:
     if not constructor or not args:
         return ""
 
-    # Get the input types from the constructor
-    input_types = [input_['type'] for input_ in constructor['inputs']]
+    # Get the input types from the constructor. Tuple/struct params report a
+    # bare 'tuple' type; collapse_if_tuple expands them to the canonical form
+    # (e.g. '(address,uint256)') that eth_abi's encoder registry understands.
+    input_types = [collapse_if_tuple(input_) for input_ in constructor['inputs']]
 
-    # Convert objects with address attribute to their address
-    processed_args = []
-    for arg in args:
+    # Convert objects with an address attribute to their address, recursing into
+    # tuples/lists so contract objects nested inside struct args are handled too.
+    def _process(arg):
         if hasattr(arg, 'address'):
-            processed_args.append(arg.address)
-        else:
-            processed_args.append(arg)
+            return arg.address
+        if isinstance(arg, (list, tuple)):
+            return type(arg)(_process(item) for item in arg)
+        return arg
+
+    processed_args = [_process(arg) for arg in args]
 
     # Encode the arguments
     encoded = encode(input_types, processed_args)

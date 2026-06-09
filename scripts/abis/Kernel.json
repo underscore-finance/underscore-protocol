@@ -263,6 +263,10 @@
             "type": "bool"
           },
           {
+            "name": "isExistingManager",
+            "type": "bool"
+          },
+          {
             "name": "timeLock",
             "type": "uint256"
           },
@@ -283,10 +287,6 @@
             "type": "tuple",
             "components": [
               {
-                "name": "canAddPending",
-                "type": "bool"
-              },
-              {
                 "name": "canConfirm",
                 "type": "bool"
               },
@@ -304,10 +304,6 @@
             "name": "globalWhitelistPerms",
             "type": "tuple",
             "components": [
-              {
-                "name": "canAddPending",
-                "type": "bool"
-              },
               {
                 "name": "canConfirm",
                 "type": "bool"

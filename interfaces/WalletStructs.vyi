@@ -21,6 +21,13 @@ flag ActionType:
     REMOVE_LIQ_CONC
     PAY_CHEQUE
 
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
+
+struct DeleverageAsset:
+    vaultId: uint256
+    asset: address
+    targetRepayAmount: uint256
+
 struct WalletAssetData:
     assetBalance: uint256
     usdValue: uint256

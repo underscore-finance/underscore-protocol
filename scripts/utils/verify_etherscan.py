@@ -1,8 +1,32 @@
 import requests
 import json
 import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 api_url = "https://api.etherscan.io/v2/api"
+
+REQUEST_TIMEOUT = 30
+
+# Shared session with connection pooling (keep-alive) + automatic retries.
+# Without connection reuse, the per-contract burst of getabi/verify/poll calls
+# opens a fresh socket each time; across a manifest this exhausts the local
+# ephemeral port range on macOS and surfaces as OSError [Errno 49]
+# "Can't assign requested address". Reusing one connection avoids the churn,
+# and the Retry rides out transient connection blips and rate limits (429/5xx).
+_retry = Retry(
+    total=5,
+    connect=5,
+    read=3,
+    backoff_factor=1.5,
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=frozenset(["GET", "POST"]),
+    raise_on_status=False,
+)
+session = requests.Session()
+_adapter = HTTPAdapter(max_retries=_retry)
+session.mount("https://", _adapter)
+session.mount("http://", _adapter)
 
 chain_ids = {
     "eth-mainnet": 1,
@@ -36,8 +60,14 @@ def is_contract_verified(api_key: str, contract_address: str, chain: str) -> boo
         "address": contract_address,
     }
 
-    response = requests.get(api_url, params=params)
-    result = response.json()
+    try:
+        response = session.get(api_url, params=params, timeout=REQUEST_TIMEOUT)
+        result = response.json()
+    except requests.exceptions.RequestException as e:
+        # Don't let a transient pre-check failure crash the whole run; treat it
+        # as "not verified" so we fall through to an actual verification attempt.
+        print(f"  Could not check existing verification status ({e}); attempting verification anyway")
+        return False
 
     return result.get("status") == "1"
 
@@ -52,6 +82,15 @@ def verify_from_manifest(api_key: str, contract_name: str, manifest_data: dict, 
         return True
 
     # Prepare verification request
+    # TODO: this path is unreliable for large, near-EIP-170 Vyper contracts
+    # (e.g. HighCommand/ChequeBook/Migrator), which Basescan rejects with the
+    # generic "Other Exception - Please contact us for more information". The
+    # source/settings are correct (deployed bytecode matches a local recompile
+    # modulo appended immutables) -- it's the submission shape. Workaround for
+    # now: verify those manually by feeding solc_json as a vyper standard-JSON.
+    # Proper fix: derive contractname from solc_json.settings.outputSelection
+    # (the real target file) instead of next(iter(sources)), which currently
+    # resolves to an interface .vyi file and only works by Basescan's tolerance.
     contract_file = next(iter(manifest_data["solc_json"]["sources"].keys()))
     
     chain_id = chain_ids.get(chain, chain_ids["eth-mainnet"])
@@ -72,7 +111,7 @@ def verify_from_manifest(api_key: str, contract_name: str, manifest_data: dict, 
 
     try:
         # Submit verification request
-        response = requests.post(api_url, params={"chainid": chain_id}, data=params)
+        response = session.post(api_url, params={"chainid": chain_id}, data=params, timeout=REQUEST_TIMEOUT)
         result = response.json()
 
         if result["status"] != "1":
@@ -94,7 +133,7 @@ def verify_from_manifest(api_key: str, contract_name: str, manifest_data: dict, 
         # Poll for verification result
         for _ in range(10):  # Try 10 times
             time.sleep(5)  # Wait 5 seconds between checks
-            check_response = requests.get(api_url, params=check_params)
+            check_response = session.get(api_url, params=check_params, timeout=REQUEST_TIMEOUT)
             check_result = check_response.json()
 
             if check_result["result"] == "Pass - Verified":

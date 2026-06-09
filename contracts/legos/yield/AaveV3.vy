@@ -46,7 +46,7 @@ interface AaveV3Pool:
 
 interface AaveProtocolDataProvider:
     def getReserveTokensAddresses(_asset: address) -> (address, address, address): view
-    def getTotalDebt(_asset: address) -> uint256: view
+    def getTotalDebt(_asset: address) -> uint256: pure
 
 interface Registry:
     def getRegId(_addr: address) -> uint256: view
@@ -186,7 +186,7 @@ def getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uin
     return self._getUnderlyingAmount(_vaultToken, _vaultTokenAmount)
 
 
-@view
+@pure
 @internal
 def _getUnderlyingAmount(_vaultToken: address, _vaultTokenAmount: uint256) -> uint256:
     # treated as 1:1
@@ -261,7 +261,7 @@ def isRebasing() -> bool:
     return self._isRebasing()
 
 
-@view
+@pure
 @internal
 def _isRebasing() -> bool:
     return True
@@ -281,7 +281,7 @@ def getPricePerShare(_vaultToken: address, _decimals: uint256 = 0) -> uint256:
     return self._getPricePerShare(_vaultToken, decimals)
 
 
-@view
+@pure
 @internal
 def _getPricePerShare(_vaultToken: address, _decimals: uint256) -> uint256:
     return 10 ** _decimals # treated as 1:1
@@ -620,6 +620,7 @@ def getAccessForLego(_user: address, _action: ws.ActionType) -> (address, String
     return empty(address), empty(String[64]), 0
 
 
+@pure
 @external
 def claimRewards(
     _user: address,
@@ -643,7 +644,7 @@ def claimIncentives(
     return 0, 0
 
 
-@view
+@pure
 @external
 def hasClaimableRewards(_user: address) -> bool:
     return False

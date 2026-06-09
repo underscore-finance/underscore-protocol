@@ -19,6 +19,7 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # @version 0.4.3
+#pragma optimize codesize
 
 implements: Lego
 implements: YieldLego
@@ -46,7 +47,7 @@ interface RipeTeller:
     def withdraw(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
     def deposit(_asset: address, _amount: uint256 = max_value(uint256), _user: address = msg.sender, _vaultAddr: address = empty(address), _vaultId: uint256 = 0) -> uint256: nonpayable
     def borrow(_greenAmount: uint256 = max_value(uint256), _user: address = msg.sender, _wantsSavingsGreen: bool = True, _shouldEnterStabPool: bool = False) -> uint256: nonpayable
-    def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address = msg.sender) -> uint256: nonpayable
+    def deleverageWithSpecificAssets(_assets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address = msg.sender) -> uint256: nonpayable
     def depositIntoGovVault(_asset: address, _amount: uint256, _lockDuration: uint256, _user: address = msg.sender) -> uint256: nonpayable
     def deleverageUser(_user: address = msg.sender, _targetRepayAmount: uint256 = max_value(uint256)) -> uint256: nonpayable
     def claimLoot(_user: address = msg.sender, _shouldStake: bool = True) -> uint256: nonpayable
@@ -70,15 +71,15 @@ interface Appraiser:
     def getUsdValue(_asset: address, _amount: uint256, _missionControl: address = empty(address), _legoBook: address = empty(address), _ledger: address = empty(address)) -> uint256: view
     def getUnderlyingUsdValue(_asset: address, _amount: uint256) -> uint256: view
 
-interface MissionControl:
-    def canPerformSecurityAction(_signer: address) -> bool: view
-
 interface EndaomentPsm:
     def redeemGreen(_paymentAmount: uint256 = max_value(uint256), _recipient: address = msg.sender, _isPaymentSavingsGreen: bool = False) -> uint256: nonpayable
     def mintGreen(_usdcAmount: uint256 = max_value(uint256), _recipient: address = msg.sender, _wantsSavingsGreen: bool = False) -> uint256: nonpayable
 
 interface RipeMissionControl:
     def doesUndyLegoHaveAccess(_wallet: address, _legoAddr: address) -> bool: view
+
+interface MissionControl:
+    def canPerformSecurityAction(_signer: address) -> bool: view
 
 interface LevgVault:
     def indexOfManager(_manager: address) -> uint256: view
@@ -94,11 +95,6 @@ interface UserWalletConfig:
 
 interface UserWallet:
     def walletConfig() -> address: view
-
-struct DeleverageAsset:
-    vaultId: uint256
-    asset: address
-    targetRepayAmount: uint256
 
 event RipeCollateralDeposit:
     sender: indexed(address)
@@ -181,6 +177,7 @@ LEGO_ACCESS_ABI: constant(String[64]) = "setUndyLegoAccess(address)"
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 MAX_DELEVERAGE_ASSETS: constant(uint256) = 25
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 
 @deploy
@@ -363,7 +360,7 @@ def isRebasing() -> bool:
     return self._isRebasing()
 
 
-@view
+@pure
 @internal
 def _isRebasing() -> bool:
     return False
@@ -961,7 +958,7 @@ def repayDebt(
 
 
 @external
-def deleverageWithSpecificAssets(_assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address) -> uint256:
+def deleverageWithSpecificAssets(_assets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_ASSETS], _user: address) -> uint256:
     assert self._canCallDeleverage(_user, msg.sender) # dev: no perms
     teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
     return extcall RipeTeller(teller).deleverageWithSpecificAssets(_assets, _user)
@@ -972,6 +969,40 @@ def deleverageUser(_user: address, _targetRepayAmount: uint256 = max_value(uint2
     assert self._canCallDeleverage(_user, msg.sender) # dev: no perms
     teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
     return extcall RipeTeller(teller).deleverageUser(_user, _targetRepayAmount)
+
+
+@external
+def deleverageForUserWallet(
+    _user: address,
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
+    _autoDeleverageAmount: uint256,
+    _extraData: bytes32,
+    _miniAddys: ws.MiniAddys,
+) -> (uint256, uint256, address, DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS]):
+    assert self._canCallDeleverage(_user, msg.sender) # dev: no perms
+
+    assert (len(_deleverageAssets) != 0) != (_autoDeleverageAmount != 0) # dev: invalid mode
+
+    teller: address = staticcall Registry(RIPE_REGISTRY).getAddr(RIPE_TELLER_ID)
+    repaidAmount: uint256 = 0
+    touchedAssets: DynArray[address, MAX_DELEVERAGE_WALLET_ASSETS] = []
+
+    if len(_deleverageAssets) != 0:
+        legacyAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_ASSETS] = [] # need to have max size 25 for Ripe
+        for d: ws.DeleverageAsset in _deleverageAssets:
+            assert d.asset != empty(address) # dev: invalid asset
+            legacyAssets.append(d) # 25 assets max
+            touchedAssets.append(d.asset) # 10 assets max
+        repaidAmount = extcall RipeTeller(teller).deleverageWithSpecificAssets(legacyAssets, _user)
+    else:
+        repaidAmount = extcall RipeTeller(teller).deleverageUser(_user, _autoDeleverageAmount)
+
+    txUsdValue: uint256 = 0
+    if repaidAmount != 0:
+        miniAddys: ws.MiniAddys = yld._getMiniAddys(_miniAddys)
+        txUsdValue = staticcall Appraiser(miniAddys.appraiser).getUsdValue(RIPE_GREEN_TOKEN, repaidAmount, miniAddys.missionControl, miniAddys.legoBook, miniAddys.ledger)
+
+    return repaidAmount, txUsdValue, RIPE_GREEN_TOKEN, touchedAssets
 
 
 # shared utils
@@ -1003,6 +1034,8 @@ def _canCallDeleverage(_user: address, _caller: address) -> bool:
 
     # user wallets
     if staticcall Ledger(addys._getLedgerAddr()).isUserWallet(_user):
+        if _caller == _user:
+            return True
         walletConfig: address = staticcall UserWallet(_user).walletConfig()
         return staticcall UserWalletConfig(walletConfig).isAgentSender(_caller)
 
@@ -1023,6 +1056,7 @@ def getUserDebtAmount(_user: address) -> uint256:
 #################
 # Claim Rewards #
 #################
+
 
 @view
 @internal
@@ -1083,7 +1117,7 @@ def _claimRewards(
 # has claimable rewards
 
 
-@view
+@pure
 @external
 def hasClaimableRewards(_user: address) -> bool:
     # TODO: implement

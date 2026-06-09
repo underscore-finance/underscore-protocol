@@ -1,14 +1,158 @@
 import pytest
 import boa
 
-from constants import ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
-from conf_utils import filter_logs
+from constants import ACTION_TYPE, EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
+from conf_utils import filter_logs, fresh_user_wallet, set_user_instant_action_settings
 from config.BluePrint import PARAMS
+from abi_utils import count_abi_arities
 
 
 ###############
 # Add Manager #
 ###############
+
+
+def _create_owner_cheque(cheque_book, user_wallet, owner, recipient, asset, mock_ripe, expiry_blocks=10, can_be_pulled=False):
+    mock_ripe.setPrice(asset.address, EIGHTEEN_DECIMALS)
+    assert cheque_book.createCheque(
+        user_wallet.address,
+        recipient,
+        asset.address,
+        EIGHTEEN_DECIMALS,
+        0,
+        expiry_blocks,
+        False,
+        can_be_pulled,
+        sender=owner,
+    )
+
+
+def _activate_manager(user_wallet_config, manager):
+    settings = user_wallet_config.managerSettings(manager)
+    if settings.startBlock > boa.env.evm.patch.block_number:
+        boa.env.time_travel(blocks=settings.startBlock - boa.env.evm.patch.block_number)
+
+
+def _set_user_instant_add_manager(config, owner):
+    set_user_instant_action_settings(config, owner, (True, False, False, False))
+
+
+def _set_protocol_instant_add_manager(high_command, switchboard_bravo, enabled):
+    if high_command.canInstantAddManager() != enabled:
+        high_command.setCanInstantAddManager(enabled, sender=switchboard_bravo.address)
+
+
+def _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms):
+    return (
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+
+
+def test_add_manager_abi_selector_counts():
+    assert count_abi_arities("scripts/abis/HighCommand.json", "addManager") == [9, 10, 11, 12]
+
+
+def test_instant_add_manager_sets_start_block_to_current(
+    high_command, switchboard_bravo, hatchery, bob, alice,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_add_manager(high_command, switchboard_bravo, True)
+    _set_user_instant_add_manager(config, bob)
+    args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
+
+    block_before = boa.env.evm.patch.block_number
+    assert high_command.addManager(wallet.address, alice, *args, 0, ONE_MONTH_IN_BLOCKS, True, sender=bob)
+
+    settings = config.managerSettings(alice)
+    assert settings.startBlock == block_before
+
+
+def test_instant_add_manager_preserves_validated_activation_length(
+    high_command, switchboard_bravo, hatchery, bob, alice,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_add_manager(high_command, switchboard_bravo, True)
+    _set_user_instant_add_manager(config, bob)
+    args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
+
+    assert high_command.addManager(wallet.address, alice, *args, 0, ONE_MONTH_IN_BLOCKS, True, sender=bob)
+
+    settings = config.managerSettings(alice)
+    assert settings.expiryBlock - settings.startBlock == ONE_MONTH_IN_BLOCKS
+
+
+def test_delayed_add_manager_still_uses_max_delay(
+    high_command, switchboard_bravo, hatchery, bob, alice,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_add_manager(high_command, switchboard_bravo, True)
+    requested_delay = config.timeLock() + 10
+    args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
+    block_before = boa.env.evm.patch.block_number
+
+    assert high_command.addManager(wallet.address, alice, *args, requested_delay, ONE_MONTH_IN_BLOCKS, False, sender=bob)
+
+    settings = config.managerSettings(alice)
+    assert settings.startBlock == block_before + requested_delay
+
+
+def test_instant_add_manager_requested_with_nonzero_start_delay_reverts(
+    high_command, switchboard_bravo, hatchery, bob, alice,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_add_manager(high_command, switchboard_bravo, True)
+    _set_user_instant_add_manager(config, bob)
+    args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
+
+    with boa.reverts("invalid start delay"):
+        high_command.addManager(wallet.address, alice, *args, 1, ONE_MONTH_IN_BLOCKS, True, sender=bob)
+
+
+@pytest.mark.parametrize(
+    "protocol_enabled,user_enabled,request_instant,should_revert,expect_instant",
+    [
+        (False, False, False, False, False),
+        (True, False, True, True, False),
+        (False, True, True, True, False),
+        (True, True, False, False, False),
+        (True, True, True, False, True),
+    ],
+)
+def test_add_manager_instant_gate_matrix(
+    high_command, switchboard_bravo, hatchery, bob, alice,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+    protocol_enabled, user_enabled, request_instant, should_revert, expect_instant,
+):
+    wallet, config = fresh_user_wallet(hatchery, bob)
+    _set_protocol_instant_add_manager(high_command, switchboard_bravo, protocol_enabled)
+    if user_enabled:
+        _set_user_instant_add_manager(config, bob)
+    else:
+        config.setInstantActionSettings((False, False, False, False), sender=bob)
+    args = _add_manager_args(createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms)
+    block_before = boa.env.evm.patch.block_number
+
+    if should_revert:
+        with boa.reverts("instant disabled"):
+            high_command.addManager(wallet.address, alice, *args, 0, ONE_MONTH_IN_BLOCKS, request_instant, sender=bob)
+        return
+
+    assert high_command.addManager(wallet.address, alice, *args, 0, ONE_MONTH_IN_BLOCKS, request_instant, sender=bob)
+    settings = config.managerSettings(alice)
+    if expect_instant:
+        assert settings.startBlock == block_before
+    else:
+        assert settings.startBlock == block_before + config.timeLock()
 
 
 def test_add_manager_verifies_real_user_wallet(high_command, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
@@ -47,7 +191,7 @@ def test_add_manager_verifies_caller_is_owner(high_command, user_wallet, createM
         )
 
 
-def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
+def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob, ambassador_wallet):
     """Test that certain addresses cannot be managers"""
     # Cannot add zero address
     with boa.reverts("invalid manager"):
@@ -109,6 +253,339 @@ def test_add_manager_invalid_manager_addresses(high_command, user_wallet, user_w
             sender=bob
         )
 
+    # Cannot add another Underscore user wallet as manager
+    with boa.reverts("invalid manager"):
+        high_command.addManager(
+            user_wallet,
+            ambassador_wallet.address,  # user wallets cannot be managers
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            createTransferPerms(),
+            [],
+            False,  # canClaimLoot
+            sender=bob
+        )
+
+
+def test_add_manager_rejects_active_cheque_recipient_after_expiry_until_cleared(
+    high_command, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+    alice, bob,
+):
+    """Active cheque recipients cannot become managers until the cheque is cleared."""
+    _create_owner_cheque(cheque_book, user_wallet, bob, alice, alpha_token, mock_ripe, expiry_blocks=10)
+
+    cheque = user_wallet_config.cheques(alice)
+    blocks_to_before_expiry = cheque.expiryBlock - boa.env.evm.patch.block_number - 1
+    if blocks_to_before_expiry > 0:
+        boa.env.time_travel(blocks=blocks_to_before_expiry)
+
+    with boa.reverts("active cheque exists"):
+        high_command.addManager(
+            user_wallet,
+            alice,
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            createTransferPerms(),
+            [],
+            False,
+            sender=bob
+        )
+
+    boa.env.time_travel(blocks=1)
+
+    assert not high_command.isValidNewManager(
+        user_wallet,
+        alice,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+    )
+    with boa.reverts("active cheque exists"):
+        high_command.addManager(
+            user_wallet,
+            alice,
+            createManagerLimits(),
+            createLegoPerms(),
+            createSwapPerms(),
+            createWhitelistPerms(),
+            createTransferPerms(),
+            [],
+            False,
+            sender=bob
+        )
+
+    assert cheque_book.cancelCheque(user_wallet.address, alice, sender=bob)
+
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+    assert user_wallet_config.indexOfManager(alice) != 0
+
+
+def test_add_manager_allows_cancelled_cheque_recipient(
+    high_command, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+    alice, bob,
+):
+    """Cancelled cheques are inactive, so a former cheque recipient can become a manager."""
+    _create_owner_cheque(cheque_book, user_wallet, bob, alice, alpha_token, mock_ripe, expiry_blocks=10)
+    assert cheque_book.cancelCheque(user_wallet.address, alice, sender=bob)
+    assert not user_wallet_config.cheques(alice).active
+
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+    assert user_wallet_config.indexOfManager(alice) != 0
+
+
+def test_add_manager_allows_paid_cheque_recipient(
+    high_command, user_wallet, user_wallet_config, cheque_book, billing, mock_ripe, alpha_token,
+    alpha_token_whale, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms,
+    createTransferPerms, alice, bob,
+):
+    """Paid cheques are zeroed, so a former cheque recipient can become a manager"""
+    _create_owner_cheque(cheque_book, user_wallet, bob, alice, alpha_token, mock_ripe, can_be_pulled=True)
+    alpha_token.transfer(user_wallet.address, EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+
+    billing.pullPaymentAsCheque(
+        user_wallet.address,
+        alpha_token.address,
+        EIGHTEEN_DECIMALS,
+        sender=alice,
+    )
+    assert not user_wallet_config.cheques(alice).active
+
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+    assert user_wallet_config.indexOfManager(alice) != 0
+
+
+def test_manager_generic_allowed_recipient_create_and_pay_flow(
+    high_command, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
+    alpha_token_whale, createGlobalManagerSettings, createManagerLimits, createLegoPerms,
+    createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, charlie, sally,
+):
+    """Restricted managers can create cheques to allowed generic recipients without transfer permission"""
+    global_transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _canCreateCheque=True,
+        _allowedPayees=[charlie],
+    )
+    assert high_command.setGlobalManagerSettings(
+        user_wallet,
+        ONE_MONTH_IN_BLOCKS,
+        ONE_DAY_IN_BLOCKS,
+        ONE_YEAR_IN_BLOCKS,
+        True,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        global_transfer_perms,
+        [],
+        sender=bob,
+    )
+
+    manager_transfer_perms = createTransferPerms(
+        _canTransfer=False,
+        _canCreateCheque=True,
+        _allowedPayees=[charlie],
+    )
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        manager_transfer_perms,
+        [],
+        False,
+        sender=bob
+    )
+    _activate_manager(user_wallet_config, alice)
+
+    amount = EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+
+    with boa.reverts("payee not allowed"):
+        cheque_book.createCheque(
+            user_wallet.address,
+            sally,
+            alpha_token.address,
+            amount,
+            0,
+            10,
+            True,
+            False,
+            sender=alice,
+        )
+
+    # Owner cheque creation still bypasses manager allowlists.
+    assert cheque_book.createCheque(
+        user_wallet.address,
+        sally,
+        alpha_token.address,
+        amount,
+        0,
+        10,
+        False,
+        False,
+        sender=bob,
+    )
+
+    assert cheque_book.createCheque(
+        user_wallet.address,
+        charlie,
+        alpha_token.address,
+        amount,
+        0,
+        10,
+        True,
+        False,
+        sender=alice,
+    )
+
+    with boa.reverts():
+        user_wallet.transferFunds(charlie, alpha_token.address, amount, True, sender=alice)
+
+    recipient_balance_before = alpha_token.balanceOf(charlie)
+    amount_paid, usd_value = user_wallet.transferFunds(charlie, alpha_token.address, amount, True, sender=bob)
+
+    assert amount_paid == amount
+    assert usd_value == amount
+    assert alpha_token.balanceOf(charlie) == recipient_balance_before + amount
+    assert not user_wallet_config.cheques(charlie).active
+
+
+def test_whitelisted_recipient_bypasses_generic_allowed_recipients(
+    high_command, user_wallet, user_wallet_config, migrator, mock_ripe, alpha_token,
+    alpha_token_whale, createManagerLimits, createLegoPerms, createSwapPerms,
+    createWhitelistPerms, createTransferPerms, alice, bob, charlie, sally,
+):
+    transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _allowedPayees=[charlie],
+    )
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        transfer_perms,
+        [],
+        False,
+        sender=bob
+    )
+    _activate_manager(user_wallet_config, alice)
+    user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
+
+    amount = EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    alpha_token.transfer(user_wallet.address, amount, sender=alpha_token_whale)
+
+    recipient_balance_before = alpha_token.balanceOf(sally)
+    amount_paid, usd_value = user_wallet.transferFunds(sally, alpha_token.address, amount, False, sender=alice)
+
+    assert amount_paid == amount
+    assert usd_value == amount
+    assert alpha_token.balanceOf(sally) == recipient_balance_before + amount
+
+
+def test_allowed_recipient_promoted_to_manager_keeps_sentinel_transfer_rule_but_blocks_cheque(
+    high_command, sentinel, user_wallet, user_wallet_config, cheque_book, mock_ripe, alpha_token,
+    createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms,
+    alice, bob, sally,
+):
+    transfer_perms = createTransferPerms(
+        _canTransfer=True,
+        _canCreateCheque=True,
+        _allowedPayees=[sally],
+    )
+    assert high_command.addManager(
+        user_wallet,
+        alice,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        transfer_perms,
+        [],
+        False,
+        sender=bob
+    )
+    assert high_command.addManager(
+        user_wallet,
+        sally,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=bob
+    )
+    _activate_manager(user_wallet_config, alice)
+
+    assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.TRANSFER, [], [], sally)
+
+    mock_ripe.setPrice(alpha_token.address, EIGHTEEN_DECIMALS)
+    with boa.reverts("invalid cheque"):
+        cheque_book.createCheque(
+            user_wallet.address,
+            sally,
+            alpha_token.address,
+            EIGHTEEN_DECIMALS,
+            0,
+            10,
+            True,
+            False,
+            sender=alice,
+        )
+
 
 def test_add_manager_validation_failure(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that invalid manager settings are rejected"""
@@ -126,23 +603,6 @@ def test_add_manager_validation_failure(high_command, user_wallet, createManager
             createLegoPerms(),
             createSwapPerms(),
             createWhitelistPerms(),
-            createTransferPerms(),
-            [],
-            False,  # canClaimLoot
-            sender=bob
-        )
-
-
-def test_add_manager_rejects_pending_whitelist_permission(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
-    """Test that managers cannot be created with canAddPending whitelist perms"""
-    with boa.reverts("invalid manager"):
-        high_command.addManager(
-            user_wallet,
-            alice,
-            createManagerLimits(),
-            createLegoPerms(),
-            createSwapPerms(),
-            createWhitelistPerms(_canAddPending=True),
             createTransferPerms(),
             [],
             False,  # canClaimLoot
@@ -171,7 +631,6 @@ def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, 
     swap_perms = createSwapPerms()
 
     whitelist_perms = createWhitelistPerms(
-        _canAddPending=False,
         _canConfirm=True,
         _canCancel=False,
         _canRemove=False
@@ -227,7 +686,6 @@ def test_add_manager_saves_settings_in_wallet_config(high_command, user_wallet, 
     assert saved_settings.legoPerms.allowedLegos[1] == 2
     
     # Verify whitelist permissions
-    assert saved_settings.whitelistPerms.canAddPending == False
     assert saved_settings.whitelistPerms.canConfirm == True
     assert saved_settings.whitelistPerms.canCancel == False
     assert saved_settings.whitelistPerms.canRemove == False
@@ -260,7 +718,7 @@ def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits,
         alice,
         limits,
         createLegoPerms(),
-            createSwapPerms(),
+        createSwapPerms(),
         createWhitelistPerms(),
         createTransferPerms(),
         [],
@@ -281,7 +739,6 @@ def test_add_manager_emits_event(high_command, user_wallet, createManagerLimits,
     assert event.maxUsdValueLifetime == 200000 * 10**6
     assert event.maxNumTxsPerPeriod == 100
     assert event.txCooldownBlocks == 200
-    
     # Verify timing
     assert event.startBlock > 0
     assert event.expiryBlock > event.startBlock
@@ -587,39 +1044,6 @@ def test_update_manager_validation_failure(high_command, user_wallet, user_walle
         )
 
 
-def test_update_manager_rejects_pending_whitelist_permission(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
-    """Test that managers cannot be updated to canAddPending whitelist perms"""
-    global_settings = createGlobalManagerSettings()
-    user_wallet_config.setGlobalManagerSettings(global_settings, sender=high_command.address)
-
-    high_command.addManager(
-        user_wallet,
-        alice,
-        createManagerLimits(),
-        createLegoPerms(),
-        createSwapPerms(),
-        createWhitelistPerms(),
-        createTransferPerms(),
-        [],
-        False,  # canClaimLoot
-        sender=bob
-    )
-
-    with boa.reverts("invalid settings"):
-        high_command.updateManager(
-            user_wallet,
-            alice,
-            createManagerLimits(),
-            createLegoPerms(),
-            createSwapPerms(),
-            createWhitelistPerms(_canAddPending=True),
-            createTransferPerms(),
-            [],
-            False,  # canClaimLoot
-            sender=bob
-        )
-
-
 def test_update_manager_saves_new_settings(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob, alpha_token, bravo_token, charlie_token):
     """Test that updateManager correctly saves all new settings"""
     # Setup: add alice as manager with initial settings
@@ -638,7 +1062,7 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
         initial_limits,
         createLegoPerms(_canManageYield=True, _canBuyAndSell=False),
         createSwapPerms(),
-        createWhitelistPerms(_canAddPending=False, _canConfirm=True),
+        createWhitelistPerms(_canConfirm=True),
         createTransferPerms(_canTransfer=False, _canCreateCheque=True),
         [alpha_token.address],
         False,  # canClaimLoot
@@ -673,7 +1097,6 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
     new_swap_perms = createSwapPerms()
 
     new_whitelist_perms = createWhitelistPerms(
-        _canAddPending=False,
         _canConfirm=False,
         _canCancel=True,
         _canRemove=False
@@ -682,7 +1105,6 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
     new_transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=False,
-        _canAddPendingPayee=True,
         _allowedPayees=[]  # Use empty list instead of token address
     )
 
@@ -724,7 +1146,6 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
     assert updated_settings.legoPerms.allowedLegos[1] == 2
     
     # Verify new whitelist permissions
-    assert updated_settings.whitelistPerms.canAddPending == False
     assert updated_settings.whitelistPerms.canConfirm == False
     assert updated_settings.whitelistPerms.canCancel == True
     assert updated_settings.whitelistPerms.canRemove == False
@@ -732,7 +1153,6 @@ def test_update_manager_saves_new_settings(high_command, user_wallet, user_walle
     # Verify new transfer permissions
     assert updated_settings.transferPerms.canTransfer == True
     assert updated_settings.transferPerms.canCreateCheque == False
-    assert updated_settings.transferPerms.canAddPendingPayee == True
     assert len(updated_settings.transferPerms.allowedPayees) == 0
     
     # Verify new allowed assets
@@ -799,8 +1219,6 @@ def test_update_manager_emits_event(high_command, user_wallet, user_wallet_confi
     assert event.maxUsdValueLifetime == 300000 * 10**6
     assert event.maxNumTxsPerPeriod == 150
     assert event.txCooldownBlocks == 300
-
-
 def test_update_manager_preserves_timing(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, alice, bob):
     """Test that updating a manager preserves start and expiry blocks"""
     # Setup: add alice as manager with specific timing
@@ -1158,6 +1576,108 @@ def test_remove_manager_by_security_admin(high_command, user_wallet, user_wallet
     assert user_wallet_config.indexOfManager(alice) == 0
 
 
+def test_remove_starting_agent_reverts_for_owner_security_and_self(
+    high_command,
+    user_wallet,
+    user_wallet_config,
+    starter_agent,
+    bob,
+    charlie,
+    mission_control,
+    switchboard_alpha,
+):
+    """Test that starting agent cannot be removed through HighCommand"""
+    assert user_wallet_config.startingAgent() == starter_agent.address
+    assert user_wallet_config.indexOfManager(starter_agent.address) != 0
+
+    with boa.reverts("cannot remove starter agent"):
+        high_command.removeManager(
+            user_wallet,
+            starter_agent,
+            sender=bob,
+        )
+
+    mission_control.setCanPerformSecurityAction(charlie, True, sender=switchboard_alpha.address)
+    with boa.reverts("cannot remove starter agent"):
+        high_command.removeManager(
+            user_wallet,
+            starter_agent,
+            sender=charlie,
+        )
+
+    with boa.reverts("cannot remove starter agent"):
+        high_command.removeManager(
+            user_wallet,
+            starter_agent,
+            sender=starter_agent.address,
+        )
+
+    assert user_wallet_config.indexOfManager(starter_agent.address) != 0
+
+
+def test_neuter_starter_agent_owner_only_idempotent_and_preserves_claim_loot(
+    high_command,
+    user_wallet,
+    user_wallet_config,
+    starter_agent,
+    bob,
+    alice,
+):
+    assert user_wallet_config.startingAgent() == starter_agent.address
+    assert user_wallet_config.indexOfManager(starter_agent.address) != 0
+
+    with boa.reverts("no perms"):
+        high_command.neuterStarterAgent(user_wallet, sender=alice)
+
+    assert high_command.neuterStarterAgent(user_wallet, sender=bob)
+    assert user_wallet_config.indexOfManager(starter_agent.address) != 0
+
+    settings = user_wallet_config.managerSettings(starter_agent.address)
+    assert settings.canClaimLoot == True
+    assert settings.startBlock == 0
+    assert settings.expiryBlock == 0
+    assert settings.limits.maxUsdValuePerTx == 0
+    assert settings.limits.maxUsdValuePerPeriod == 0
+    assert settings.limits.maxUsdValueLifetime == 0
+    assert settings.limits.maxNumTxsPerPeriod == 0
+    assert settings.limits.txCooldownBlocks == 0
+    assert settings.limits.failOnZeroPrice == False
+    assert settings.legoPerms.canManageYield == False
+    assert settings.legoPerms.canBuyAndSell == False
+    assert settings.legoPerms.canManageDebt == False
+    assert settings.legoPerms.canManageLiq == False
+    assert settings.legoPerms.canClaimRewards == False
+    assert settings.legoPerms.onlyApprovedYieldOpps == False
+    assert len(settings.legoPerms.allowedLegos) == 0
+    assert settings.swapPerms.mustHaveUsdValue == False
+    assert settings.swapPerms.maxNumSwapsPerPeriod == 0
+    assert settings.swapPerms.maxSlippage == 0
+    assert settings.whitelistPerms.canConfirm == False
+    assert settings.whitelistPerms.canCancel == False
+    assert settings.whitelistPerms.canRemove == False
+    assert settings.transferPerms.canTransfer == False
+    assert settings.transferPerms.canCreateCheque == False
+    assert len(settings.transferPerms.allowedPayees) == 0
+    assert len(settings.allowedAssets) == 0
+
+    manager_event = filter_logs(high_command, "ManagerSettingsModified")[0]
+    assert manager_event.user == user_wallet.address
+    assert manager_event.manager == starter_agent.address
+    assert manager_event.canClaimLoot == True
+
+    neuter_event = filter_logs(high_command, "StarterAgentNeutered")[0]
+    assert neuter_event.user == user_wallet.address
+    assert neuter_event.starterAgent == starter_agent.address
+
+    assert high_command.neuterStarterAgent(user_wallet, sender=bob)
+    settings_again = user_wallet_config.managerSettings(starter_agent.address)
+    assert settings_again.canClaimLoot == True
+    assert settings_again.limits.maxUsdValuePerTx == 0
+    assert len(settings_again.allowedAssets) == 0
+
+
+
+
 def test_remove_manager_not_found(high_command, user_wallet, user_wallet_config, createGlobalManagerSettings, alice, bob):
     """Test that cannot remove a non-existent manager"""
     # Setup: set global settings but don't add alice as manager
@@ -1225,7 +1745,7 @@ def test_remove_manager_clears_all_settings(high_command, user_wallet, user_wall
         ),
         createLegoPerms(_canManageYield=True, _allowedLegos=[1, 2]),
         createSwapPerms(),
-        createWhitelistPerms(_canAddPending=False),
+        createWhitelistPerms(),
         createTransferPerms(_canTransfer=True),
         [alpha_token.address],
         False,  # canClaimLoot
@@ -2073,7 +2593,6 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
 
     # Set up whitelist permissions
     whitelist_perms = createWhitelistPerms(
-        _canAddPending=False,
         _canConfirm=True,
         _canCancel=False,
         _canRemove=False
@@ -2083,7 +2602,6 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
     transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=False,
-        _canAddPendingPayee=True,
         _allowedPayees=[]
     )
 
@@ -2133,7 +2651,6 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
     assert global_settings.legoPerms.allowedLegos[1] == 2
     
     # Check whitelist permissions
-    assert global_settings.whitelistPerms.canAddPending == False
     assert global_settings.whitelistPerms.canConfirm == True
     assert global_settings.whitelistPerms.canCancel == False
     assert global_settings.whitelistPerms.canRemove == False
@@ -2141,7 +2658,6 @@ def test_set_global_manager_settings_basic(high_command, user_wallet, user_walle
     # Check transfer permissions
     assert global_settings.transferPerms.canTransfer == True
     assert global_settings.transferPerms.canCreateCheque == False
-    assert global_settings.transferPerms.canAddPendingPayee == True
     assert len(global_settings.transferPerms.allowedPayees) == 0
     
     # Check allowed assets
@@ -2173,7 +2689,6 @@ def test_set_global_manager_settings_emits_event(high_command, user_wallet, crea
     swap_perms = createSwapPerms()
 
     whitelist_perms = createWhitelistPerms(
-        _canAddPending=False,
         _canConfirm=True,
         _canCancel=True,
         _canRemove=True
@@ -2182,7 +2697,6 @@ def test_set_global_manager_settings_emits_event(high_command, user_wallet, crea
     transfer_perms = createTransferPerms(
         _canTransfer=False,
         _canCreateCheque=True,
-        _canAddPendingPayee=False,
         _allowedPayees=[]
     )
 
@@ -2224,13 +2738,11 @@ def test_set_global_manager_settings_emits_event(high_command, user_wallet, crea
     assert event.canManageLiq == False
     assert event.canClaimRewards == True
     assert event.numAllowedLegos == 0
-    assert event.canAddPendingWhitelist == False
     assert event.canConfirmWhitelist == True
     assert event.canCancelWhitelist == True
     assert event.canRemoveWhitelist == True
     assert event.canTransfer == False
     assert event.canCreateCheque == True
-    assert event.canAddPendingPayee == False
     assert event.numAllowedRecipients == 0
     assert event.numAllowedAssets == 0
 
@@ -2323,25 +2835,6 @@ def test_set_global_manager_settings_validates_inputs(high_command, user_wallet,
         )
 
 
-def test_set_global_manager_settings_rejects_pending_whitelist_permission(high_command, user_wallet, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
-    """Test that global manager settings cannot enable canAddPending whitelist perms"""
-    with boa.reverts("invalid settings"):
-        high_command.setGlobalManagerSettings(
-            user_wallet,
-            ONE_MONTH_IN_BLOCKS,
-            ONE_DAY_IN_BLOCKS,
-            ONE_YEAR_IN_BLOCKS,
-            True,
-            createManagerLimits(),
-            createLegoPerms(),
-            createSwapPerms(),
-            createWhitelistPerms(_canAddPending=True),
-            createTransferPerms(),
-            [],
-            sender=bob
-        )
-
-
 def test_set_global_manager_settings_respects_timelock(high_command, user_wallet, user_wallet_config, createManagerLimits, createLegoPerms, createSwapPerms, createWhitelistPerms, createTransferPerms, bob):
     """Test that start delay must respect user's timelock"""
     # Get the current timelock from user wallet config
@@ -2390,7 +2883,6 @@ def test_set_global_manager_settings_multiple_updates(high_command, user_wallet,
         ),
         createSwapPerms(),
         createWhitelistPerms(
-            _canAddPending=False,
             _canConfirm=False,
             _canCancel=True,
             _canRemove=False
@@ -2398,7 +2890,6 @@ def test_set_global_manager_settings_multiple_updates(high_command, user_wallet,
         createTransferPerms(
             _canTransfer=False,
             _canCreateCheque=False,
-            _canAddPendingPayee=False,
             _allowedPayees=[]
         ),
         [],
@@ -2859,3 +3350,36 @@ def test_set_global_swap_perms(high_command, user_wallet, user_wallet_config, cr
     assert global_settings.swapPerms.mustHaveUsdValue == True
     assert global_settings.swapPerms.maxNumSwapsPerPeriod == 30
     assert global_settings.swapPerms.maxSlippage == 500
+
+
+def test_create_starter_agent_settings_uses_module_owned_happy_defaults(high_command):
+    block_before = boa.env.evm.patch.block_number
+
+    settings = high_command.createStarterAgentSettings(ONE_YEAR_IN_BLOCKS)
+
+    assert settings.startBlock == block_before
+    assert settings.expiryBlock == block_before + ONE_YEAR_IN_BLOCKS
+    assert settings.limits.maxUsdValuePerTx == 0
+    assert settings.limits.maxUsdValuePerPeriod == 0
+    assert settings.limits.maxUsdValueLifetime == 0
+    assert settings.limits.maxNumTxsPerPeriod == 0
+    assert settings.limits.txCooldownBlocks == 0
+    assert settings.limits.failOnZeroPrice is False
+    assert settings.legoPerms.canManageYield is True
+    assert settings.legoPerms.canBuyAndSell is True
+    assert settings.legoPerms.canManageDebt is True
+    assert settings.legoPerms.canManageLiq is True
+    assert settings.legoPerms.canClaimRewards is True
+    assert settings.legoPerms.onlyApprovedYieldOpps is False
+    assert len(settings.legoPerms.allowedLegos) == 0
+    assert settings.swapPerms.mustHaveUsdValue is False
+    assert settings.swapPerms.maxNumSwapsPerPeriod == 0
+    assert settings.swapPerms.maxSlippage == 0
+    assert settings.whitelistPerms.canConfirm is True
+    assert settings.whitelistPerms.canCancel is True
+    assert settings.whitelistPerms.canRemove is True
+    assert settings.transferPerms.canTransfer is True
+    assert settings.transferPerms.canCreateCheque is True
+    assert len(settings.transferPerms.allowedPayees) == 0
+    assert len(settings.allowedAssets) == 0
+    assert settings.canClaimLoot is True
