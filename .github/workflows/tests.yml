@@ -49,11 +49,15 @@ jobs:
       - name: Run leverage redemption tests
         run: python -m pytest --fork local tests/vaults/leverage/test_levg_redemption_complete.py -ra
 
+      - name: Run leverage multi-user tests
+        run: python -m pytest --fork local tests/vaults/leverage/test_levg_multi_user.py -ra
+
       - name: Run remaining local test suite
         run: >
           python -m pytest --fork local
           --ignore=tests/registries/test_undy_hq.py
           --ignore=tests/vaults/leverage/test_levg_redemption_complete.py
+          --ignore=tests/vaults/leverage/test_levg_multi_user.py
           -n auto
           --dist loadfile
           -ra
