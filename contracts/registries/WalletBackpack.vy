@@ -28,7 +28,7 @@ initializes: timeLock[gov := gov]
 import contracts.modules.LocalGov as gov
 import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
-import contracts.modules.TimeLock as timeLock
+import contracts.modules.Timelock as timeLock
 from interfaces import Department
 
 from interfaces import WalletConfigStructs as wcs

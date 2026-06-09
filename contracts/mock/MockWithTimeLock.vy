@@ -7,7 +7,7 @@ initializes: gov
 initializes: timeLock[gov := gov]
 
 import contracts.modules.LocalGov as gov
-import contracts.modules.TimeLock as timeLock
+import contracts.modules.Timelock as timeLock
 
 struct PendingData:
     actionId: uint256
