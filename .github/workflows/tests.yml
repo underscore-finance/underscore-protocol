@@ -41,5 +41,19 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install pytest-xdist==3.6.1
 
-      - name: Run local test suite
-        run: python -m pytest --fork local -n auto --dist loadfile -ra
+      # These files mutate session-scoped contract fixtures, so give each one a
+      # fresh pytest process before the parallel remainder.
+      - name: Run Undy HQ tests
+        run: python -m pytest --fork local tests/registries/test_undy_hq.py -ra
+
+      - name: Run leverage redemption tests
+        run: python -m pytest --fork local tests/vaults/leverage/test_levg_redemption_complete.py -ra
+
+      - name: Run remaining local test suite
+        run: >
+          python -m pytest --fork local
+          --ignore=tests/registries/test_undy_hq.py
+          --ignore=tests/vaults/leverage/test_levg_redemption_complete.py
+          -n auto
+          --dist loadfile
+          -ra
