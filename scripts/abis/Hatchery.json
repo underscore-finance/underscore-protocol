@@ -42,6 +42,72 @@
     "type": "event"
   },
   {
+    "name": "StarterAgentConfigSet",
+    "inputs": [
+      {
+        "name": "starterAgentType",
+        "type": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "startingAgent",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "startingAgentActivationLength",
+        "type": "uint256",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "NonProdCreatorSet",
+    "inputs": [
+      {
+        "name": "nonProdCreator",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "HatcheryDefaultInstantActionSettingsSet",
+    "inputs": [
+      {
+        "name": "canInstantAddManager",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantAddPayee",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantSetGlobalPayeeSettings",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "canInstantSetChequeSettings",
+        "type": "bool",
+        "indexed": false
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
     "name": "DepartmentPauseModified",
     "inputs": [
       {
@@ -293,7 +359,159 @@
     ]
   },
   {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "createUserWallet",
+    "inputs": [
+      {
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "name": "_ambassador",
+        "type": "address"
+      },
+      {
+        "name": "_groupId",
+        "type": "uint256"
+      },
+      {
+        "name": "_starterAgentType",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setStarterAgentConfig",
+    "inputs": [
+      {
+        "name": "_starterAgentType",
+        "type": "uint256"
+      },
+      {
+        "name": "_startingAgent",
+        "type": "address"
+      },
+      {
+        "name": "_startingAgentActivationLength",
+        "type": "uint256"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setNonProdCreator",
+    "inputs": [
+      {
+        "name": "_nonProdCreator",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setDefaultInstantActionSettings",
+    "inputs": [
+      {
+        "name": "_settings",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  },
+  {
     "stateMutability": "view",
+    "type": "function",
+    "name": "getDefaultInstantActionSettingsChange",
+    "inputs": [
+      {
+        "name": "_target",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "pure",
     "type": "function",
     "name": "doesWalletStillHaveTrialFundsWithAddys",
     "inputs": [
@@ -354,6 +572,92 @@
     ]
   },
   {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "defaultInstantActionSettings",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "stagingStarterAgentConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentActivationLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "devStarterAgentConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentActivationLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "nonProdCreator",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
     "stateMutability": "nonpayable",
     "type": "constructor",
     "inputs": [
@@ -367,6 +671,60 @@
       },
       {
         "name": "_ethAddr",
+        "type": "address"
+      },
+      {
+        "name": "_defaultInstantActionSettings",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "canInstantAddManager",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantAddPayee",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetGlobalPayeeSettings",
+            "type": "bool"
+          },
+          {
+            "name": "canInstantSetChequeSettings",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "name": "_stagingStarterAgentConfig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentActivationLength",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_devStarterAgentConfig",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "startingAgentActivationLength",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_nonProdCreator",
         "type": "address"
       }
     ],

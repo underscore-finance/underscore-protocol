@@ -58,7 +58,7 @@ ambassadors: public(HashMap[address, address]) # user -> ambassador
 vaultTokens: public(HashMap[address, VaultToken]) # vault token -> data
 
 # backpack items
-isRegisteredBackpackItem: public(HashMap[address, bool]) # asset -> is registered
+isRegisteredBackpackItem: public(HashMap[address, bool]) # addr -> is registered
 
 
 @deploy

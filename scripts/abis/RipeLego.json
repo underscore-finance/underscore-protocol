@@ -702,7 +702,7 @@
     "outputs": []
   },
   {
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function",
     "name": "isValidPriceConfig",
     "inputs": [
@@ -2251,6 +2251,83 @@
     ]
   },
   {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "deleverageForUserWallet",
+    "inputs": [
+      {
+        "name": "_user",
+        "type": "address"
+      },
+      {
+        "name": "_deleverageAssets",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "vaultId",
+            "type": "uint256"
+          },
+          {
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "name": "targetRepayAmount",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "_autoDeleverageAmount",
+        "type": "uint256"
+      },
+      {
+        "name": "_extraData",
+        "type": "bytes32"
+      },
+      {
+        "name": "_miniAddys",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "ledger",
+            "type": "address"
+          },
+          {
+            "name": "missionControl",
+            "type": "address"
+          },
+          {
+            "name": "legoBook",
+            "type": "address"
+          },
+          {
+            "name": "appraiser",
+            "type": "address"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "name": "",
+        "type": "address"
+      },
+      {
+        "name": "",
+        "type": "address[]"
+      }
+    ]
+  },
+  {
     "stateMutability": "view",
     "type": "function",
     "name": "getUserDebtAmount",
@@ -2444,7 +2521,7 @@
     ]
   },
   {
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function",
     "name": "hasClaimableRewards",
     "inputs": [

@@ -1,6 +1,9 @@
 # @version 0.4.3
 
 from interfaces import Wallet
+from interfaces import WalletStructs as ws
+
+MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
 ##################
 # Transfer Funds #
@@ -12,7 +15,6 @@ def transferFunds(
     _recipient: address,
     _asset: address,
     _amount: uint256,
-    _isCheque: bool,
 ) -> (uint256, uint256):
     ...
 
@@ -22,6 +24,29 @@ def createAndPayCheque(
     _recipient: address,
     _asset: address,
     _amount: uint256,
+) -> (uint256, uint256):
+    ...
+
+@external
+def createCheque(
+    _userWallet: address,
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+    _unlockNumBlocks: uint256,
+    _expiryNumBlocks: uint256,
+    _canManagerPay: bool,
+    _canBePulled: bool,
+) -> bool:
+    ...
+
+@external
+def payCheque(
+    _userWallet: address,
+    _recipient: address,
+    _asset: address,
+    _amount: uint256,
+    _expectedCreationBlock: uint256,
 ) -> (uint256, uint256):
     ...
 
@@ -139,6 +164,16 @@ def repayDebt(
 ) -> (uint256, uint256):
     ...
 
+@external
+def deleverage(
+    _userWallet: address,
+    _legoId: uint256,
+    _deleverageAssets: DynArray[ws.DeleverageAsset, MAX_DELEVERAGE_WALLET_ASSETS],
+    _autoDeleverageAmount: uint256,
+    _extraData: bytes32,
+) -> (uint256, uint256):
+    ...
+
 #################
 # Claim Rewards #
 #################
@@ -151,6 +186,51 @@ def claimIncentives(
     _rewardAmount: uint256,
     _proofs: DynArray[bytes32, 25],
 ) -> (uint256, uint256):
+    ...
+
+#############
+# Whitelist #
+#############
+
+@external
+def confirmWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
+    ...
+
+@external
+def cancelPendingWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
+    ...
+
+@external
+def removeWhitelistAddr(_userWallet: address, _whitelistAddr: address) -> bool:
+    ...
+
+######################
+# Manager Self-Admin #
+######################
+
+@external
+def removeSelfAsManager(_userWallet: address) -> bool:
+    ...
+
+###################
+# Protocol Claims #
+###################
+
+@external
+def claimAllLoot(_userWallet: address) -> bool:
+    ...
+
+@external
+def claimRevShareAndBonusLoot(_userWallet: address) -> uint256:
+    ...
+
+@external
+def claimDepositRewards(_userWallet: address) -> uint256:
+    ...
+
+@view
+@external
+def canClaimLootFor(_userWallet: address) -> bool:
     ...
 
 ###############

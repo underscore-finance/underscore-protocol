@@ -18,13 +18,22 @@ import time
 import boa
 
 # Import shared utilities
-from params_utils import (
-    UNDY_HQ,
-    RPC_DELAY,
-    MISSION_CONTROL_ID,
-    setup_boa_etherscan,
-    boa_fork_context,
-)
+try:
+    from .params_utils import (
+        UNDY_HQ,
+        RPC_DELAY,
+        MISSION_CONTROL_ID,
+        setup_boa_etherscan,
+        boa_fork_context,
+    )
+except ImportError:
+    from params_utils import (
+        UNDY_HQ,
+        RPC_DELAY,
+        MISSION_CONTROL_ID,
+        setup_boa_etherscan,
+        boa_fork_context,
+    )
 
 # ============================================================================
 # CONSTANTS FOR VYPER VALUE FORMATTING

@@ -43,8 +43,8 @@ interface VaultRegistry:
     def setVaultOpsFrozen(_vaultAddr: address, _isFrozen: bool): nonpayable
     def setCanWithdraw(_vaultAddr: address, _canWithdraw: bool): nonpayable
     def setCanDeposit(_vaultAddr: address, _canDeposit: bool): nonpayable
-    def isValidPerformanceFee(_performanceFee: uint256) -> bool: view
-    def isValidRedemptionBuffer(_buffer: uint256) -> bool: view
+    def isValidPerformanceFee(_performanceFee: uint256) -> bool: pure
+    def isValidRedemptionBuffer(_buffer: uint256) -> bool: pure
     def isEarnVault(_vaultAddr: address) -> bool: view
 
 interface LevgVault:
@@ -65,7 +65,7 @@ interface YieldLego:
     def registerVaultTokenLocally(_asset: address, _vaultToken: address): nonpayable
     def canRegisterVaultToken(_asset: address, _vaultToken: address) -> bool: view
     def setSnapShotPriceConfig(_config: ls.SnapShotPriceConfig): nonpayable
-    def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool: view
+    def isValidPriceConfig(_config: ls.SnapShotPriceConfig) -> bool: pure
     def addPriceSnapshot(_vaultToken: address) -> bool: nonpayable
     def setMorphoRewardsAddr(_rewardsAddr: address): nonpayable
     def setEulerRewardsAddr(_rewardsAddr: address): nonpayable

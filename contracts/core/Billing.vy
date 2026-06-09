@@ -39,7 +39,7 @@ interface UserWalletConfig:
     def preparePayment(_targetAsset: address, _legoId: uint256, _vaultToken: address, _vaultAmount: uint256 = max_value(uint256)) -> (uint256, uint256): nonpayable
     def payeeSettings(_payee: address) -> wcs.PayeeSettings: view
     def globalPayeeSettings() -> wcs.GlobalPayeeSettings: view
-    def deregisterAsset(_asset: address) -> bool: nonpayable
+    def deregisterAsset(_asset: address): nonpayable
     def cheques(_recipient: address) -> wcs.Cheque: view
     def chequeSettings() -> wcs.ChequeSettings: view
     def inEjectMode() -> bool: view

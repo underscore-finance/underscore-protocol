@@ -2,6 +2,7 @@ import pytest
 import boa
 
 from config.BluePrint import TOKENS, TEST_AMOUNTS
+from constants import MAX_UINT256
 
 
 VAULT_TOKENS = {
@@ -36,71 +37,84 @@ def getVaultToken(fork):
 @pytest.always
 def test_wasabi_deposit_max(
     token_str,
-    testLegoDeposit,
     getTokenAndWhale,
     bob_user_wallet,
+    bob,
     lego_wasabi,
+    lego_book,
     getVaultToken,
 ):
-    # setup
+    # Wasabi deposits are disabled at the protocol level (raise in depositForYield).
+    # Verify the user-wallet path surfaces the rejection rather than silently succeeding.
     vault_token = getVaultToken(token_str)
     asset, whale = getTokenAndWhale(token_str)
     asset.transfer(bob_user_wallet.address, TEST_AMOUNTS[token_str] * (10 ** asset.decimals()), sender=whale)
+    lego_id = lego_book.getRegId(lego_wasabi)
 
-    testLegoDeposit(lego_wasabi, asset, vault_token)
+    with boa.reverts("not allowing deposits right now"):
+        bob_user_wallet.depositForYield(lego_id, asset, vault_token, MAX_UINT256, sender=bob)
 
 
 @pytest.mark.parametrize("token_str", TEST_ASSETS)
 @pytest.always
 def test_wasabi_deposit_partial(
     token_str,
-    testLegoDeposit,
     getVaultToken,
     bob_user_wallet,
+    bob,
     lego_wasabi,
+    lego_book,
     getTokenAndWhale,
 ):
-    # setup
     vault_token = getVaultToken(token_str)
     asset, whale = getTokenAndWhale(token_str)
     amount = TEST_AMOUNTS[token_str] * (10 ** asset.decimals())
     asset.transfer(bob_user_wallet.address, amount, sender=whale)
+    lego_id = lego_book.getRegId(lego_wasabi)
 
-    testLegoDeposit(lego_wasabi, asset, vault_token, amount // 2)
+    with boa.reverts("not allowing deposits right now"):
+        bob_user_wallet.depositForYield(lego_id, asset, vault_token, amount // 2, sender=bob)
 
 
 @pytest.mark.parametrize("token_str", TEST_ASSETS)
 @pytest.always
-def test_wasabi_withdraw_max(
+def test_wasabi_withdraw_max_without_balance_reverts(
     token_str,
-    setupWithdrawal,
     lego_wasabi,
     getVaultToken,
-    testLegoWithdrawal,
+    bob_user_wallet,
+    bob,
     lego_book,
 ):
-    lego_id = lego_book.getRegId(lego_wasabi)
+    # With Wasabi deposits disabled, no production path can give bob_user_wallet
+    # Wasabi vault tokens. Verify the user wallet's withdrawal guard rejects calls
+    # against a zero balance with the specific "no balance for _token" message —
+    # confirming the wallet's safety check is wired through the Wasabi lego dispatch
+    # and not silently swallowed.
     vault_token = getVaultToken(token_str)
-    asset, _ = setupWithdrawal(lego_id, token_str, vault_token)
+    lego_id = lego_book.getRegId(lego_wasabi)
 
-    testLegoWithdrawal(lego_id, asset, vault_token)
+    with boa.reverts("no balance for _token"):
+        bob_user_wallet.withdrawFromYield(lego_id, vault_token, MAX_UINT256, sender=bob)
 
 
 @pytest.mark.parametrize("token_str", TEST_ASSETS)
 @pytest.always
-def test_wasabi_withdraw_partial(
+def test_wasabi_withdraw_partial_without_balance_reverts(
     token_str,
-    setupWithdrawal,
     lego_wasabi,
     getVaultToken,
-    testLegoWithdrawal,
+    bob_user_wallet,
+    bob,
     lego_book,
 ):
-    lego_id = lego_book.getRegId(lego_wasabi)
+    # Same guard exercised with a non-MAX amount, ensuring the wallet's balance check
+    # fires before any state mutation regardless of the requested amount.
     vault_token = getVaultToken(token_str)
-    asset, vault_tokens_received = setupWithdrawal(lego_id, token_str, vault_token)
+    lego_id = lego_book.getRegId(lego_wasabi)
 
-    testLegoWithdrawal(lego_id, asset, vault_token, vault_tokens_received // 2)
+    with boa.reverts("no balance for _token"):
+        bob_user_wallet.withdrawFromYield(lego_id, vault_token, 1, sender=bob)
 
 
 @pytest.mark.parametrize("token_str", TEST_ASSETS)

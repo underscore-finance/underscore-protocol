@@ -2,8 +2,7 @@ import pytest
 import boa
 
 from config.BluePrint import PARAMS, TOKENS, INTEGRATION_ADDYS, VAULT_INFO
-from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS
-
+from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS, ONE_YEAR_IN_BLOCKS
 
 ###########
 # Undy HQ #
@@ -244,16 +243,22 @@ def switchboard_charlie(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session")
-def defaults(fork, user_wallet_template, user_wallet_config_template, agent_eoa):
+def defaults(fork, user_wallet_template, user_wallet_config_template, undy_hq_deploy):
+    default_agent = boa.load(
+        "contracts/core/agent/AgentWrapper.vy",
+        undy_hq_deploy,
+        1,
+        [],
+        name="default_starting_agent",
+    )
     d = ZERO_ADDRESS
     if fork == "local":
         d = boa.load("contracts/config/DefaultsLocal.vy", user_wallet_template,
-                     user_wallet_config_template, agent_eoa)
+                     user_wallet_config_template, default_agent)
     elif fork == "base":
-        # TODO: get actual agent contract here instead of using `agent_eoa`
         rewards_asset = TOKENS[fork]["RIPE"]
         d = boa.load("contracts/config/DefaultsBase.vy", user_wallet_template,
-                     user_wallet_config_template, agent_eoa, rewards_asset)
+                     user_wallet_config_template, default_agent, rewards_asset)
     return d
 
 
@@ -313,6 +318,10 @@ def hatchery(undy_hq_deploy, fork, weth):
         undy_hq_deploy,
         weth,
         TOKENS[fork]["ETH"],
+        (True, True, True, True),
+        (weth.address, ONE_YEAR_IN_BLOCKS),
+        (weth.address, ONE_YEAR_IN_BLOCKS),
+        ZERO_ADDRESS,
         name="hatchery",
     )
 
@@ -390,7 +399,7 @@ def wallet_backpack_deploy(undy_hq_deploy, fork):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def wallet_backpack(wallet_backpack_deploy, kernel, sentinel, high_command, paymaster, cheque_book, migrator, governance):
+def wallet_backpack(wallet_backpack_deploy, kernel, sentinel, high_command, paymaster, cheque_book, migrator, action_data_provider, governance):
 
     # set kernel
     wallet_backpack_deploy.addPendingKernel(kernel, sender=governance.address)
@@ -421,6 +430,11 @@ def wallet_backpack(wallet_backpack_deploy, kernel, sentinel, high_command, paym
     wallet_backpack_deploy.addPendingMigrator(migrator, sender=governance.address)
     boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
     wallet_backpack_deploy.confirmPendingMigrator(sender=governance.address)
+
+    # set action data provider
+    wallet_backpack_deploy.addPendingActionDataProvider(action_data_provider, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+    wallet_backpack_deploy.confirmPendingActionDataProvider(sender=governance.address)
 
     # set action time lock
     wallet_backpack_deploy.setActionTimeLockAfterSetup(sender=governance.address)
@@ -453,6 +467,7 @@ def high_command(undy_hq_deploy, fork):
         PARAMS[fork]["BOSS_MIN_ACTIVATION_LENGTH"],
         PARAMS[fork]["BOSS_MAX_ACTIVATION_LENGTH"],
         PARAMS[fork]["BOSS_MAX_START_DELAY"],
+        True,
         name="high_command",
     )
 
@@ -470,6 +485,8 @@ def paymaster(undy_hq_deploy, fork):
         PARAMS[fork]["PAYMASTER_MIN_ACTIVATION_LENGTH"],
         PARAMS[fork]["PAYMASTER_MAX_ACTIVATION_LENGTH"],
         PARAMS[fork]["PAYMASTER_MAX_START_DELAY"],
+        True,
+        True,
         name="paymaster",
     )
 
@@ -487,6 +504,7 @@ def cheque_book(undy_hq_deploy, fork):
         PARAMS[fork]["CHEQUE_MIN_EXPENSIVE_DELAY"],
         PARAMS[fork]["CHEQUE_MAX_UNLOCK_BLOCKS"],
         PARAMS[fork]["CHEQUE_MAX_EXPIRY_BLOCKS"],
+        True,
         name="cheque_book",
     )
 
@@ -499,6 +517,7 @@ def migrator(undy_hq_deploy):
     return boa.load(
         "contracts/core/walletBackpack/Migrator.vy",
         undy_hq_deploy,
+        False,
         name="migrator",
     )
 
@@ -511,6 +530,17 @@ def sentinel():
     return boa.load(
         "contracts/core/walletBackpack/Sentinel.vy",
         name="sentinel",
+    )
+
+
+# action data provider
+
+
+@pytest.fixture(scope="session")
+def action_data_provider():
+    return boa.load(
+        "contracts/core/userWallet/ActionDataProvider.vy",
+        name="action_data_provider",
     )
 
 

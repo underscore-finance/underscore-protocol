@@ -1,22 +1,22 @@
 import pytest
 import boa
 
-from constants import EIGHTEEN_DECIMALS
-from contracts.core.userWallet import UserWalletConfig
-from conf_utils import filter_logs
-from config.BluePrint import TOKENS
+from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
+from contracts.core.userWallet import UserWallet, UserWalletConfig
+from conf_utils import filter_logs, set_live_cheque_settings
+from config.BluePrint import TOKENS, PARAMS
 
 
 @pytest.fixture(scope="module")
 def setupAgentTestAsset(user_wallet, alpha_token, alpha_token_whale, mock_ripe, switchboard_alpha):
     def setupAgentTestAsset(
-        _asset = alpha_token,
-        _amount = 100 * EIGHTEEN_DECIMALS,
-        _whale = alpha_token_whale,
-        _user_wallet = user_wallet,
-        _price = 2 * EIGHTEEN_DECIMALS,
-        _lego_id = 0,
-        _shouldCheckYield = False,
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _user_wallet=user_wallet,
+        _price=2 * EIGHTEEN_DECIMALS,
+        _lego_id=0,
+        _shouldCheckYield=False,
     ):
         # set price
         mock_ripe.setPrice(_asset, _price)
@@ -30,7 +30,7 @@ def setupAgentTestAsset(user_wallet, alpha_token, alpha_token_whale, mock_ripe, 
             _lego_id,
             _asset,
             _shouldCheckYield,
-            sender = switchboard_alpha.address
+            sender=switchboard_alpha.address
         )
         return _amount
 
@@ -53,6 +53,7 @@ def _set_instant_cheque_settings(
     _expensive_delay_blocks=1,
     _can_managers_create_cheques=True,
     _can_manager_pay=True,
+    _can_be_pulled=False,
 ):
     wallet_config = UserWalletConfig.at(user_wallet.walletConfig())
     timelock = wallet_config.timeLock()
@@ -63,9 +64,9 @@ def _set_instant_cheque_settings(
         _defaultExpiryBlocks=timelock,
         _canManagersCreateCheques=_can_managers_create_cheques,
         _canManagerPay=_can_manager_pay,
-        _canBePulled=False,
+        _canBePulled=_can_be_pulled,
     )
-    cheque_book.setChequeSettings(user_wallet.address, *settings, sender=owner)
+    set_live_cheque_settings(cheque_book, user_wallet.address, *settings, sender=owner)
     return settings
 
 
@@ -83,8 +84,8 @@ def _set_agent_transfer_perms(
     transfer_perms = createTransferPerms(
         _canTransfer=_can_transfer,
         _canCreateCheque=_can_create_cheque,
-        _canAddPendingPayee=original_settings.transferPerms.canAddPendingPayee,
-        _allowedPayees=list(original_settings.transferPerms.allowedPayees) if _allowed_payees is None else _allowed_payees,
+        _allowedPayees=list(
+            original_settings.transferPerms.allowedPayees) if _allowed_payees is None else _allowed_payees,
     )
     updated_settings = createManagerSettings(
         _startBlock=original_settings.startBlock,
@@ -99,6 +100,161 @@ def _set_agent_transfer_perms(
     )
     user_wallet_config.updateManager(starter_agent.address, updated_settings, sender=high_command.address)
     return original_settings
+
+
+def _deploy_agent_wrapper_with_sender(undy_hq_deploy, starter_agent_sender, switchboard_alpha, name):
+    agent = boa.load(
+        "contracts/core/agent/AgentWrapper.vy",
+        undy_hq_deploy,
+        1,
+        [starter_agent_sender],
+        name=name,
+    )
+    return agent
+
+
+def _create_wallet_without_starter_agent(hatchery, owner, mission_control, switchboard_alpha):
+    creation_config = mission_control.getUserWalletCreationConfig(owner)
+    previous_starter_agent = creation_config.startingAgent
+    assert creation_config.isCreatorAllowed
+    mission_control.setStarterAgent(ZERO_ADDRESS, sender=switchboard_alpha.address)
+    try:
+        fresh_wallet = UserWallet.at(hatchery.createUserWallet(owner, ZERO_ADDRESS, 1, sender=owner))
+    finally:
+        mission_control.setStarterAgent(previous_starter_agent, sender=switchboard_alpha.address)
+    fresh_config = UserWalletConfig.at(fresh_wallet.walletConfig())
+    assert fresh_config.startingAgent() == ZERO_ADDRESS
+    return fresh_wallet, fresh_config
+
+
+def _add_wrapper_manager(
+    high_command,
+    wallet,
+    wrapper,
+    owner,
+    createManagerLimits,
+    createLegoPerms,
+    createSwapPerms,
+    createWhitelistPerms,
+    createTransferPerms,
+):
+    high_command.addManager(
+        wallet.address,
+        wrapper.address,
+        createManagerLimits(),
+        createLegoPerms(),
+        createSwapPerms(),
+        createWhitelistPerms(),
+        createTransferPerms(),
+        [],
+        False,
+        sender=owner,
+    )
+
+
+def _set_agent_claim_loot_perm(
+    user_wallet_config,
+    high_command,
+    starter_agent,
+    createManagerSettings,
+    _can_claim_loot,
+):
+    original_settings = user_wallet_config.managerSettings(starter_agent.address)
+    updated_settings = createManagerSettings(
+        _startBlock=original_settings.startBlock,
+        _expiryBlock=original_settings.expiryBlock,
+        _limits=original_settings.limits,
+        _legoPerms=original_settings.legoPerms,
+        _swapPerms=original_settings.swapPerms,
+        _whitelistPerms=original_settings.whitelistPerms,
+        _transferPerms=original_settings.transferPerms,
+        _allowedAssets=list(original_settings.allowedAssets),
+        _canClaimLoot=_can_claim_loot,
+    )
+    user_wallet_config.updateManager(starter_agent.address, updated_settings, sender=high_command.address)
+    return original_settings
+
+
+def _set_agent_whitelist_perms(
+    user_wallet_config,
+    high_command,
+    starter_agent,
+    createManagerSettings,
+    createWhitelistPerms,
+    _can_confirm,
+    _can_cancel,
+    _can_remove,
+):
+    original_settings = user_wallet_config.managerSettings(starter_agent.address)
+    whitelist_perms = createWhitelistPerms(
+        _canConfirm=_can_confirm,
+        _canCancel=_can_cancel,
+        _canRemove=_can_remove,
+    )
+    updated_settings = createManagerSettings(
+        _startBlock=original_settings.startBlock,
+        _expiryBlock=original_settings.expiryBlock,
+        _limits=original_settings.limits,
+        _legoPerms=original_settings.legoPerms,
+        _swapPerms=original_settings.swapPerms,
+        _whitelistPerms=whitelist_perms,
+        _transferPerms=original_settings.transferPerms,
+        _allowedAssets=list(original_settings.allowedAssets),
+        _canClaimLoot=original_settings.canClaimLoot,
+    )
+    user_wallet_config.updateManager(starter_agent.address, updated_settings, sender=high_command.address)
+    return original_settings
+
+
+def _set_agent_debt_controls(
+    user_wallet_config,
+    high_command,
+    starter_agent,
+    createManagerSettings,
+    createLegoPerms,
+    _can_manage_debt=True,
+    _allowed_legos=None,
+    _allowed_assets=None,
+    _limits=None,
+):
+    original_settings = user_wallet_config.managerSettings(starter_agent.address)
+    original_lego_perms = original_settings.legoPerms
+    lego_perms = createLegoPerms(
+        _canManageYield=original_lego_perms.canManageYield,
+        _canBuyAndSell=original_lego_perms.canBuyAndSell,
+        _canManageDebt=_can_manage_debt,
+        _canManageLiq=original_lego_perms.canManageLiq,
+        _canClaimRewards=original_lego_perms.canClaimRewards,
+        _onlyApprovedYieldOpps=original_lego_perms.onlyApprovedYieldOpps,
+        _allowedLegos=list(original_lego_perms.allowedLegos) if _allowed_legos is None else _allowed_legos,
+    )
+    updated_settings = createManagerSettings(
+        _startBlock=original_settings.startBlock,
+        _expiryBlock=original_settings.expiryBlock,
+        _limits=original_settings.limits if _limits is None else _limits,
+        _legoPerms=lego_perms,
+        _swapPerms=original_settings.swapPerms,
+        _whitelistPerms=original_settings.whitelistPerms,
+        _transferPerms=original_settings.transferPerms,
+        _allowedAssets=list(original_settings.allowedAssets) if _allowed_assets is None else _allowed_assets,
+        _canClaimLoot=original_settings.canClaimLoot,
+    )
+    user_wallet_config.updateManager(starter_agent.address, updated_settings, sender=high_command.address)
+    return original_settings
+
+
+@pytest.fixture(scope="module")
+def special_admin_sender(undy_hq_deploy, charlie, fork, starter_agent, switchboard_alpha):
+    sender = boa.load(
+        "contracts/core/agent/AgentSenderSpecialAdmin.vy",
+        undy_hq_deploy,
+        charlie,
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"],
+        PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+        name="special_admin_sender",
+    )
+    starter_agent.addSender(sender, sender=switchboard_alpha.address)
+    return sender
 
 
 ####################
@@ -141,7 +297,7 @@ def test_agent_deposit_for_yield_basic(
         sender=charlie  # charlie is the owner of starter_agent_sender
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 10  # deposit for yield
     assert log.asset1 == yield_underlying_token.address
@@ -156,7 +312,7 @@ def test_agent_deposit_for_yield_basic(
     assert vault_token == yield_vault_token.address
     assert vault_tokens_received > 0
     assert usd_value == 1000 * EIGHTEEN_DECIMALS  # 100 tokens * $10
-    
+
     # Verify tokens were transferred
     assert yield_underlying_token.balanceOf(user_wallet) == 0
     assert yield_vault_token.balanceOf(user_wallet) == vault_tokens_received
@@ -214,7 +370,7 @@ def test_agent_withdraw_from_yield_basic(
         sender=charlie
     )
     withdraw_log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert withdraw_log.op == 11  # withdraw from yield (EARN_WITHDRAW)
     assert withdraw_log.asset1 == yield_vault_token.address
@@ -227,12 +383,10 @@ def test_agent_withdraw_from_yield_basic(
     assert underlying_asset == yield_underlying_token.address
     assert underlying_received > 0
     assert usd_value > 0
-    
+
     # Verify balances
     assert yield_vault_token.balanceOf(user_wallet) == vault_tokens - withdraw_amount
     assert yield_underlying_token.balanceOf(user_wallet) == underlying_received
-
-
 
 
 def test_agent_swap_tokens_basic(
@@ -282,7 +436,7 @@ def test_agent_swap_tokens_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 20  # swap operation
     assert log.asset1 == mock_dex_asset.address
@@ -291,7 +445,7 @@ def test_agent_swap_tokens_basic(
     assert log.amount2 == amount_out
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # Verify results
     assert token_in == mock_dex_asset.address
     assert amount_in == swap_amount
@@ -299,7 +453,7 @@ def test_agent_swap_tokens_basic(
     assert amount_out == swap_amount  # MockDexLego does 1:1 swap
     # USD value is the max of input ($200) and output ($300) values
     assert usd_value == 300 * EIGHTEEN_DECIMALS  # max(100 * $2, 100 * $3)
-    
+
     # Verify balances changed
     assert mock_dex_asset.balanceOf(user_wallet) == amount - swap_amount
     assert mock_dex_asset_alt.balanceOf(user_wallet) == amount_out
@@ -351,7 +505,7 @@ def test_agent_mint_or_redeem_asset_immediate(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 21  # MINT_REDEEM operation
     assert log.asset1 == mock_dex_asset.address
@@ -360,13 +514,13 @@ def test_agent_mint_or_redeem_asset_immediate(
     assert log.amount2 == output_amount
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # Verify results for immediate mint
     assert token_out_received == mint_amount  # 1:1 exchange
     assert output_amount == mint_amount
     assert is_pending == False  # Immediate mode
     assert usd_value == 300 * EIGHTEEN_DECIMALS  # 100 tokens * $3
-    
+
     # Check balances updated
     assert mock_dex_asset.balanceOf(user_wallet) == initial_amount - mint_amount
     assert mock_dex_asset_alt.balanceOf(user_wallet) == mint_amount
@@ -441,7 +595,7 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events for confirmation
     assert log.op == 22  # CONFIRM_MINT_REDEEM operation
     assert log.asset1 == mock_dex_asset.address
@@ -450,11 +604,11 @@ def test_agent_confirm_mint_or_redeem_asset_pending(
     assert log.amount2 == confirmed_amount  # Output received
     assert log.usdValue == confirmed_usd_value
     assert log.legoId == lego_id
-    
+
     # Verify confirmation results
     assert confirmed_amount == mint_amount  # Now received
     assert confirmed_usd_value == 450 * EIGHTEEN_DECIMALS  # 150 tokens * $3
-    
+
     # Check final balances
     assert mock_dex_asset.balanceOf(user_wallet) == initial_amount - mint_amount
     assert mock_dex_asset_alt.balanceOf(user_wallet) == mint_amount
@@ -522,7 +676,7 @@ def test_agent_add_liquidity_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 30  # ADD_LIQ operation
     assert log.asset1 == mock_dex_asset.address
@@ -531,13 +685,13 @@ def test_agent_add_liquidity_basic(
     assert log.amount2 == added_b
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # Verify results
     assert added_a == amount_a
     assert added_b == amount_b
     assert lp_received == amount_a + amount_b  # MockDexLego mints LP tokens as sum of inputs
     assert usd_value == amount_a * 2 + amount_b * 3  # $2 per asset, $3 per alt
-    
+
     # Check balances
     assert mock_dex_asset.balanceOf(user_wallet) == initial_asset_balance - amount_a
     assert mock_dex_asset_alt.balanceOf(user_wallet) == initial_alt_balance - amount_b
@@ -614,7 +768,7 @@ def test_agent_remove_liquidity_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 31  # REMOVE_LIQ operation
     assert log.asset1 == mock_dex_asset.address
@@ -623,14 +777,14 @@ def test_agent_remove_liquidity_basic(
     assert log.amount2 == received_b
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # MockDexLego returns half of LP amount for each token
     expected_per_token = lp_to_remove // 2
     assert received_a == expected_per_token
     assert received_b == expected_per_token
     assert lp_burned == lp_to_remove
     assert usd_value == expected_per_token * 2 + expected_per_token * 3  # $2 + $3 per token
-    
+
     # Check balances
     assert mock_dex_lp_token.balanceOf(user_wallet) == lp_received - lp_to_remove
 
@@ -679,18 +833,18 @@ def test_agent_add_collateral_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 40  # add collateral
     assert log.asset1 == mock_dex_asset.address
     assert log.amount1 == amount_deposited
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # Verify results
     assert amount_deposited == collateral_amount
     assert usd_value == 400 * EIGHTEEN_DECIMALS  # 200 tokens * $2
-    
+
     # Verify balances
     assert mock_dex_asset.balanceOf(user_wallet) == initial_amount - collateral_amount
 
@@ -750,7 +904,7 @@ def test_agent_remove_collateral_basic(
         sender=charlie
     )
     remove_log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert remove_log.op == 41  # remove collateral
     assert remove_log.asset1 == mock_dex_asset.address
@@ -759,7 +913,7 @@ def test_agent_remove_collateral_basic(
     # Verify results
     assert amount_removed == remove_amount
     assert usd_value == 200 * EIGHTEEN_DECIMALS  # 100 tokens * $2
-    
+
     # Verify balances
     assert mock_dex_asset.balanceOf(user_wallet) == balance_after_add + remove_amount
 
@@ -792,7 +946,7 @@ def test_agent_borrow_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 42  # borrow
     assert log.asset1 == mock_dex_debt_token.address
@@ -803,7 +957,7 @@ def test_agent_borrow_basic(
     # Verify results
     assert amount_borrowed == borrow_amount
     assert usd_value == 300 * EIGHTEEN_DECIMALS  # 300 tokens * $1
-    
+
     # Verify balance (debt token should be minted to wallet)
     assert mock_dex_debt_token.balanceOf(user_wallet) == borrow_amount
 
@@ -852,7 +1006,7 @@ def test_agent_repay_debt_basic(
         sender=charlie
     )
     repay_log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert repay_log.op == 43  # repay debt
     assert repay_log.asset1 == mock_dex_debt_token.address
@@ -861,9 +1015,266 @@ def test_agent_repay_debt_basic(
     # Verify results
     assert amount_repaid == repay_amount
     assert usd_value == 200 * EIGHTEEN_DECIMALS  # 200 tokens * $1
-    
+
     # Verify balance (debt tokens should be burned)
     assert mock_dex_debt_token.balanceOf(user_wallet) == borrow_amount - repay_amount
+
+
+def test_agent_deleverage_specific_assets(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    mock_usdc,
+):
+    """Test AgentWrapper deleverage specific mode through AgentSenderGeneric."""
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 450 * EIGHTEEN_DECIMALS
+    repay_amount = 150 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(mock_usdc, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, debt)
+
+    deleverage_assets = [(1, mock_usdc.address, repay_amount)]
+    repaid, usd_value = starter_agent_sender.deleverage(
+        starter_agent.address,
+        user_wallet.address,
+        lego_id,
+        deleverage_assets,
+        0,
+        b"",
+        (b"", 0, 0),
+        sender=charlie,
+    )
+
+    assert repaid == repay_amount
+    assert usd_value == repay_amount
+    assert mock_ripe.userDebt(user_wallet.address) == debt - repay_amount
+
+    log = filter_logs(starter_agent_sender, "WalletAction")[-1]
+    assert log.op == 44
+    assert log.asset1 == mock_green_token.address
+    assert log.amount1 == repay_amount
+    assert log.amount2 == len(deleverage_assets)
+    assert log.legoId == lego_id
+    assert log.signer == starter_agent.address
+
+
+def test_agent_deleverage_auto_mode(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+):
+    """Test AgentWrapper deleverage auto mode through AgentSenderGeneric."""
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 250 * EIGHTEEN_DECIMALS
+    auto_amount = 600 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, debt)
+
+    repaid, usd_value = starter_agent_sender.deleverage(
+        starter_agent.address,
+        user_wallet.address,
+        lego_id,
+        [],
+        auto_amount,
+        b"",
+        (b"", 0, 0),
+        sender=charlie,
+    )
+
+    assert repaid == debt
+    assert usd_value == debt
+    assert mock_ripe.userDebt(user_wallet.address) == 0
+
+    log = filter_logs(starter_agent_sender, "WalletAction")[-1]
+    assert log.op == 45
+    assert log.asset1 == mock_green_token.address
+    assert log.amount1 == debt
+    assert log.amount2 == auto_amount
+    assert log.legoId == lego_id
+    assert log.signer == starter_agent.address
+
+
+def test_agent_deleverage_manager_without_debt_permission_reverts(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    high_command,
+    createManagerSettings,
+    createLegoPerms,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, 100 * EIGHTEEN_DECIMALS)
+
+    with boa.env.anchor():
+        _set_agent_debt_controls(
+            user_wallet_config,
+            high_command,
+            starter_agent,
+            createManagerSettings,
+            createLegoPerms,
+            _can_manage_debt=False,
+        )
+
+        with boa.reverts("no permission"):
+            starter_agent_sender.deleverage(
+                starter_agent.address,
+                user_wallet.address,
+                lego_id,
+                [],
+                10 * EIGHTEEN_DECIMALS,
+                b"",
+                (b"", 0, 0),
+                sender=charlie,
+            )
+
+
+def test_agent_deleverage_manager_allowed_legos_excludes_ripe_reverts(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    high_command,
+    createManagerSettings,
+    createLegoPerms,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, 100 * EIGHTEEN_DECIMALS)
+
+    with boa.env.anchor():
+        _set_agent_debt_controls(
+            user_wallet_config,
+            high_command,
+            starter_agent,
+            createManagerSettings,
+            createLegoPerms,
+            _allowed_legos=[lego_id + 1],
+        )
+
+        with boa.reverts("no permission"):
+            starter_agent_sender.deleverage(
+                starter_agent.address,
+                user_wallet.address,
+                lego_id,
+                [],
+                10 * EIGHTEEN_DECIMALS,
+                b"",
+                (b"", 0, 0),
+                sender=charlie,
+            )
+
+
+def test_agent_deleverage_auto_skips_asset_allowlist(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    mock_usdc,
+    high_command,
+    createManagerSettings,
+    createLegoPerms,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 100 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, debt)
+
+    with boa.env.anchor():
+        _set_agent_debt_controls(
+            user_wallet_config,
+            high_command,
+            starter_agent,
+            createManagerSettings,
+            createLegoPerms,
+            _allowed_assets=[mock_usdc.address],
+        )
+
+        repaid, usd_value = starter_agent_sender.deleverage(
+            starter_agent.address,
+            user_wallet.address,
+            lego_id,
+            [],
+            10 * EIGHTEEN_DECIMALS,
+            b"",
+            (b"", 0, 0),
+            sender=charlie,
+        )
+        assert repaid == 10 * EIGHTEEN_DECIMALS
+        assert usd_value == 10 * EIGHTEEN_DECIMALS
+        assert mock_ripe.userDebt(user_wallet.address) == debt - repaid
+
+
+def test_agent_deleverage_manager_usd_cap_reverts_and_rolls_back(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    charlie,
+    lego_ripe,
+    lego_book,
+    mock_ripe,
+    mock_green_token,
+    high_command,
+    createManagerSettings,
+    createLegoPerms,
+    createManagerLimits,
+):
+    lego_id = lego_book.getRegId(lego_ripe)
+    debt = 100 * EIGHTEEN_DECIMALS
+    repay_amount = 10 * EIGHTEEN_DECIMALS
+    mock_ripe.setPrice(mock_green_token, EIGHTEEN_DECIMALS)
+    mock_ripe.setUserDebt(user_wallet.address, debt)
+
+    with boa.env.anchor():
+        _set_agent_debt_controls(
+            user_wallet_config,
+            high_command,
+            starter_agent,
+            createManagerSettings,
+            createLegoPerms,
+            _limits=createManagerLimits(_maxUsdValuePerTx=repay_amount - 1),
+        )
+
+        with boa.reverts("manager limits not allowed"):
+            starter_agent_sender.deleverage(
+                starter_agent.address,
+                user_wallet.address,
+                lego_id,
+                [],
+                repay_amount,
+                b"",
+                (b"", 0, 0),
+                sender=charlie,
+            )
+        assert mock_ripe.userDebt(user_wallet.address) == debt
 
 
 #########
@@ -902,12 +1313,11 @@ def test_agent_transfer_funds_basic(
         valid_transfer_recipient,
         alpha_token.address,
         transfer_amount,
-        False,
         (b"", 0, 0),
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 1  # transfer funds
     assert log.asset1 == alpha_token.address
@@ -918,7 +1328,7 @@ def test_agent_transfer_funds_basic(
     # Verify results
     assert actual_transfer_amount == transfer_amount
     assert usd_value == 100 * EIGHTEEN_DECIMALS  # 50 tokens * $2
-    
+
     # Verify balances
     assert alpha_token.balanceOf(user_wallet) == amount - transfer_amount
     assert alpha_token.balanceOf(valid_transfer_recipient) == transfer_amount
@@ -955,7 +1365,7 @@ def test_agent_claim_rewards_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 50  # rewards
     assert log.asset1 == mock_dex_asset.address
@@ -964,11 +1374,11 @@ def test_agent_claim_rewards_basic(
     assert log.amount2 == amount_claimed
     assert log.usdValue == usd_value
     assert log.legoId == 3
-    
+
     # Verify results
     assert amount_claimed == reward_amount
     assert usd_value == 500 * EIGHTEEN_DECIMALS  # 100 tokens * $5
-    
+
     # Verify balance (reward tokens should be minted to wallet)
     assert mock_dex_asset.balanceOf(user_wallet) == reward_amount
 
@@ -1004,7 +1414,7 @@ def test_agent_convert_eth_to_weth_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 3  # ETH_TO_WETH (op code 3 in contract)
     assert log.asset1 == ETH
@@ -1012,12 +1422,12 @@ def test_agent_convert_eth_to_weth_basic(
     assert log.amount1 == 0  # msg.value (0 for non-payable)
     assert log.amount2 == amount_converted
     assert log.usdValue == usd_value
-    
+
     # Verify results
     assert amount_converted == convert_amount
     expected_usd_value = convert_amount * eth_price // EIGHTEEN_DECIMALS  # 2 ETH * $2000 = $4000
     assert usd_value == expected_usd_value
-    
+
     # Verify balances
     assert weth.balanceOf(user_wallet) == convert_amount
     assert boa.env.get_balance(user_wallet.address) == 3 * EIGHTEEN_DECIMALS  # 5 - 2
@@ -1065,7 +1475,7 @@ def test_agent_convert_weth_to_eth_basic(
         sender=charlie
     )
     log = filter_logs(starter_agent_sender, "WalletAction")[0]
-    
+
     # Verify events
     assert log.op == 2  # WETH_TO_ETH (op code 2 in contract)
     assert log.asset1 == weth.address
@@ -1073,12 +1483,12 @@ def test_agent_convert_weth_to_eth_basic(
     assert log.amount1 == amount_converted
     assert log.amount2 == amount_converted  # Both amounts are the same for WETH_TO_ETH
     assert log.usdValue == usd_value
-    
+
     # Verify results
     assert amount_converted == convert_amount
     expected_usd_value = convert_amount * eth_price // EIGHTEEN_DECIMALS  # 1 ETH * $1800 = $1800
     assert usd_value == expected_usd_value
-    
+
     # Verify balances
     assert weth.balanceOf(user_wallet) == weth_amount - convert_amount
 
@@ -1454,7 +1864,7 @@ def test_agent_create_and_pay_cheque_does_not_consume_generic_manager_quota_on_c
         user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
 
 
-def test_agent_create_and_pay_cheque_ignores_allowed_payees_for_cheque_payments(
+def test_agent_create_and_pay_cheque_respects_allowed_payees_for_cheque_payments(
     setupAgentTestAsset,
     starter_agent,
     starter_agent_sender,
@@ -1498,14 +1908,30 @@ def test_agent_create_and_pay_cheque_ignores_allowed_payees_for_cheque_payments(
         _allowed_payees=[sally],
     )
 
-    recipient_balance_before = alpha_token.balanceOf(alice)
+    blocked_recipient_balance_before = alpha_token.balanceOf(alice)
+    allowed_recipient_balance_before = alpha_token.balanceOf(sally)
     wallet_balance_before = alpha_token.balanceOf(user_wallet)
 
     try:
+        with boa.reverts():
+            starter_agent_sender.createAndPayCheque(
+                starter_agent.address,
+                user_wallet.address,
+                alice,
+                alpha_token.address,
+                amount,
+                (b"", 0, 0),
+                sender=charlie
+            )
+
+        assert alpha_token.balanceOf(alice) == blocked_recipient_balance_before
+        assert alpha_token.balanceOf(user_wallet) == wallet_balance_before
+        assert user_wallet_config.cheques(alice).active == False
+
         amount_paid, usd_value = starter_agent_sender.createAndPayCheque(
             starter_agent.address,
             user_wallet.address,
-            alice,
+            sally,
             alpha_token.address,
             amount,
             (b"", 0, 0),
@@ -1513,14 +1939,14 @@ def test_agent_create_and_pay_cheque_ignores_allowed_payees_for_cheque_payments(
         )
         assert amount_paid == amount
         assert usd_value == amount
-        assert alpha_token.balanceOf(alice) == recipient_balance_before + amount
+        assert alpha_token.balanceOf(sally) == allowed_recipient_balance_before + amount
         assert alpha_token.balanceOf(user_wallet) == wallet_balance_before - amount
-        assert user_wallet_config.cheques(alice).active == False
+        assert user_wallet_config.cheques(sally).active == False
     finally:
         user_wallet_config.updateManager(starter_agent.address, original_settings, sender=high_command.address)
 
 
-def test_agent_create_and_pay_cheque_reverts_for_existing_active_cheque(
+def test_agent_create_cheque_replaces_existing_active_cheque(
     setupAgentTestAsset,
     starter_agent,
     starter_agent_sender,
@@ -1534,7 +1960,8 @@ def test_agent_create_and_pay_cheque_reverts_for_existing_active_cheque(
     charlie,
     createChequeSettings,
 ):
-    amount = 25 * EIGHTEEN_DECIMALS
+    first_amount = 10 * EIGHTEEN_DECIMALS
+    replacement_amount = 25 * EIGHTEEN_DECIMALS
     setupAgentTestAsset(
         _asset=alpha_token,
         _amount=100 * EIGHTEEN_DECIMALS,
@@ -1549,35 +1976,181 @@ def test_agent_create_and_pay_cheque_reverts_for_existing_active_cheque(
         _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
     )
 
-    cheque_book.createCheque(
+    assert starter_agent_sender.createCheque(
+        starter_agent.address,
         user_wallet.address,
         alice,
         alpha_token.address,
-        amount,
+        first_amount,
         0,
         0,
         True,
         False,
-        sender=bob
+        (b"", 0, 0),
+        sender=charlie
     )
 
     active_cheques_before = user_wallet_config.numActiveCheques()
+    assert active_cheques_before == 1
 
-    with boa.reverts("recipient has active cheque"):
-        starter_agent_sender.createAndPayCheque(
-            starter_agent.address,
-            user_wallet.address,
-            alice,
-            alpha_token.address,
-            amount,
-            (b"", 0, 0),
-            sender=charlie
-        )
+    assert starter_agent_sender.createCheque(
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        replacement_amount,
+        0,
+        0,
+        False,
+        False,
+        (b"", 0, 0),
+        sender=charlie
+    )
 
     assert user_wallet_config.numActiveCheques() == active_cheques_before
-    assert user_wallet_config.cheques(alice).active == True
+    cheque = user_wallet_config.cheques(alice)
+    assert cheque.active == True
+    assert cheque.amount == replacement_amount
+    assert cheque.canManagerPay == False
+    assert cheque.canBePulled == False
+    assert len(filter_logs(starter_agent_sender, "ChequeCreated")) == 1
+    assert len(filter_logs(starter_agent_sender, "ChequeCancelled")) == 0
 
     user_wallet_config.cancelCheque(alice, sender=cheque_book.address)
+
+
+def test_agent_create_and_pay_cheque_replaces_existing_active_cheque(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    createChequeSettings,
+):
+    first_amount = 10 * EIGHTEEN_DECIMALS
+    replacement_amount = 25 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+    )
+
+    assert starter_agent_sender.createCheque(
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        first_amount,
+        0,
+        0,
+        True,
+        False,
+        (b"", 0, 0),
+        sender=charlie
+    )
+
+    active_cheques_before = user_wallet_config.numActiveCheques()
+    recipient_balance_before = alpha_token.balanceOf(alice)
+
+    amount_paid, usd_value = starter_agent_sender.createAndPayCheque(
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        replacement_amount,
+        (b"", 0, 0),
+        sender=charlie
+    )
+
+    assert amount_paid == replacement_amount
+    assert usd_value == replacement_amount
+    assert alpha_token.balanceOf(alice) == recipient_balance_before + replacement_amount
+    assert user_wallet_config.numActiveCheques() == active_cheques_before - 1
+    assert user_wallet_config.cheques(alice).active == False
+    assert len(filter_logs(starter_agent_sender, "ChequeCreated")) == 1
+    assert len(filter_logs(starter_agent_sender, "ChequeCancelled")) == 0
+
+
+def test_agent_create_and_pay_cheque_replaces_locked_cheque_and_pays_new_one(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    createChequeSettings,
+):
+    locked_amount = 10 * EIGHTEEN_DECIMALS
+    replacement_amount = 25 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=100 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+    )
+
+    assert starter_agent_sender.createCheque(
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        locked_amount,
+        100,
+        0,
+        True,
+        False,
+        (b"", 0, 0),
+        sender=charlie
+    )
+    locked_cheque = user_wallet_config.cheques(alice)
+    assert locked_cheque.unlockBlock > boa.env.evm.patch.block_number
+
+    active_cheques_before = user_wallet_config.numActiveCheques()
+    recipient_balance_before = alpha_token.balanceOf(alice)
+
+    amount_paid, usd_value = starter_agent_sender.createAndPayCheque(
+        starter_agent.address,
+        user_wallet.address,
+        alice,
+        alpha_token.address,
+        replacement_amount,
+        (b"", 0, 0),
+        sender=charlie
+    )
+
+    assert amount_paid == replacement_amount
+    assert usd_value == replacement_amount
+    assert alpha_token.balanceOf(alice) == recipient_balance_before + replacement_amount
+    assert user_wallet_config.numActiveCheques() == active_cheques_before - 1
+    assert user_wallet_config.cheques(alice).active == False
+    assert len(filter_logs(starter_agent_sender, "ChequeCreated")) == 1
+    assert len(filter_logs(starter_agent_sender, "ChequeCancelled")) == 0
 
 
 def test_agent_create_and_pay_cheque_reverts_for_insufficient_balance(
@@ -1625,3 +2198,840 @@ def test_agent_create_and_pay_cheque_reverts_for_insufficient_balance(
 
     assert user_wallet_config.numActiveCheques() == active_cheques_before
     assert user_wallet_config.cheques(alice).active == False
+
+
+def test_agent_create_cheque_and_pay_cheque_expected_block(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    charlie,
+    env,
+    createChequeSettings,
+):
+    recipient = env.generate_address("agent_pay_cheque_recipient")
+    amount = 12 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=50 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+    )
+
+    assert starter_agent_sender.createCheque(
+        starter_agent.address,
+        user_wallet.address,
+        recipient,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+        True,
+        False,
+        (b"", 0, 0),
+        sender=charlie
+    )
+    create_log = filter_logs(starter_agent_sender, "AgentAction")[0]
+    assert create_log.action == 5
+    cheque = user_wallet_config.cheques(recipient)
+    assert cheque.active == True
+    assert cheque.canManagerPay == True
+    assert cheque.canBePulled == False
+
+    recipient_balance_before = alpha_token.balanceOf(recipient)
+    with boa.reverts("stale cheque"):
+        starter_agent_sender.payCheque(
+            starter_agent.address,
+            user_wallet.address,
+            recipient,
+            alpha_token.address,
+            amount,
+            cheque.creationBlock + 1,
+            (b"", 0, 0),
+            sender=charlie
+        )
+    assert user_wallet_config.cheques(recipient).active == True
+    assert alpha_token.balanceOf(recipient) == recipient_balance_before
+
+    amount_paid, usd_value = starter_agent_sender.payCheque(
+        starter_agent.address,
+        user_wallet.address,
+        recipient,
+        alpha_token.address,
+        amount,
+        cheque.creationBlock,
+        (b"", 0, 0),
+        sender=charlie
+    )
+    agent_log = filter_logs(starter_agent_sender, "AgentAction")[0]
+
+    assert agent_log.action == 6
+    assert amount_paid == amount
+    assert usd_value == amount
+    assert alpha_token.balanceOf(recipient) == recipient_balance_before + amount
+    assert user_wallet_config.cheques(recipient).active == False
+
+
+def test_agent_batch_transfer_cannot_flip_into_cheque_mode(
+    setupAgentTestAsset,
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    charlie,
+    env,
+    createChequeSettings,
+):
+    recipient = env.generate_address("agent_batch_cheque_flip_recipient")
+    amount = 8 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=50 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+    )
+    cheque_book.createCheque(
+        user_wallet.address,
+        recipient,
+        alpha_token.address,
+        amount,
+        0,
+        0,
+        True,
+        False,
+        sender=bob
+    )
+
+    instruction = (
+        False,
+        1,
+        0,
+        alpha_token.address,
+        recipient,
+        amount,
+        ZERO_ADDRESS,
+        0,
+        0,
+        0,
+        0,
+        0,
+        (1).to_bytes(32, "big"),
+        b"\x00" * 32,
+        [],
+        [],
+    )
+
+    # This bubbles through nested wallet/payee validation without a stable Boa-visible reason.
+    # The state checks below verify the standard transfer path did not pay the cheque.
+    with boa.reverts():
+        starter_agent_sender.performBatchActions(
+            starter_agent.address,
+            user_wallet.address,
+            [instruction],
+            (b"", 0, 0),
+            sender=charlie
+        )
+
+    assert user_wallet_config.cheques(recipient).active == True
+    assert alpha_token.balanceOf(recipient) == 0
+    cheque_book.cancelCheque(user_wallet.address, recipient, sender=bob)
+
+
+def test_agent_cancel_cheque_removed_from_agent_surfaces(
+    starter_agent,
+    starter_agent_sender,
+):
+    assert not hasattr(starter_agent, "cancelCheque")
+    assert not hasattr(starter_agent_sender, "cancelCheque")
+
+
+def test_agent_whitelist_and_empty_loot_actions(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    loot_distributor,
+    kernel,
+    bob,
+    charlie,
+    env,
+):
+    pending_addr = env.generate_address("agent_pending_whitelist")
+    cancel_addr = env.generate_address("agent_cancel_whitelist")
+
+    kernel.addPendingWhitelistAddr(user_wallet.address, pending_addr, sender=bob)
+    boa.env.time_travel(blocks=user_wallet_config.timeLock())
+    assert starter_agent_sender.confirmWhitelistAddr(
+        starter_agent.address,
+        user_wallet.address,
+        pending_addr,
+        (b"", 0, 0),
+        sender=charlie
+    )
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 60
+    assert user_wallet_config.indexOfWhitelist(pending_addr) != 0
+
+    assert starter_agent_sender.removeWhitelistAddr(
+        starter_agent.address,
+        user_wallet.address,
+        pending_addr,
+        (b"", 0, 0),
+        sender=charlie
+    )
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 62
+    assert user_wallet_config.indexOfWhitelist(pending_addr) == 0
+
+    kernel.addPendingWhitelistAddr(user_wallet.address, cancel_addr, sender=bob)
+    assert starter_agent_sender.cancelPendingWhitelistAddr(
+        starter_agent.address,
+        user_wallet.address,
+        cancel_addr,
+        (b"", 0, 0),
+        sender=charlie
+    )
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 61
+    assert user_wallet_config.pendingWhitelist(cancel_addr).initiatedBlock == 0
+
+    assert starter_agent_sender.canClaimLootFor(starter_agent.address, user_wallet.address) == True
+    result = starter_agent_sender.claimAllLoot(
+        starter_agent.address,
+        user_wallet.address,
+        (b"", 0, 0),
+        sender=charlie
+    )
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 80
+    assert result == False
+    assert loot_distributor.lastClaim(user_wallet.address) == 0
+
+    with boa.reverts("no assets claimed"):
+        starter_agent_sender.claimRevShareAndBonusLoot(
+            starter_agent.address,
+            user_wallet.address,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+    with boa.reverts("nothing to claim"):
+        starter_agent_sender.claimDepositRewards(
+            starter_agent.address,
+            user_wallet.address,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+
+def test_agent_whitelist_permission_matrix_and_security_fallback(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    kernel,
+    high_command,
+    mission_control,
+    switchboard_alpha,
+    migrator,
+    bob,
+    charlie,
+    env,
+    createGlobalManagerSettings,
+    createManagerSettings,
+    createWhitelistPerms,
+):
+    assert not hasattr(starter_agent_sender, "addPendingWhitelistAddr")
+
+    global_whitelist_perms = createWhitelistPerms(
+        _canConfirm=True,
+        _canCancel=True,
+        _canRemove=True,
+    )
+    user_wallet_config.setGlobalManagerSettings(
+        createGlobalManagerSettings(_whitelistPerms=global_whitelist_perms),
+        sender=high_command.address,
+    )
+    _set_agent_whitelist_perms(
+        user_wallet_config,
+        high_command,
+        starter_agent,
+        createManagerSettings,
+        createWhitelistPerms,
+        _can_confirm=True,
+        _can_cancel=False,
+        _can_remove=False,
+    )
+
+    confirm_addr = env.generate_address("agent_matrix_confirm")
+    kernel.addPendingWhitelistAddr(user_wallet.address, confirm_addr, sender=bob)
+    boa.env.time_travel(blocks=user_wallet_config.timeLock())
+    assert starter_agent_sender.confirmWhitelistAddr(
+        starter_agent.address,
+        user_wallet.address,
+        confirm_addr,
+        (b"", 0, 0),
+        sender=charlie,
+    )
+
+    cancel_addr = env.generate_address("agent_matrix_cancel")
+    kernel.addPendingWhitelistAddr(user_wallet.address, cancel_addr, sender=bob)
+    with boa.reverts("no perms"):
+        starter_agent_sender.cancelPendingWhitelistAddr(
+            starter_agent.address,
+            user_wallet.address,
+            cancel_addr,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+    remove_addr = env.generate_address("agent_matrix_remove")
+    user_wallet_config.addWhitelistAddrViaMigrator(remove_addr, sender=migrator.address)
+    with boa.reverts("no perms"):
+        starter_agent_sender.removeWhitelistAddr(
+            starter_agent.address,
+            user_wallet.address,
+            remove_addr,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+    _set_agent_whitelist_perms(
+        user_wallet_config,
+        high_command,
+        starter_agent,
+        createManagerSettings,
+        createWhitelistPerms,
+        _can_confirm=True,
+        _can_cancel=True,
+        _can_remove=True,
+    )
+    restricted_global_perms = createWhitelistPerms(
+        _canConfirm=False,
+        _canCancel=False,
+        _canRemove=False,
+    )
+    user_wallet_config.setGlobalManagerSettings(
+        createGlobalManagerSettings(_whitelistPerms=restricted_global_perms),
+        sender=high_command.address,
+    )
+
+    restricted_confirm_addr = env.generate_address("agent_matrix_global_confirm")
+    kernel.addPendingWhitelistAddr(user_wallet.address, restricted_confirm_addr, sender=bob)
+    boa.env.time_travel(blocks=user_wallet_config.timeLock())
+    with boa.reverts("no perms"):
+        starter_agent_sender.confirmWhitelistAddr(
+            starter_agent.address,
+            user_wallet.address,
+            restricted_confirm_addr,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+    mission_control.setCanPerformSecurityAction(starter_agent.address, True, sender=switchboard_alpha.address)
+
+    security_cancel_addr = env.generate_address("agent_matrix_security_cancel")
+    kernel.addPendingWhitelistAddr(user_wallet.address, security_cancel_addr, sender=bob)
+    assert starter_agent_sender.cancelPendingWhitelistAddr(
+        starter_agent.address,
+        user_wallet.address,
+        security_cancel_addr,
+        (b"", 0, 0),
+        sender=charlie,
+    )
+
+    security_remove_addr = env.generate_address("agent_matrix_security_remove")
+    user_wallet_config.addWhitelistAddrViaMigrator(security_remove_addr, sender=migrator.address)
+    assert starter_agent_sender.removeWhitelistAddr(
+        starter_agent.address,
+        user_wallet.address,
+        security_remove_addr,
+        (b"", 0, 0),
+        sender=charlie,
+    )
+
+
+def test_agent_loot_requires_claim_permission_for_all_methods(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    high_command,
+    charlie,
+    createManagerSettings,
+):
+    _set_agent_claim_loot_perm(
+        user_wallet_config,
+        high_command,
+        starter_agent,
+        createManagerSettings,
+        False,
+    )
+
+    assert starter_agent_sender.canClaimLootFor(starter_agent.address, user_wallet.address) == False
+
+    with boa.reverts("no perms"):
+        starter_agent_sender.claimAllLoot(
+            starter_agent.address,
+            user_wallet.address,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+    with boa.reverts("no perms"):
+        starter_agent_sender.claimRevShareAndBonusLoot(
+            starter_agent.address,
+            user_wallet.address,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+    with boa.reverts("no perms"):
+        starter_agent_sender.claimDepositRewards(
+            starter_agent.address,
+            user_wallet.address,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+
+def test_neutered_starter_agent_cannot_transfer_but_can_claim_loot(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    high_command,
+    bob,
+    charlie,
+    env,
+):
+    high_command.neuterStarterAgent(user_wallet, sender=bob)
+
+    with boa.reverts("no permission"):
+        starter_agent_sender.transferFunds(
+            starter_agent.address,
+            user_wallet.address,
+            env.generate_address("neutered_starter_transfer_recipient"),
+            ZERO_ADDRESS,
+            1,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+    assert starter_agent_sender.canClaimLootFor(starter_agent.address, user_wallet.address) == True
+    result = starter_agent_sender.claimAllLoot(
+        starter_agent.address,
+        user_wallet.address,
+        (b"", 0, 0),
+        sender=charlie,
+    )
+    assert result == False
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 80
+
+
+def test_agent_loot_claims_rev_share_and_all_loot_success(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    loot_distributor,
+    yield_vault_token,
+    yield_underlying_token,
+    yield_underlying_token_whale,
+    mock_yield_lego,
+    mock_ripe_token,
+    mock_ripe,
+    whale,
+    setUserWalletConfig,
+    setAssetConfig,
+    createAssetYieldConfig,
+    charlie,
+):
+    setUserWalletConfig(_lootClaimCoolOffPeriod=0)
+    yield_config = createAssetYieldConfig(
+        _bonusRatio=30_00,
+        _bonusAsset=mock_ripe_token.address,
+    )
+    setAssetConfig(yield_vault_token, _yieldConfig=yield_config)
+    mock_ripe.setPrice(yield_vault_token, 10 * EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(yield_underlying_token, 10 * EIGHTEEN_DECIMALS)
+    mock_ripe.setPrice(mock_ripe_token, 4 * EIGHTEEN_DECIMALS)
+    mock_ripe_token.transfer(loot_distributor, 500 * EIGHTEEN_DECIMALS, sender=whale)
+
+    def add_user_yield_bonus():
+        yield_underlying_token.approve(mock_yield_lego, 1000 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+        mock_yield_lego.depositForYield(
+            yield_underlying_token,
+            1000 * EIGHTEEN_DECIMALS,
+            yield_vault_token,
+            sender=yield_underlying_token_whale,
+        )
+        yield_vault_token.transfer(loot_distributor, 10 * EIGHTEEN_DECIMALS, sender=yield_underlying_token_whale)
+        loot_distributor.addLootFromYieldProfit(
+            yield_vault_token,
+            10 * EIGHTEEN_DECIMALS,
+            100 * EIGHTEEN_DECIMALS,
+            sender=user_wallet.address,
+        )
+
+    add_user_yield_bonus()
+    assert loot_distributor.claimableLoot(user_wallet.address, mock_ripe_token.address) > 0
+    assert starter_agent_sender.claimRevShareAndBonusLoot(
+        starter_agent.address,
+        user_wallet.address,
+        (b"", 0, 0),
+        sender=charlie,
+    ) > 0
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 81
+
+    add_user_yield_bonus()
+    assert starter_agent_sender.claimAllLoot(
+        starter_agent.address,
+        user_wallet.address,
+        (b"", 0, 0),
+        sender=charlie,
+    ) == True
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 80
+
+
+def test_agent_loot_cooloff_applies_to_wrapper_but_not_switchboard(
+    starter_agent,
+    starter_agent_sender,
+    user_wallet,
+    user_wallet_config,
+    loot_distributor,
+    alpha_token,
+    alpha_token_whale,
+    setUserWalletConfig,
+    switchboard_alpha,
+    charlie,
+):
+    setUserWalletConfig(_depositRewardsAsset=alpha_token.address, _lootClaimCoolOffPeriod=50)
+
+    def add_deposit_rewards():
+        alpha_token.approve(loot_distributor.address, 500 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+        loot_distributor.addDepositRewards(alpha_token.address, 500 * EIGHTEEN_DECIMALS, sender=alpha_token_whale)
+        loot_distributor.updateDepositPointsWithNewValue(
+            user_wallet.address,
+            100 * EIGHTEEN_DECIMALS,
+            sender=user_wallet_config.address,
+        )
+        boa.env.time_travel(blocks=1)
+        loot_distributor.updateDepositPoints(user_wallet.address, sender=switchboard_alpha.address)
+
+    add_deposit_rewards()
+    assert starter_agent_sender.claimDepositRewards(
+        starter_agent.address,
+        user_wallet.address,
+        (b"", 0, 0),
+        sender=charlie,
+    ) > 0
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 82
+    assert loot_distributor.lastClaim(user_wallet.address) == boa.env.evm.patch.block_number
+
+    add_deposit_rewards()
+    with boa.reverts("no perms"):
+        starter_agent_sender.claimDepositRewards(
+            starter_agent.address,
+            user_wallet.address,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+    assert loot_distributor.claimDepositRewards(user_wallet.address, sender=switchboard_alpha.address) > 0
+
+
+def test_agent_remove_self_as_manager_non_starter_low_count_succeeds(
+    starter_agent_sender,
+    starter_agent,
+    undy_hq_deploy,
+    switchboard_alpha,
+    mission_control,
+    user_wallet,
+    hatchery,
+    high_command,
+    kernel,
+    bob,
+    charlie,
+    env,
+    createManagerLimits,
+    createLegoPerms,
+    createSwapPerms,
+    createWhitelistPerms,
+    createTransferPerms,
+):
+    removable_agent = _deploy_agent_wrapper_with_sender(
+        undy_hq_deploy,
+        starter_agent_sender,
+        switchboard_alpha,
+        "removable_agent_low_count",
+    )
+    fresh_wallet, fresh_config = _create_wallet_without_starter_agent(
+        hatchery,
+        bob,
+        mission_control,
+        switchboard_alpha,
+    )
+    assert fresh_config.numManagers() == 1
+
+    _add_wrapper_manager(
+        high_command,
+        fresh_wallet,
+        removable_agent,
+        bob,
+        createManagerLimits,
+        createLegoPerms,
+        createSwapPerms,
+        createWhitelistPerms,
+        createTransferPerms,
+    )
+    assert fresh_config.numManagers() == 2
+    assert fresh_config.indexOfManager(removable_agent.address) != 0
+
+    pending_addr = env.generate_address("self_remove_pending_whitelist")
+    kernel.addPendingWhitelistAddr(fresh_wallet.address, pending_addr, sender=bob)
+    pending_block = fresh_config.pendingWhitelist(pending_addr).initiatedBlock
+    assert pending_block != 0
+
+    assert starter_agent_sender.removeSelfAsManager(
+        removable_agent.address,
+        fresh_wallet.address,
+        (b"", 0, 0),
+        sender=charlie,
+    )
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 70
+    assert fresh_config.indexOfManager(removable_agent.address) == 0
+    assert fresh_config.numManagers() == 1
+    assert fresh_config.pendingWhitelist(pending_addr).initiatedBlock == pending_block
+
+    with boa.reverts("no permission"):
+        starter_agent_sender.transferFunds(
+            removable_agent.address,
+            fresh_wallet.address,
+            bob,
+            ZERO_ADDRESS,
+            1,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+
+    assert starter_agent_sender.canClaimLootFor(starter_agent.address, user_wallet.address) == True
+
+
+def test_agent_remove_self_as_manager_non_starter_eject_mode_succeeds(
+    starter_agent_sender,
+    starter_agent,
+    undy_hq_deploy,
+    switchboard_alpha,
+    mission_control,
+    hatchery,
+    high_command,
+    bob,
+    charlie,
+    createManagerLimits,
+    createLegoPerms,
+    createSwapPerms,
+    createWhitelistPerms,
+    createTransferPerms,
+):
+    removable_agent = _deploy_agent_wrapper_with_sender(
+        undy_hq_deploy,
+        starter_agent_sender,
+        switchboard_alpha,
+        "removable_agent_eject",
+    )
+    fresh_wallet, fresh_config = _create_wallet_without_starter_agent(
+        hatchery,
+        bob,
+        mission_control,
+        switchboard_alpha,
+    )
+    _add_wrapper_manager(
+        high_command,
+        fresh_wallet,
+        removable_agent,
+        bob,
+        createManagerLimits,
+        createLegoPerms,
+        createSwapPerms,
+        createWhitelistPerms,
+        createTransferPerms,
+    )
+    fresh_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert fresh_config.inEjectMode()
+
+    assert starter_agent_sender.removeSelfAsManager(
+        removable_agent.address,
+        fresh_wallet.address,
+        (b"", 0, 0),
+        sender=charlie,
+    )
+    assert filter_logs(starter_agent_sender, "AgentAction")[0].action == 70
+    assert fresh_config.indexOfManager(removable_agent.address) == 0
+
+
+def test_agent_remove_self_as_manager_starter_agent_reverts(
+    starter_agent,
+    starter_agent_sender,
+    mission_control,
+    switchboard_alpha,
+    hatchery,
+    bob,
+    charlie,
+):
+    mission_control.setStarterAgent(starter_agent, sender=switchboard_alpha.address)
+    fresh_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, sender=bob))
+    fresh_config = UserWalletConfig.at(fresh_wallet.walletConfig())
+    assert fresh_config.startingAgent() == starter_agent.address
+    num_managers_before = fresh_config.numManagers()
+    assert num_managers_before == 2  # sentinel index + starter agent
+
+    # HighCommand asserts the exact reason; Boa does not surface it through this nested wrapper call.
+    with boa.reverts():
+        starter_agent_sender.removeSelfAsManager(
+            starter_agent.address,
+            fresh_wallet.address,
+            (b"", 0, 0),
+            sender=charlie,
+        )
+    assert fresh_config.indexOfManager(starter_agent.address) != 0
+    assert fresh_config.numManagers() == num_managers_before
+
+
+def test_special_admin_issue_pull_cheques_and_duplicate_whitelist_precheck(
+    setupAgentTestAsset,
+    special_admin_sender,
+    starter_agent,
+    user_wallet,
+    user_wallet_config,
+    cheque_book,
+    alpha_token,
+    alpha_token_whale,
+    bob,
+    alice,
+    charlie,
+    env,
+    createChequeSettings,
+):
+    recipient_a = env.generate_address("agent_pull_cheque_a")
+    recipient_b = env.generate_address("agent_pull_cheque_b")
+    amount = 7 * EIGHTEEN_DECIMALS
+    setupAgentTestAsset(
+        _asset=alpha_token,
+        _amount=50 * EIGHTEEN_DECIMALS,
+        _whale=alpha_token_whale,
+        _price=1 * EIGHTEEN_DECIMALS,
+    )
+    _set_instant_cheque_settings(
+        cheque_book,
+        user_wallet,
+        bob,
+        createChequeSettings,
+        _instant_usd_threshold=100 * EIGHTEEN_DECIMALS,
+        _can_manager_pay=False,
+        _can_be_pulled=True,
+    )
+
+    with boa.reverts("invalid pull cheque flags"):
+        special_admin_sender.issuePullCheques(
+            starter_agent.address,
+            user_wallet.address,
+            [(recipient_a, alpha_token.address, amount, 0, 0, True, False)],
+            (b"", 0, 0),
+            sender=charlie
+        )
+    assert user_wallet_config.cheques(recipient_a).active == False
+
+    cheques = [
+        (recipient_a, alpha_token.address, amount, 0, 0, False, True),
+        (recipient_b, alpha_token.address, amount, 0, 0, False, True),
+    ]
+    special_admin_sender.issuePullCheques(
+        starter_agent.address,
+        user_wallet.address,
+        cheques,
+        (b"", 0, 0),
+        sender=charlie
+    )
+
+    cheque_a = user_wallet_config.cheques(recipient_a)
+    cheque_b = user_wallet_config.cheques(recipient_b)
+    assert cheque_a.active == True and cheque_b.active == True
+    assert cheque_a.canManagerPay == False and cheque_b.canManagerPay == False
+    assert cheque_a.canBePulled == True and cheque_b.canBePulled == True
+
+    nonce_before = special_admin_sender.currentNonce(user_wallet.address)
+    with boa.reverts("duplicate addr"):
+        special_admin_sender.whitelistMaintenance(
+            starter_agent.address,
+            user_wallet.address,
+            [alice],
+            [alice],
+            [],
+            (b"\x00" * 65, nonce_before, boa.env.evm.patch.timestamp + 1000),
+            sender=alice
+        )
+    assert special_admin_sender.currentNonce(user_wallet.address) == nonce_before
+
+    with boa.reverts("duplicate addr"):
+        special_admin_sender.whitelistMaintenance(
+            starter_agent.address,
+            user_wallet.address,
+            [alice, alice],
+            [],
+            [],
+            (b"\x00" * 65, nonce_before, boa.env.evm.patch.timestamp + 1000),
+            sender=alice
+        )
+    assert special_admin_sender.currentNonce(user_wallet.address) == nonce_before
+
+    with boa.reverts("empty cheque recipient"):
+        special_admin_sender.harvestAndIssueCheque(
+            starter_agent.address,
+            user_wallet.address,
+            0,
+            ZERO_ADDRESS,
+            0,
+            [],
+            [],
+            (ZERO_ADDRESS, alpha_token.address, amount, 0, 0, False, True),
+            (b"", 0, 0),
+            sender=charlie
+        )
+
+    recipient_c = env.generate_address("agent_harvest_issue_cheque_independent")
+    independent_amount = 9 * EIGHTEEN_DECIMALS
+    special_admin_sender.harvestAndIssueCheque(
+        starter_agent.address,
+        user_wallet.address,
+        0,
+        ZERO_ADDRESS,
+        0,
+        [],
+        [],
+        (recipient_c, alpha_token.address, independent_amount, 0, 0, False, True),
+        (b"", 0, 0),
+        sender=charlie
+    )
+    cheque_c = user_wallet_config.cheques(recipient_c)
+    assert cheque_c.active == True
+    assert cheque_c.amount == independent_amount
+    assert cheque_c.canManagerPay == False
+    assert cheque_c.canBePulled == True

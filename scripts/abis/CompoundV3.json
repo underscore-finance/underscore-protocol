@@ -470,7 +470,7 @@
     "outputs": []
   },
   {
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function",
     "name": "isValidPriceConfig",
     "inputs": [

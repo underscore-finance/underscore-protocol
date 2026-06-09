@@ -1,13 +1,13 @@
 import pytest
 import boa
 
-from constants import ZERO_ADDRESS
+from constants import ZERO_ADDRESS, ONE_DAY_IN_BLOCKS
 
 
 def test_payee_example_test(createGlobalPayeeSettings, charlie, alpha_token, bravo_token, bob, createPayeeLimits, createPayeeSettings, sentinel, user_wallet, user_wallet_config, alice, paymaster):
 
     # set global payee settings
-    new_global_payee_settings = createGlobalPayeeSettings(_canPayOwner=False)
+    new_global_payee_settings = createGlobalPayeeSettings()
     user_wallet_config.setGlobalPayeeSettings(new_global_payee_settings, sender=paymaster.address)
 
     # add payee
@@ -53,18 +53,8 @@ def test_non_whitelisted_non_payee_invalid(alpha_token, sentinel, user_wallet, s
 # owner tests
 
 
-def test_owner_payment_with_canPayOwner_true(createGlobalPayeeSettings, alpha_token, bob, sentinel, user_wallet, user_wallet_config, paymaster):
-    # set global payee settings with canPayOwner=True
-    new_global_payee_settings = createGlobalPayeeSettings(_canPayOwner=True)
-    user_wallet_config.setGlobalPayeeSettings(new_global_payee_settings, sender=paymaster.address)
-    
-    # owner (bob) should still not be a valid payee
-    assert not sentinel.isValidPayee(user_wallet, bob, alpha_token, 100, 100)
-
-
-def test_owner_payment_with_canPayOwner_false(createGlobalPayeeSettings, alpha_token, bob, sentinel, user_wallet, user_wallet_config, paymaster):
-    # set global payee settings with canPayOwner=False
-    new_global_payee_settings = createGlobalPayeeSettings(_canPayOwner=False)
+def test_owner_payment_invalid(createGlobalPayeeSettings, alpha_token, bob, sentinel, user_wallet, user_wallet_config, paymaster):
+    new_global_payee_settings = createGlobalPayeeSettings()
     user_wallet_config.setGlobalPayeeSettings(new_global_payee_settings, sender=paymaster.address)
     
     # owner (bob) should not be valid payee
@@ -147,8 +137,7 @@ def test_max_txs_per_period_limit(createGlobalPayeeSettings, createPayeeSettings
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should not be valid when limit reached
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, did_update = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -159,6 +148,7 @@ def test_max_txs_per_period_limit(createGlobalPayeeSettings, createPayeeSettings
         payee_data
     )
     assert not is_valid
+    assert did_update == False
 
 
 def test_tx_cooldown_blocks(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, alpha_token, alice, sentinel, user_wallet_config, paymaster):
@@ -175,8 +165,7 @@ def test_tx_cooldown_blocks(createGlobalPayeeSettings, createPayeeSettings, crea
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should not be valid during cooldown
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -190,8 +179,7 @@ def test_tx_cooldown_blocks(createGlobalPayeeSettings, createPayeeSettings, crea
     
     # simulate cooldown passed
     payee_data_after_cooldown = createPayeeData(_lastTxBlock=current_block - 11, _periodStartBlock=current_block - 100)
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -233,8 +221,7 @@ def test_usd_per_period_cap(createGlobalPayeeSettings, createPayeeSettings, crea
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should be valid for $199 (total would be $999)
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -247,8 +234,7 @@ def test_usd_per_period_cap(createGlobalPayeeSettings, createPayeeSettings, crea
     assert is_valid
     
     # should not be valid for $201 (total would be $1001)
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -274,8 +260,7 @@ def test_usd_lifetime_cap(createGlobalPayeeSettings, createPayeeSettings, create
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should be valid for $100
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -288,8 +273,7 @@ def test_usd_lifetime_cap(createGlobalPayeeSettings, createPayeeSettings, create
     assert is_valid
     
     # should not be valid for $101
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -344,8 +328,7 @@ def test_unit_per_period_cap(createGlobalPayeeSettings, createPayeeSettings, cre
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should be valid for 500 units
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -358,8 +341,7 @@ def test_unit_per_period_cap(createGlobalPayeeSettings, createPayeeSettings, cre
     assert is_valid
     
     # should not be valid for 501 units
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -385,8 +367,7 @@ def test_unit_lifetime_cap(createGlobalPayeeSettings, createPayeeSettings, creat
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should be valid for 1 unit
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -399,8 +380,7 @@ def test_unit_lifetime_cap(createGlobalPayeeSettings, createPayeeSettings, creat
     assert is_valid
     
     # should not be valid for 2 units
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -435,8 +415,7 @@ def test_period_reset_after_period_ends(createGlobalPayeeSettings, createPayeeSe
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should reset period and allow transaction
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, updated_data, did_update = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -447,6 +426,7 @@ def test_period_reset_after_period_ends(createGlobalPayeeSettings, createPayeeSe
         payee_data
     )
     assert is_valid
+    assert did_update == True
 
     # check period was reset
     assert updated_data.numTxsInPeriod == 1
@@ -467,8 +447,7 @@ def test_first_transaction_initializes_period(createGlobalPayeeSettings, createP
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should be valid and initialize period
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -508,8 +487,7 @@ def test_fail_on_zero_price_global_setting(createGlobalPayeeSettings, createPaye
     
     # should still fail due to global setting
     empty_data = createPayeeData()
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -548,8 +526,7 @@ def test_payee_data_updates_correctly(createGlobalPayeeSettings, createPayeeSett
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # make a transaction
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -588,8 +565,7 @@ def test_non_primary_asset_does_not_update_units(createGlobalPayeeSettings, crea
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # make transaction with non-primary asset
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         bravo_token,  # not primary asset
@@ -653,8 +629,7 @@ def test_global_tx_limits_apply_to_payees(createGlobalPayeeSettings, createPayee
     payee_data = createPayeeData(_numTxsInPeriod=2, _periodStartBlock=boa.env.evm.patch.block_number)
     
     # should fail due to global tx limit
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
         False,
         True,
         alpha_token,
@@ -695,15 +670,15 @@ def test_exact_limit_boundaries(createPayeeSettings, createPayeeLimits, alpha_to
     unit_limits = createPayeeLimits(_perTxCap=100)
     new_payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _unitLimits=unit_limits)
     user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
-    
+
     # exactly at limit should pass
     assert sentinel.isValidPayee(user_wallet, alice, alpha_token, 100, 1)
-    
-    # test USD limits at exact boundary
+
+    # test USD limits at exact boundary (replace existing settings via updatePayee)
     usd_limits = createPayeeLimits(_perTxCap=500)
     new_payee_settings_usd = createPayeeSettings(_primaryAsset=alpha_token, _usdLimits=usd_limits)
-    user_wallet_config.addPayee(alice, new_payee_settings_usd, sender=paymaster.address)
-    
+    user_wallet_config.updatePayee(alice, new_payee_settings_usd, sender=paymaster.address)
+
     # exactly at USD limit should pass
     assert sentinel.isValidPayee(user_wallet, alice, alpha_token, 1, 500)
 
@@ -720,8 +695,8 @@ def test_transaction_at_exact_period_end(createGlobalPayeeSettings, createPayeeS
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # transaction at block 99 of 100-block period (last block of period)
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False, False, True, alpha_token, 100, 50,
+    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 100, 50,
         new_payee_settings, new_global_payee_settings, payee_data
     )
     assert is_valid
@@ -729,12 +704,59 @@ def test_transaction_at_exact_period_end(createGlobalPayeeSettings, createPayeeS
     
     # next block should trigger period reset
     boa.env.time_travel(blocks=1)
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False, False, True, alpha_token, 100, 50,
+    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 100, 50,
         new_payee_settings, new_global_payee_settings, payee_data
     )
     assert is_valid
     assert updated_data.periodStartBlock == boa.env.evm.patch.block_number  # new period
+
+
+def test_payee_period_length_increase_keeps_existing_window(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, alpha_token, sentinel):
+    boa.env.time_travel(blocks=2 * ONE_DAY_IN_BLOCKS + 20)
+    period_start = boa.env.evm.patch.block_number - ONE_DAY_IN_BLOCKS - 10
+    payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _periodLength=2 * ONE_DAY_IN_BLOCKS)
+    payee_data = createPayeeData(
+        _numTxsInPeriod=2,
+        _totalUnitsInPeriod=50,
+        _totalUsdValueInPeriod=75,
+        _periodStartBlock=period_start,
+    )
+
+    is_valid, updated_data, did_update = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 10, 20,
+        payee_settings, createGlobalPayeeSettings(), payee_data
+    )
+
+    assert is_valid
+    assert did_update
+    assert updated_data.periodStartBlock == period_start
+    assert updated_data.numTxsInPeriod == 3
+    assert updated_data.totalUnitsInPeriod == 60
+    assert updated_data.totalUsdValueInPeriod == 95
+
+
+def test_payee_period_length_decrease_resets_existing_window(createGlobalPayeeSettings, createPayeeSettings, createPayeeData, alpha_token, sentinel):
+    boa.env.time_travel(blocks=2 * ONE_DAY_IN_BLOCKS + 20)
+    payee_settings = createPayeeSettings(_primaryAsset=alpha_token, _periodLength=ONE_DAY_IN_BLOCKS)
+    payee_data = createPayeeData(
+        _numTxsInPeriod=2,
+        _totalUnitsInPeriod=50,
+        _totalUsdValueInPeriod=75,
+        _periodStartBlock=boa.env.evm.patch.block_number - ONE_DAY_IN_BLOCKS - 10,
+    )
+
+    is_valid, updated_data, did_update = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 10, 20,
+        payee_settings, createGlobalPayeeSettings(), payee_data
+    )
+
+    assert is_valid
+    assert did_update
+    assert updated_data.periodStartBlock == boa.env.evm.patch.block_number
+    assert updated_data.numTxsInPeriod == 1
+    assert updated_data.totalUnitsInPeriod == 10
+    assert updated_data.totalUsdValueInPeriod == 20
 
 
 def test_zero_amount_transaction(createPayeeSettings, alpha_token, alice, sentinel, user_wallet, user_wallet_config, paymaster):
@@ -773,16 +795,16 @@ def test_cooldown_equals_period_length(createGlobalPayeeSettings, user_wallet, c
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should not be valid during cooldown (which lasts the entire period)
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False, False, True, alpha_token, 1, 1,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 1, 1,
         new_payee_settings, new_global_payee_settings, payee_data
     )
     assert not is_valid
     
     # after period ends, cooldown should be over AND period should reset
     boa.env.time_travel(blocks=period_length)
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False, False, True, alpha_token, 1, 1,
+    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 1, 1,
         new_payee_settings, new_global_payee_settings, payee_data
     )
     assert is_valid
@@ -807,8 +829,8 @@ def test_multiple_period_resets(createGlobalPayeeSettings, createPayeeSettings, 
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should reset to current period
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False, False, True, alpha_token, 100, 50,
+    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 100, 50,
         new_payee_settings, new_global_payee_settings, payee_data
     )
     assert is_valid
@@ -829,21 +851,21 @@ def test_payee_expires_at_current_block(createPayeeSettings, alpha_token, alice,
         _primaryAsset=alpha_token
     )
     user_wallet_config.addPayee(alice, new_payee_settings, sender=paymaster.address)
-    
+
     # should not be valid at current block (expiry <= current block)
     assert not sentinel.isValidPayee(user_wallet, alice, alpha_token, 1, 1)
-    
-    # test with expiry = current block + 1 (should be valid for exactly current block)
+
+    # test with expiry = current block + 1 (replace existing settings via updatePayee)
     new_payee_settings_2 = createPayeeSettings(
         _startBlock=current_block,
         _expiryBlock=current_block + 1,  # valid only for current block
         _primaryAsset=alpha_token
     )
-    user_wallet_config.addPayee(alice, new_payee_settings_2, sender=paymaster.address)
-    
+    user_wallet_config.updatePayee(alice, new_payee_settings_2, sender=paymaster.address)
+
     # should be valid at current block
     assert sentinel.isValidPayee(user_wallet, alice, alpha_token, 1, 1)
-    
+
     # advance one block - should now be invalid (current block >= expiry)
     boa.env.time_travel(blocks=1)
     assert not sentinel.isValidPayee(user_wallet, alice, alpha_token, 1, 1)
@@ -864,16 +886,16 @@ def test_global_and_payee_cooldowns_both_apply(createGlobalPayeeSettings, create
     payee_data = createPayeeData(_lastTxBlock=current_block - 7)
     
     # 7 blocks ago - payee cooldown (5) passed but global (10) not passed
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False, False, True, alpha_token, 1, 1,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 1, 1,
         new_payee_settings, new_global_payee_settings, payee_data
     )
     assert not is_valid
     
     # after global cooldown passes
     payee_data_after = createPayeeData(_lastTxBlock=current_block - 11)
-    is_valid, _ = sentinel.isValidPayeeAndGetData(
-        False, False, True, alpha_token, 1, 1,
+    is_valid, _, _ = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 1, 1,
         new_payee_settings, new_global_payee_settings, payee_data_after
     )
     assert is_valid
@@ -897,8 +919,8 @@ def test_very_long_inactive_period(createGlobalPayeeSettings, createPayeeSetting
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # should still work and reset period
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False, False, True, alpha_token, 100, 50,
+    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 100, 50,
         new_payee_settings, new_global_payee_settings, very_old_data
     )
     assert is_valid
@@ -955,15 +977,15 @@ def test_lifetime_limits_persist_across_period_resets(createGlobalPayeeSettings,
     new_global_payee_settings = createGlobalPayeeSettings()
     
     # even after period reset, lifetime limit should apply
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False, False, True, alpha_token, 200, 1,
+    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 200, 1,
         new_payee_settings, new_global_payee_settings, old_data
     )
     assert not is_valid  # would exceed lifetime cap (900 + 200 > 1000)
     
     # but smaller amount should work
-    is_valid, updated_data = sentinel.isValidPayeeAndGetData(
-        False, False, True, alpha_token, 99, 1,
+    is_valid, updated_data, _ = sentinel.isValidPayeeAndGetData(
+        False, True, alpha_token, 99, 1,
         new_payee_settings, new_global_payee_settings, old_data
     )
     assert is_valid

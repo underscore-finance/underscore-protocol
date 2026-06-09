@@ -1,6 +1,62 @@
 import pytest
 import boa
-from constants import ZERO_ADDRESS
+from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ZERO_ADDRESS
+from conf_utils import (
+    confirm_pending_instant_action_settings,
+    filter_logs,
+    fresh_user_wallet,
+    instant_action_settings_tuple,
+    set_user_instant_action_settings,
+)
+
+
+def _fresh_wallet_config(hatchery, owner):
+    return fresh_user_wallet(hatchery, owner)[1]
+
+
+def stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, *, sender):
+    restrictive = createChequeSettings(
+        _maxNumActiveCheques=2,
+        _maxChequeUsdValue=300 * EIGHTEEN_DECIMALS,
+        _instantUsdThreshold=25 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *restrictive, sender=sender)
+
+    widening = createChequeSettings(
+        _maxNumActiveCheques=0,
+        _instantUsdThreshold=100 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=ONE_DAY_IN_BLOCKS,
+        _defaultExpiryBlocks=2 * ONE_DAY_IN_BLOCKS,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    cheque_book.setChequeSettings(user_wallet.address, *widening, sender=sender)
+
+
+def deploy_registered_cheque_book(cheque_book, wallet_backpack_deploy, governance):
+    replacement = boa.load(
+        "contracts/core/walletBackpack/ChequeBook.vy",
+        cheque_book.UNDY_HQ(),
+        cheque_book.MIN_CHEQUE_PERIOD(),
+        cheque_book.MAX_CHEQUE_PERIOD(),
+        cheque_book.MIN_EXPENSIVE_CHEQUE_DELAY(),
+        cheque_book.MAX_UNLOCK_BLOCKS(),
+        cheque_book.MAX_EXPIRY_BLOCKS(),
+        cheque_book.canInstantSetChequeSettings(),
+        name="replacement_cheque_book",
+    )
+    wallet_backpack_deploy.addPendingChequeBook(replacement.address, sender=governance.address)
+    boa.env.time_travel(blocks=wallet_backpack_deploy.actionTimeLock())
+    wallet_backpack_deploy.confirmPendingChequeBook(sender=governance.address)
+    return replacement
 
 
 @pytest.fixture
@@ -8,30 +64,6 @@ def pending_whitelist(user_wallet):
     """Create a pending whitelist struct"""
     return (
         boa.env.evm.patch.block_number,         # initiatedBlock
-        boa.env.evm.patch.block_number + 100,  # confirmBlock
-        user_wallet.address,                    # currentOwner
-    )
-
-
-@pytest.fixture
-def pending_payee(createPayeeSettings, user_wallet):
-    """Create a pending payee struct"""
-    settings = createPayeeSettings()
-    return (
-        settings,                               # settings
-        boa.env.evm.patch.block_number,        # initiatedBlock
-        boa.env.evm.patch.block_number + 100,  # confirmBlock
-        user_wallet.address,                    # currentOwner
-    )
-
-
-@pytest.fixture
-def pending_payee(createPayeeSettings, user_wallet):
-    """Create a pending payee struct"""
-    settings = createPayeeSettings()
-    return (
-        settings,                               # settings
-        boa.env.evm.patch.block_number,        # initiatedBlock
         boa.env.evm.patch.block_number + 100,  # confirmBlock
         user_wallet.address,                    # currentOwner
     )
@@ -68,6 +100,62 @@ def test_remove_whitelist_access(user_wallet_config, alice, bob):
     # Non-kernel address should fail
     with boa.reverts("no perms"):
         user_wallet_config.removeWhitelistAddr(alice, sender=bob)
+
+
+def test_set_wallet_requires_registered_hatchery_for_unbound_config(
+    undy_hq,
+    hatchery,
+    alice,
+    bob,
+    weth,
+    kernel,
+    sentinel,
+    high_command,
+    paymaster,
+    cheque_book,
+    migrator,
+    action_data_provider,
+    createGlobalManagerSettings,
+    createGlobalPayeeSettings,
+    createChequeSettings,
+    createManagerSettings,
+):
+    config = boa.load(
+        "contracts/core/userWallet/UserWalletConfig.vy",
+        undy_hq,
+        alice,
+        1,
+        createGlobalManagerSettings(),
+        createGlobalPayeeSettings(),
+        createChequeSettings(),
+        ZERO_ADDRESS,
+        createManagerSettings(),
+        kernel.address,
+        sentinel.address,
+        high_command.address,
+        paymaster.address,
+        cheque_book.address,
+        migrator.address,
+        action_data_provider.address,
+        weth.address,
+        hatchery.ETH(),
+        ONE_DAY_IN_BLOCKS,
+        ONE_MONTH_IN_BLOCKS,
+        (True, True, True, True),
+        name="unbound_user_wallet_config",
+    )
+
+    with boa.reverts("no perms"):
+        config.setWallet(bob, sender=bob)
+
+    with boa.reverts("invalid wallet"):
+        config.setWallet(ZERO_ADDRESS, sender=hatchery.address)
+
+    config.setWallet(bob, sender=hatchery.address)
+    assert config.wallet() == bob
+
+    with boa.reverts("wallet already set"):
+        config.setWallet(alice, sender=hatchery.address)
 
 
 def test_add_whitelist_via_migrator_access(user_wallet_config, alice, bob):
@@ -107,13 +195,17 @@ def test_remove_manager_access(user_wallet_config, alice, bob):
         user_wallet_config.removeManager(alice, sender=bob)
 
 
-def test_set_global_manager_settings_access(user_wallet_config, bob, createGlobalManagerSettings):
-    """Only highCommand or migrator should be able to set global manager settings"""
+def test_set_global_manager_settings_access(user_wallet_config, bob, high_command, migrator, createGlobalManagerSettings):
+    """Only highCommand should be able to set global manager settings"""
     settings = createGlobalManagerSettings()
     
     # Non-authorized address should fail
     with boa.reverts("no perms"):
         user_wallet_config.setGlobalManagerSettings(settings, sender=bob)
+    with boa.reverts("no perms"):
+        user_wallet_config.setGlobalManagerSettings(settings, sender=migrator.address)
+
+    user_wallet_config.setGlobalManagerSettings(settings, sender=high_command.address)
 
 
 ######################
@@ -146,34 +238,17 @@ def test_remove_payee_access(user_wallet_config, alice, bob):
         user_wallet_config.removePayee(alice, sender=bob)
 
 
-def test_set_global_payee_settings_access(user_wallet_config, bob, createGlobalPayeeSettings):
-    """Only paymaster or migrator should be able to set global payee settings"""
+def test_set_global_payee_settings_access(user_wallet_config, bob, paymaster, migrator, createGlobalPayeeSettings):
+    """Only paymaster should be able to set global payee settings"""
     settings = createGlobalPayeeSettings()
     
     # Non-authorized address should fail
     with boa.reverts("no perms"):
         user_wallet_config.setGlobalPayeeSettings(settings, sender=bob)
-
-
-def test_add_pending_payee_access(user_wallet_config, alice, bob, pending_payee):
-    """Only paymaster should be able to add pending payee"""
-    # Non-paymaster address should fail
     with boa.reverts("no perms"):
-        user_wallet_config.addPendingPayee(alice, pending_payee, sender=bob)
+        user_wallet_config.setGlobalPayeeSettings(settings, sender=migrator.address)
 
-
-def test_confirm_pending_payee_access(user_wallet_config, alice, bob):
-    """Only paymaster should be able to confirm pending payee"""
-    # Non-paymaster address should fail
-    with boa.reverts("no perms"):
-        user_wallet_config.confirmPendingPayee(alice, sender=bob)
-
-
-def test_cancel_pending_payee_access(user_wallet_config, alice, bob):
-    """Only paymaster should be able to cancel pending payee"""
-    # Non-paymaster address should fail
-    with boa.reverts("no perms"):
-        user_wallet_config.cancelPendingPayee(alice, sender=bob)
+    user_wallet_config.setGlobalPayeeSettings(settings, sender=paymaster.address)
 
 
 #######################
@@ -308,6 +383,57 @@ def test_whitelist_via_migrator(user_wallet_config, migrator, alice):
     # Verify immediately registered
     assert user_wallet_config.indexOfWhitelist(alice) > 0
     assert user_wallet_config.whitelistAddr(user_wallet_config.indexOfWhitelist(alice)) == alice
+
+
+def test_whitelist_via_migrator_rejects_empty_and_duplicate_addresses(user_wallet_config, migrator, alice):
+    """Migrator whitelist writes enforce the local checks that fit inside UserWalletConfig."""
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(ZERO_ADDRESS, sender=migrator.address)
+
+    user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+
+
+def test_whitelist_via_migrator_rejects_existing_roles(
+    user_wallet_config,
+    migrator,
+    paymaster,
+    high_command,
+    cheque_book,
+    alice,
+    charlie,
+    sally,
+    createPayeeSettings,
+    createManagerSettings,
+    createCheque,
+    createChequeData,
+):
+    """Migrator cannot whitelist payees, managers, or active cheque recipients"""
+    user_wallet_config.addPayee(alice, createPayeeSettings(), sender=paymaster.address)
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+
+    user_wallet_config.addManager(charlie, createManagerSettings(), sender=high_command.address)
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(charlie, sender=migrator.address)
+
+    cheque = createCheque(_recipient=sally)
+    user_wallet_config.createCheque(sally, cheque, createChequeData(), False, sender=cheque_book.address)
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(sally, sender=migrator.address)
+
+
+def test_whitelist_via_migrator_rejects_registry_addresses(user_wallet_config, migrator, ledger):
+    """Migrator cannot whitelist privileged Undy registry addresses."""
+    with boa.reverts("invalid address"):
+        user_wallet_config.addWhitelistAddrViaMigrator(ledger.address, sender=migrator.address)
+
+
+def test_whitelist_via_migrator_rejects_backpack_items(user_wallet_config, migrator, kernel):
+    """Migrator cannot whitelist registered backpack items."""
+    with boa.reverts("invalid address"):
+        user_wallet_config.addWhitelistAddrViaMigrator(kernel.address, sender=migrator.address)
 
 
 #############################
@@ -462,39 +588,20 @@ def test_payee_persistence(user_wallet_config, paymaster, alice, bob, charlie, c
     assert saved_settings.startBlock == 0
 
 
-def test_pending_payee_persistence(user_wallet_config, paymaster, alice, createPayeeSettings):
-    """Test pending payee functionality"""
-    # Create pending payee
-    settings = createPayeeSettings(_canPull=True)
-    pending_data = (
-        settings,
-        boa.env.evm.patch.block_number,         # initiatedBlock
-        boa.env.evm.patch.block_number + 100,  # confirmBlock
-        user_wallet_config.wallet(),            # currentOwner
-    )
-    
-    # Add pending
-    user_wallet_config.addPendingPayee(alice, pending_data, sender=paymaster.address)
-    
-    # Verify pending data
-    saved_pending = user_wallet_config.pendingPayees(alice)
-    assert saved_pending.initiatedBlock == pending_data[1]
-    assert saved_pending.confirmBlock == pending_data[2]
-    assert saved_pending.currentOwner == pending_data[3]
-    assert saved_pending.settings.canPull == True
-    
-    # Time travel and confirm
-    boa.env.time_travel(blocks=100)
-    user_wallet_config.confirmPendingPayee(alice, sender=paymaster.address)
-    
-    # Verify payee registered with settings
-    assert user_wallet_config.indexOfPayee(alice) > 0
-    saved_settings = user_wallet_config.payeeSettings(alice)
-    assert saved_settings.canPull == True
-    
-    # Verify pending cleared
-    saved_pending = user_wallet_config.pendingPayees(alice)
-    assert saved_pending.confirmBlock == 0
+def test_duplicate_payee_add(user_wallet_config, paymaster, alice, createPayeeSettings):
+    """Test that duplicate payee entries are rejected"""
+    settings = createPayeeSettings()
+
+    user_wallet_config.addPayee(alice, settings, sender=paymaster.address)
+    alice_index = user_wallet_config.indexOfPayee(alice)
+    assert alice_index > 0
+
+    initial_count = user_wallet_config.numPayees()
+    with boa.reverts("already payee"):
+        user_wallet_config.addPayee(alice, settings, sender=paymaster.address)
+
+    assert user_wallet_config.numPayees() == initial_count
+    assert user_wallet_config.indexOfPayee(alice) == alice_index
 
 
 def test_global_payee_settings_persistence(user_wallet_config, paymaster, createGlobalPayeeSettings):
@@ -629,9 +736,10 @@ def test_duplicate_whitelist_add(user_wallet_config, kernel, alice, pending_whit
     alice_index = user_wallet_config.indexOfWhitelist(alice)
     assert alice_index > 0
     
-    # Try to add again via migrator - should not create duplicate
+    # Try to add again via migrator - should reject instead of silently no-oping
     initial_count = user_wallet_config.numWhitelisted()
-    user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
+    with boa.reverts():
+        user_wallet_config.addWhitelistAddrViaMigrator(alice, sender=migrator.address)
     
     # Count should not increase
     assert user_wallet_config.numWhitelisted() == initial_count
@@ -639,7 +747,7 @@ def test_duplicate_whitelist_add(user_wallet_config, kernel, alice, pending_whit
 
 
 def test_duplicate_manager_add(user_wallet_config, high_command, alice, createManagerSettings):
-    """Test that duplicate manager entries are handled correctly"""
+    """Test that duplicate manager entries are rejected"""
     settings = createManagerSettings()
     
     # Add first time
@@ -647,9 +755,10 @@ def test_duplicate_manager_add(user_wallet_config, high_command, alice, createMa
     alice_index = user_wallet_config.indexOfManager(alice)
     assert alice_index > 0
     
-    # Try to add again - should not create duplicate
+    # Try to add again - should reject instead of silently overwriting settings
     initial_count = user_wallet_config.numManagers()
-    user_wallet_config.addManager(alice, settings, sender=high_command.address)
+    with boa.reverts("already manager"):
+        user_wallet_config.addManager(alice, settings, sender=high_command.address)
     
     # Count should not increase
     assert user_wallet_config.numManagers() == initial_count
@@ -674,46 +783,312 @@ def test_remove_non_existent_items(user_wallet_config, kernel, high_command, pay
     assert user_wallet_config.numPayees() == initial_payee_count
 
 
-def test_time_delay_enforcement(user_wallet_config, kernel, paymaster, alice, pending_whitelist, createPayeeSettings, user_wallet):
-    """Test that time delays are enforced for pending items"""
-    # Test whitelist time delay with fresh pending data
+def test_whitelist_confirm_enforces_delay(user_wallet_config, kernel, alice, user_wallet):
+    """UserWalletConfig keeps the storage-layer whitelist delay check"""
     fresh_pending = (
         boa.env.evm.patch.block_number,         # initiatedBlock
         boa.env.evm.patch.block_number + 10,   # confirmBlock (10 blocks later)
         user_wallet.address,                    # currentOwner
     )
     user_wallet_config.addPendingWhitelistAddr(alice, fresh_pending, sender=kernel.address)
-    
-    # Should fail before time delay
-    # Current block is still less than confirmBlock
+
     with boa.reverts("time delay not reached"):
         user_wallet_config.confirmWhitelistAddr(alice, sender=kernel.address)
-    
-    # Should succeed after time delay
-    boa.env.time_travel(blocks=10)  # Now at confirmBlock
+
+    boa.env.time_travel(blocks=10)
     user_wallet_config.confirmWhitelistAddr(alice, sender=kernel.address)
+    assert user_wallet_config.indexOfWhitelist(alice) != 0
+
+
+def test_whitelist_confirm_requires_pending_entry(user_wallet_config, kernel, alice):
+    """UserWalletConfig cannot confirm a missing pending whitelist entry"""
+    with boa.reverts("no pending whitelist"):
+        user_wallet_config.confirmWhitelistAddr(alice, sender=kernel.address)
     
-    # Remove alice from whitelist first to test payee
-    user_wallet_config.removeWhitelistAddr(alice, sender=kernel.address)
-    
-    # Test payee time delay
-    settings = createPayeeSettings()
-    fresh_payee_data = (
-        settings,
-        boa.env.evm.patch.block_number,         # initiatedBlock
-        boa.env.evm.patch.block_number + 10,    # confirmBlock (10 blocks later)
-        user_wallet_config.wallet(),             # currentOwner
-    )
-    user_wallet_config.addPendingPayee(alice, fresh_payee_data, sender=paymaster.address)
-    
-    # Should fail before time delay
-    # Current block is still less than confirmBlock
+
+###################
+# Time Lock Tests #
+###################
+
+
+def test_set_time_lock_access(user_wallet_config, alice):
+    """Only the owner can request time lock changes"""
+    with boa.reverts("no perms"):
+        user_wallet_config.setTimeLock(user_wallet_config.timeLock() + 1, sender=alice)
+
+
+def test_set_time_lock_enforces_bounds(user_wallet_config, bob):
+    """UserWalletConfig rejects time locks outside configured bounds"""
+    high_time_lock = user_wallet_config.MAX_TIMELOCK() + 1
+    with boa.reverts("invalid time lock"):
+        user_wallet_config.setTimeLock(high_time_lock, sender=bob)
+
+    with boa.reverts("invalid time lock"):
+        user_wallet_config.setTimeLock(0, sender=bob)
+
+
+def test_set_time_lock_increase_applies_immediately(user_wallet_config, bob):
+    """Increasing the wallet time lock should update live state immediately"""
+    new_time_lock = user_wallet_config.timeLock() + 10
+    user_wallet_config.setTimeLock(new_time_lock, sender=bob)
+
+    assert user_wallet_config.timeLock() == new_time_lock
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+
+
+def test_set_time_lock_decrease_stages_pending(user_wallet_config, bob):
+    """Decreasing the wallet time lock should stage pending state"""
+    higher_time_lock = user_wallet_config.MAX_TIMELOCK()
+    user_wallet_config.setTimeLock(higher_time_lock, sender=bob)
+
+    lower_time_lock = user_wallet_config.MIN_TIMELOCK()
+    user_wallet_config.setTimeLock(lower_time_lock, sender=bob)
+
+    pending = user_wallet_config.pendingTimeLock()
+    assert user_wallet_config.timeLock() == higher_time_lock
+    assert pending.confirmBlock != 0
+    assert pending.newTimeLock == lower_time_lock
+    assert pending.currentOwner == bob
+    assert pending.confirmBlock == pending.initiatedBlock + higher_time_lock
+
+
+def test_set_time_lock_second_decrease_reverts_while_pending_exists(user_wallet_config, bob):
+    """A second staged time lock decrease should be rejected while one is already pending"""
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+
+    with boa.reverts("pending time lock already exists"):
+        user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+
+
+def test_confirm_pending_time_lock_after_delay_updates_live(user_wallet_config, bob):
+    """Pending time lock decreases should confirm after the live time lock delay"""
+    higher_time_lock = user_wallet_config.MAX_TIMELOCK()
+    lower_time_lock = user_wallet_config.MIN_TIMELOCK()
+    user_wallet_config.setTimeLock(higher_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(lower_time_lock, sender=bob)
+
+    pending = user_wallet_config.pendingTimeLock()
     with boa.reverts("time delay not reached"):
-        user_wallet_config.confirmPendingPayee(alice, sender=paymaster.address)
-    
-    # Should succeed after time delay
-    boa.env.time_travel(blocks=10)  # Now at confirmBlock
-    user_wallet_config.confirmPendingPayee(alice, sender=paymaster.address)
+        user_wallet_config.confirmPendingTimeLock(sender=bob)
+
+    boa.env.time_travel(blocks=pending.confirmBlock - boa.env.evm.patch.block_number)
+    user_wallet_config.confirmPendingTimeLock(sender=bob)
+
+    assert user_wallet_config.timeLock() == lower_time_lock
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+    pending = user_wallet_config.pendingTimeLock()
+    assert pending.newTimeLock == 0
+    assert pending.confirmBlock == 0
+    assert pending.currentOwner == ZERO_ADDRESS
+
+
+def test_confirm_pending_time_lock_at_exact_confirm_block_succeeds(user_wallet_config, bob):
+    """Pending time lock confirms should work exactly at confirmBlock"""
+    user_wallet_config.setTimeLock(user_wallet_config.MAX_TIMELOCK(), sender=bob)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+
+    pending = user_wallet_config.pendingTimeLock()
+    boa.env.time_travel(blocks=pending.confirmBlock - boa.env.evm.patch.block_number - 1)
+    with boa.reverts("time delay not reached"):
+        user_wallet_config.confirmPendingTimeLock(sender=bob)
+
+    boa.env.time_travel(blocks=1)
+    user_wallet_config.confirmPendingTimeLock(sender=bob)
+
+    assert user_wallet_config.timeLock() == user_wallet_config.MIN_TIMELOCK()
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+
+
+def test_cancel_pending_time_lock_security_action_can_cancel(
+    user_wallet_config, bob, alice, mission_control, switchboard_alpha
+):
+    """Owner security operators should be able to cancel pending time lock decreases"""
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    higher_time_lock = user_wallet_config.MAX_TIMELOCK()
+    lower_time_lock = user_wallet_config.MIN_TIMELOCK()
+    user_wallet_config.setTimeLock(higher_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(lower_time_lock, sender=bob)
+
+    user_wallet_config.cancelPendingTimeLock(sender=alice)
+
+    assert user_wallet_config.timeLock() == higher_time_lock
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+
+
+def test_cancel_pending_time_lock_without_pending_reverts(user_wallet_config, bob):
+    """Cancelling a wallet time lock decrease should require pending state"""
+    with boa.reverts("no pending time lock"):
+        user_wallet_config.cancelPendingTimeLock(sender=bob)
+
+
+def test_cancel_pending_time_lock_non_security_reverts(user_wallet_config, bob, charlie):
+    """Non-owner callers without security permission cannot cancel pending time locks"""
+    higher_time_lock = user_wallet_config.MAX_TIMELOCK()
+    lower_time_lock = user_wallet_config.MIN_TIMELOCK()
+    user_wallet_config.setTimeLock(higher_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(lower_time_lock, sender=bob)
+
+    with boa.reverts("no perms"):
+        user_wallet_config.cancelPendingTimeLock(sender=charlie)
+
+
+def test_confirm_pending_time_lock_owner_changed_reverts(user_wallet_config, bob, alice):
+    """Pending time lock confirms should fail after ownership changes"""
+    higher_time_lock = user_wallet_config.MAX_TIMELOCK()
+    lower_time_lock = user_wallet_config.MIN_TIMELOCK()
+    user_wallet_config.setTimeLock(higher_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(lower_time_lock, sender=bob)
+
+    pending = user_wallet_config.pendingTimeLock()
+    user_wallet_config.changeOwnership(alice, sender=bob)
+    boa.env.time_travel(blocks=user_wallet_config.ownershipTimeLock())
+    user_wallet_config.confirmOwnershipChange(sender=alice)
+    boa.env.time_travel(blocks=pending.confirmBlock - boa.env.evm.patch.block_number)
+
+    with boa.reverts("owner must match"):
+        user_wallet_config.confirmPendingTimeLock(sender=alice)
+
+    user_wallet_config.cancelPendingTimeLock(sender=alice)
+
+
+def test_set_time_lock_increase_clears_pending_decrease(user_wallet_config, bob):
+    """An immediate non-decrease should clear any staged time lock reduction"""
+    current_time_lock = min(user_wallet_config.MIN_TIMELOCK() + 1, user_wallet_config.MAX_TIMELOCK())
+    user_wallet_config.setTimeLock(current_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+
+    tightened_time_lock = user_wallet_config.MAX_TIMELOCK()
+    user_wallet_config.setTimeLock(tightened_time_lock, sender=bob)
+
+    assert user_wallet_config.timeLock() == tightened_time_lock
+    assert user_wallet_config.pendingTimeLock().confirmBlock == 0
+
+
+def test_set_time_lock_same_value_preserves_pending(user_wallet_config, bob):
+    """Re-submitting the live time lock should be a no-op and preserve pending state"""
+    current_time_lock = min(user_wallet_config.MIN_TIMELOCK() + 1, user_wallet_config.MAX_TIMELOCK())
+    user_wallet_config.setTimeLock(current_time_lock, sender=bob)
+    user_wallet_config.setTimeLock(user_wallet_config.MIN_TIMELOCK(), sender=bob)
+    pending_before = user_wallet_config.pendingTimeLock()
+
+    user_wallet_config.setTimeLock(current_time_lock, sender=bob)
+
+    pending_after = user_wallet_config.pendingTimeLock()
+    assert user_wallet_config.timeLock() == current_time_lock
+    assert pending_after.newTimeLock == pending_before.newTimeLock
+    assert pending_after.initiatedBlock == pending_before.initiatedBlock
+    assert pending_after.confirmBlock == pending_before.confirmBlock
+    assert pending_after.currentOwner == pending_before.currentOwner
+
+
+def test_apply_migrated_config_settings_access_and_clamps(
+    user_wallet_config,
+    hatchery,
+    bob,
+    alice,
+    migrator,
+    createGlobalManagerSettings,
+    createGlobalPayeeSettings,
+    createChequeSettings,
+):
+    """The migrator-only settings apply validates source config, access, and scalar field copies."""
+    source_config = _fresh_wallet_config(hatchery, bob)
+    instant_settings = (True, False, True, False)
+    global_manager_settings = createGlobalManagerSettings(
+        _managerPeriod=ONE_DAY_IN_BLOCKS,
+        _startDelay=7,
+        _activationLength=2 * ONE_MONTH_IN_BLOCKS,
+        _canOwnerManage=False,
+    )
+    global_payee_settings = createGlobalPayeeSettings(
+        _defaultPeriodLength=2 * ONE_DAY_IN_BLOCKS,
+        _startDelay=11,
+        _activationLength=3 * ONE_MONTH_IN_BLOCKS,
+        _maxNumTxsPerPeriod=9,
+        _txCooldownBlocks=13,
+        _failOnZeroPrice=True,
+        _canPull=False,
+    )
+    cheque_settings = createChequeSettings(
+        _maxNumActiveCheques=3,
+        _maxChequeUsdValue=100 * EIGHTEEN_DECIMALS,
+        _instantUsdThreshold=10 * EIGHTEEN_DECIMALS,
+        _periodLength=ONE_DAY_IN_BLOCKS,
+        _expensiveDelayBlocks=5,
+        _defaultExpiryBlocks=6,
+        _canManagersCreateCheques=False,
+        _canManagerPay=False,
+        _canBePulled=False,
+    )
+    args = (
+        source_config.address,
+        user_wallet_config.MAX_TIMELOCK(),
+        instant_settings,
+        global_manager_settings,
+        global_payee_settings,
+        cheque_settings,
+    )
+    with boa.reverts("no perms"):
+        user_wallet_config.applyMigratedConfigSettings(*args, sender=alice)
+    with boa.reverts("invalid source config"):
+        user_wallet_config.applyMigratedConfigSettings(ZERO_ADDRESS, *args[1:], sender=migrator.address)
+
+    min_time_lock = user_wallet_config.MIN_TIMELOCK()
+    max_time_lock = user_wallet_config.MAX_TIMELOCK()
+
+    user_wallet_config.applyMigratedConfigSettings(
+        source_config.address,
+        min_time_lock,
+        instant_settings,
+        global_manager_settings,
+        global_payee_settings,
+        cheque_settings,
+        sender=migrator.address,
+    )
+    assert user_wallet_config.timeLock() == min_time_lock
+
+    user_wallet_config.applyMigratedConfigSettings(
+        source_config.address,
+        max_time_lock,
+        instant_settings,
+        global_manager_settings,
+        global_payee_settings,
+        cheque_settings,
+        sender=migrator.address,
+    )
+    event = filter_logs(user_wallet_config, "MigrationConfigApplied")[-1]
+    assert user_wallet_config.timeLock() == max_time_lock
+    assert instant_action_settings_tuple(user_wallet_config.instantActionSettings()) == instant_settings
+    assert user_wallet_config.globalManagerSettings() == global_manager_settings
+    assert user_wallet_config.globalPayeeSettings() == global_payee_settings
+    assert user_wallet_config.chequeSettings() == cheque_settings
+
+    assert event.fromConfig == source_config.address
+    assert event.timeLock == max_time_lock
+
+    user_wallet_config.applyMigratedConfigSettings(
+        source_config.address,
+        0,
+        instant_settings,
+        global_manager_settings,
+        global_payee_settings,
+        cheque_settings,
+        sender=migrator.address,
+    )
+    assert user_wallet_config.timeLock() == min_time_lock
+
+    user_wallet_config.applyMigratedConfigSettings(
+        source_config.address,
+        max_time_lock + 1,
+        instant_settings,
+        global_manager_settings,
+        global_payee_settings,
+        cheque_settings,
+        sender=migrator.address,
+    )
+    assert user_wallet_config.timeLock() == max_time_lock
 
 
 #######################
@@ -747,9 +1122,9 @@ def test_set_frozen_access(user_wallet_config, alice, charlie):
     user_wallet_config.setFrozen(False, sender=owner)
     assert user_wallet_config.isFrozen() == False
     
-    # Can't set to same value
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setFrozen(False, sender=owner)
+    # Same-value updates are accepted; backpack contracts own higher-level validation.
+    user_wallet_config.setFrozen(False, sender=owner)
+    assert user_wallet_config.isFrozen() == False
 
 
 def test_set_frozen_by_owner_only(user_wallet_config):
@@ -763,9 +1138,9 @@ def test_set_frozen_by_owner_only(user_wallet_config):
     user_wallet_config.setFrozen(True, sender=owner)
     assert user_wallet_config.isFrozen() == True
     
-    # Can't set to same value
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setFrozen(True, sender=owner)
+    # Same-value updates are accepted.
+    user_wallet_config.setFrozen(True, sender=owner)
+    assert user_wallet_config.isFrozen() == True
     
     # Owner can unfreeze
     user_wallet_config.setFrozen(False, sender=owner)
@@ -783,9 +1158,8 @@ def test_set_frozen_persistence(user_wallet_config):
     user_wallet_config.setFrozen(True, sender=owner)
     assert user_wallet_config.isFrozen() == True
     
-    # Setting to same value should fail
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setFrozen(True, sender=owner)
+    # Setting to the same value is idempotent.
+    user_wallet_config.setFrozen(True, sender=owner)
     
     # State should still be frozen
     assert user_wallet_config.isFrozen() == True
@@ -794,9 +1168,8 @@ def test_set_frozen_persistence(user_wallet_config):
     user_wallet_config.setFrozen(False, sender=owner)
     assert user_wallet_config.isFrozen() == False
     
-    # Setting to same value should fail
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setFrozen(False, sender=owner)
+    # Setting to the same value is idempotent.
+    user_wallet_config.setFrozen(False, sender=owner)
     
     # State should still be unfrozen
     assert user_wallet_config.isFrozen() == False
@@ -815,9 +1188,9 @@ def test_set_ejection_mode_access(user_wallet_config, alice, bob, switchboard_al
     user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
     assert user_wallet_config.inEjectMode() == True
     
-    # Can't set to same value
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    # Same-value updates are accepted.
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    assert user_wallet_config.inEjectMode() == True
     
     # Switchboard can turn off ejection mode
     user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
@@ -833,9 +1206,8 @@ def test_set_ejection_mode_persistence(user_wallet_config, switchboard_alpha):
     user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
     assert user_wallet_config.inEjectMode() == True
     
-    # Setting to same value should fail
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
+    # Setting to the same value is idempotent.
+    user_wallet_config.setEjectionMode(True, sender=switchboard_alpha.address)
     
     # State should still be true
     assert user_wallet_config.inEjectMode() == True
@@ -844,9 +1216,8 @@ def test_set_ejection_mode_persistence(user_wallet_config, switchboard_alpha):
     user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
     assert user_wallet_config.inEjectMode() == False
     
-    # Setting to same value should fail
-    with boa.reverts("nothing to change"):
-        user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
+    # Setting to the same value is idempotent.
+    user_wallet_config.setEjectionMode(False, sender=switchboard_alpha.address)
     
     # State should still be false
     assert user_wallet_config.inEjectMode() == False
@@ -962,6 +1333,56 @@ def test_set_cheque_book_access(user_wallet_config, alice, cheque_book):
     assert user_wallet_config.chequeBook() == cheque_book.address
 
 
+def test_set_cheque_book_same_address_succeeds_with_pending_settings(
+    user_wallet, user_wallet_config, bob, cheque_book, createChequeSettings
+):
+    stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, sender=bob)
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address)
+
+    user_wallet_config.setChequeBook(cheque_book.address, sender=bob)
+
+    assert user_wallet_config.chequeBook() == cheque_book.address
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+
+
+def test_set_cheque_book_different_registered_book_trusts_registered_sender_with_pending_settings(
+    user_wallet,
+    user_wallet_config,
+    bob,
+    cheque_book,
+    wallet_backpack_deploy,
+    governance,
+    createChequeSettings,
+):
+    replacement = deploy_registered_cheque_book(cheque_book, wallet_backpack_deploy, governance)
+    stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, sender=bob)
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address)
+
+    user_wallet_config.setChequeBook(replacement.address, sender=bob)
+
+    assert user_wallet_config.chequeBook() == replacement.address
+
+
+def test_set_cheque_book_different_registered_book_succeeds_after_pending_settings_cleared(
+    user_wallet,
+    user_wallet_config,
+    bob,
+    cheque_book,
+    wallet_backpack_deploy,
+    governance,
+    createChequeSettings,
+):
+    replacement = deploy_registered_cheque_book(cheque_book, wallet_backpack_deploy, governance)
+    stage_pending_cheque_settings(cheque_book, user_wallet, createChequeSettings, sender=bob)
+    assert cheque_book.hasPendingChequeSettings(user_wallet.address)
+    cheque_book.cancelPendingChequeSettings(user_wallet.address, sender=bob)
+    assert not cheque_book.hasPendingChequeSettings(user_wallet.address)
+
+    user_wallet_config.setChequeBook(replacement.address, sender=bob)
+
+    assert user_wallet_config.chequeBook() == replacement.address
+
+
 def test_set_migrator_access(user_wallet_config, alice, migrator):
     """Only owner can set migrator and it must be a registered backpack item"""
     owner = user_wallet_config.owner()
@@ -973,6 +1394,27 @@ def test_set_migrator_access(user_wallet_config, alice, migrator):
     # Owner should succeed (migrator is already a registered backpack item)
     user_wallet_config.setMigrator(migrator.address, sender=owner)
     assert user_wallet_config.migrator() == migrator.address
+
+
+def test_set_migrator_rejects_pending_migration(user_wallet_config, alice, migrator):
+    """Migrator swaps are blocked while migration state is pending."""
+    owner = user_wallet_config.owner()
+    user_wallet_config.setPendingMigration(alice, sender=migrator.address)
+
+    with boa.reverts("pending migration exists"):
+        user_wallet_config.setMigrator(migrator.address, sender=owner)
+
+    assert user_wallet_config.migrator() == migrator.address
+
+
+def test_set_pending_migration_rejects_existing_pending(user_wallet_config, alice, bob, migrator):
+    """The config itself rejects pending migration overwrites."""
+    user_wallet_config.setPendingMigration(alice, sender=migrator.address)
+
+    with boa.reverts("pending migration exists"):
+        user_wallet_config.setPendingMigration(bob, sender=migrator.address)
+
+    assert user_wallet_config.pendingMigration().toWallet == alice
 
 
 def test_set_backpack_item_not_registered(user_wallet_config, alice):
@@ -1103,10 +1545,7 @@ def test_deregister_asset_by_migrator(user_wallet_config, migrator, alpha_token,
     assert asset_data.assetBalance > 0
     
     # Deregister the asset
-    result = user_wallet_config.deregisterAsset(alpha_token.address, sender=migrator.address)
-    
-    # Should return a boolean
-    assert isinstance(result, bool)
+    user_wallet_config.deregisterAsset(alpha_token.address, sender=migrator.address)
     
     # Deregister only removes from assets array but asset data remains
     # The asset balance is still there but it's not tracked in the assets array anymore
@@ -1177,3 +1616,181 @@ def test_update_asset_data_with_lego_id(user_wallet_config, switchboard_alpha, a
     # Test with lego ID 1 (mock yield lego)
     new_total_value2 = user_wallet_config.updateAssetData(1, alpha_token.address, False, sender=switchboard_alpha.address)
     assert isinstance(new_total_value2, int)
+
+
+###########################
+# Instant Action Settings #
+###########################
+
+
+def test_instant_action_settings_default_all_true(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (True, True, True, True)
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_enabling_one_instant_action_flag_stages_pending(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+    requested = (True, False, False, False)
+
+    config.setInstantActionSettings(requested, sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
+    pending = config.pendingInstantActionSettings()
+    assert instant_action_settings_tuple(pending.settings) == requested
+    assert pending.initiatedBlock == boa.env.evm.patch.block_number
+    assert pending.confirmBlock == boa.env.evm.patch.block_number + config.timeLock()
+    assert pending.currentOwner == bob
+
+
+def test_confirm_pending_instant_action_settings_before_timelock_reverts(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+
+    with boa.reverts("time delay not reached"):
+        config.confirmPendingInstantActionSettings(sender=bob)
+
+
+def test_confirm_pending_instant_action_settings_after_timelock_applies(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+    requested = (True, False, True, False)
+    config.setInstantActionSettings(requested, sender=bob)
+
+    confirm_pending_instant_action_settings(config, bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == requested
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_pending_instant_action_settings_owner_mismatch_blocks_confirm(hatchery, bob, alice):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+    pending = config.pendingInstantActionSettings()
+
+    config.changeOwnership(alice, sender=bob)
+    boa.env.time_travel(blocks=config.ownershipTimeLock())
+    config.confirmOwnershipChange(sender=alice)
+    blocks = max(0, pending.confirmBlock - boa.env.evm.patch.block_number)
+    if blocks > 0:
+        boa.env.time_travel(blocks=blocks)
+
+    with boa.reverts("owner must match"):
+        config.confirmPendingInstantActionSettings(sender=alice)
+
+
+def test_security_actor_can_cancel_pending_instant_action_settings(
+    hatchery, bob, alice, mission_control, switchboard_alpha
+):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+    mission_control.setCanPerformSecurityAction(alice, True, sender=switchboard_alpha.address)
+
+    config.cancelPendingInstantActionSettings(sender=alice)
+
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
+
+
+def test_disabling_only_instant_action_settings_applies_immediately(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    set_user_instant_action_settings(config, bob, (True, True, False, False))
+
+    config.setInstantActionSettings((False, True, False, False), sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, True, False, False)
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_mixed_instant_action_change_disables_immediately_and_stages_enables(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    set_user_instant_action_settings(config, bob, (True, True, False, False))
+    requested = (False, True, True, False)
+
+    config.setInstantActionSettings(requested, sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, True, False, False)
+    pending = config.pendingInstantActionSettings()
+    assert instant_action_settings_tuple(pending.settings) == requested
+    assert pending.confirmBlock != 0
+
+
+def test_cancel_pending_mixed_instant_action_change_keeps_immediate_disables(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    set_user_instant_action_settings(config, bob, (True, True, False, False))
+
+    config.setInstantActionSettings((False, True, True, False), sender=bob)
+    config.cancelPendingInstantActionSettings(sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, True, False, False)
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_new_instant_action_settings_request_while_pending_exists_reverts(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+
+    with boa.reverts("pending instant settings already exist"):
+        config.setInstantActionSettings((False, True, False, False), sender=bob)
+
+
+def test_resubmitting_current_instant_action_settings_clears_pending(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+    config.setInstantActionSettings((True, True, False, False), sender=bob)
+
+    # Re-submitting the active settings is the no-enable path and clears stale pending settings.
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, False, False, False)
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_reaffirming_enabled_instant_action_setting_does_not_stage_pending(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    set_user_instant_action_settings(config, bob, (True, False, False, False))
+
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (True, False, False, False)
+    assert config.pendingInstantActionSettings().confirmBlock == 0
+
+
+def test_no_change_instant_action_settings_without_pending_noops(hatchery, bob):
+    config = _fresh_wallet_config(hatchery, bob)
+    before = config.pendingInstantActionSettings()
+
+    config.setInstantActionSettings((True, True, True, True), sender=bob)
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (True, True, True, True)
+    after = config.pendingInstantActionSettings()
+    assert after.initiatedBlock == before.initiatedBlock == 0
+    assert after.confirmBlock == before.confirmBlock == 0
+
+
+def test_instant_action_settings_migrator_setter_sets_active_only(hatchery, bob, migrator):
+    config = _fresh_wallet_config(hatchery, bob)
+    source_config = _fresh_wallet_config(hatchery, bob)
+    config.setInstantActionSettings((False, False, False, False), sender=bob)
+    config.setInstantActionSettings((True, False, False, False), sender=bob)
+    pending_before = config.pendingInstantActionSettings()
+
+    config.applyMigratedConfigSettings(
+        source_config.address,
+        config.timeLock(),
+        (False, True, False, True),
+        config.globalManagerSettings(),
+        config.globalPayeeSettings(),
+        config.chequeSettings(),
+        sender=migrator.address,
+    )
+
+    assert instant_action_settings_tuple(config.instantActionSettings()) == (False, True, False, True)
+    pending_after = config.pendingInstantActionSettings()
+    assert pending_after.confirmBlock == pending_before.confirmBlock
+    assert instant_action_settings_tuple(pending_after.settings) == (True, False, False, False)

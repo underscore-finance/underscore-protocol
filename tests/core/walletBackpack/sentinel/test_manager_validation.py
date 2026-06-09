@@ -1,7 +1,7 @@
 import pytest
 import boa
 
-from constants import ZERO_ADDRESS, ACTION_TYPE
+from constants import ZERO_ADDRESS, ACTION_TYPE, ONE_DAY_IN_BLOCKS
 
 
 ###################################
@@ -303,7 +303,7 @@ def test_manager_pay_cheque_ignores_global_cheque_create_permission(createGlobal
     assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE)
 
 
-def test_manager_pay_cheque_ignores_allowed_payees(createManagerSettings, createTransferPerms, alice, bob, sally, sentinel, user_wallet, user_wallet_config, high_command):
+def test_manager_pay_cheque_respects_allowed_payees(createManagerSettings, createTransferPerms, alice, bob, sally, sentinel, user_wallet, user_wallet_config, high_command):
     transfer_perms = createTransferPerms(
         _canTransfer=True,
         _canCreateCheque=True,
@@ -312,7 +312,8 @@ def test_manager_pay_cheque_ignores_allowed_payees(createManagerSettings, create
     new_manager_settings = createManagerSettings(_transferPerms=transfer_perms)
     user_wallet_config.addManager(alice, new_manager_settings, sender=high_command.address)
 
-    assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE, [], [], sally)
+    assert sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE, [], [], bob)
+    assert not sentinel.canSignerPerformAction(user_wallet, alice, ACTION_TYPE.PAY_CHEQUE, [], [], sally)
 
 
 # transaction limits
@@ -676,8 +677,7 @@ def test_manager_all_permissions_enabled(createManagerSettings, createLegoPerms,
     )
     transfer_perms = createTransferPerms(
         _canTransfer=True,
-        _canCreateCheque=True,
-        _canAddPendingPayee=True
+        _canCreateCheque=True
     )
     new_manager_settings = createManagerSettings(
         _legoPerms=lego_perms,
@@ -705,8 +705,7 @@ def test_manager_all_permissions_disabled(createManagerSettings, createLegoPerms
     )
     transfer_perms = createTransferPerms(
         _canTransfer=False,
-        _canCreateCheque=False,
-        _canAddPendingPayee=False
+        _canCreateCheque=False
     )
     new_manager_settings = createManagerSettings(
         _legoPerms=lego_perms,
@@ -2737,3 +2736,74 @@ def test_swap_count_resets_on_period_rollover(createGlobalManagerSettings, creat
     assert success  # Passes because period rolled over
     assert updated_data.numSwapsInPeriod == 1  # Counter reset and incremented
     assert updated_data.periodStartBlock == new_period_block  # New period started
+
+
+def test_manager_period_length_increase_keeps_existing_window(createGlobalManagerSettings, createManagerSettings, createManagerData, sentinel, alice, user_wallet_config, high_command):
+    boa.env.time_travel(blocks=2 * ONE_DAY_IN_BLOCKS + 20)
+    period_start = boa.env.evm.patch.block_number - ONE_DAY_IN_BLOCKS - 10
+    user_wallet_config.addManager(alice, createManagerSettings(), sender=high_command.address)
+    user_wallet_config.setGlobalManagerSettings(createGlobalManagerSettings(_managerPeriod=2 * ONE_DAY_IN_BLOCKS), sender=high_command.address)
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData(
+        _numTxsInPeriod=2,
+        _totalUsdValueInPeriod=500,
+        _periodStartBlock=period_start,
+    )
+
+    success, updated_data = sentinel.checkManagerLimitsPostTx(
+        50,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        False,
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+
+    assert success
+    assert updated_data.periodStartBlock == period_start
+    assert updated_data.numTxsInPeriod == 3
+    assert updated_data.totalUsdValueInPeriod == 550
+
+
+def test_manager_period_length_decrease_resets_existing_window(createGlobalManagerSettings, createManagerSettings, createManagerData, sentinel, alice, user_wallet_config, high_command):
+    boa.env.time_travel(blocks=2 * ONE_DAY_IN_BLOCKS + 20)
+    user_wallet_config.addManager(alice, createManagerSettings(), sender=high_command.address)
+    user_wallet_config.setGlobalManagerSettings(createGlobalManagerSettings(_managerPeriod=ONE_DAY_IN_BLOCKS), sender=high_command.address)
+    manager_settings = user_wallet_config.managerSettings(alice)
+    global_manager_settings = user_wallet_config.globalManagerSettings()
+    manager_data = createManagerData(
+        _numTxsInPeriod=2,
+        _totalUsdValueInPeriod=500,
+        _periodStartBlock=boa.env.evm.patch.block_number - ONE_DAY_IN_BLOCKS - 10,
+    )
+
+    success, updated_data = sentinel.checkManagerLimitsPostTx(
+        50,
+        manager_settings.limits,
+        global_manager_settings.limits,
+        global_manager_settings.managerPeriod,
+        manager_data,
+        False,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        False,
+        manager_settings.swapPerms,
+        global_manager_settings.swapPerms,
+        0,
+        0,
+        ZERO_ADDRESS,
+    )
+
+    assert success
+    assert updated_data.periodStartBlock == boa.env.evm.patch.block_number
+    assert updated_data.numTxsInPeriod == 1
+    assert updated_data.totalUsdValueInPeriod == 50

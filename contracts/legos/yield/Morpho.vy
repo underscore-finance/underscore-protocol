@@ -65,7 +65,7 @@ interface VaultRegistry:
     def isEarnVault(_vaultAddr: address) -> bool: view
 
 interface MetaMorphoFactory:
-    def isMetaMorpho(_vault: address) -> bool: view
+    def isMetaMorpho(_vault: address) -> bool: pure
 
 struct MorphoMarket:
     totalSupplyAssets: uint128
@@ -301,7 +301,7 @@ def isRebasing() -> bool:
     return self._isRebasing()
 
 
-@view
+@pure
 @internal
 def _isRebasing() -> bool:
     return False
@@ -739,6 +739,7 @@ def claimIncentives(
     return rewardAmount, usdValue
 
 
+@pure
 @external
 def claimRewards(
     _user: address,
@@ -751,7 +752,7 @@ def claimRewards(
     return 0, 0
 
 
-@view
+@pure
 @external
 def hasClaimableRewards(_user: address) -> bool:
     # as far as we can tell, this must be done offchain
