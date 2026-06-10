@@ -21,7 +21,7 @@ initializes: timeLock[gov := gov]
 
 import contracts.modules.Addys as addys
 import contracts.modules.LocalGov as gov
-import contracts.modules.TimeLock as timeLock
+import contracts.modules.Timelock as timeLock
 
 from interfaces import LegoStructs as ls
 from ethereum.ercs import IERC4626
