@@ -30,7 +30,7 @@ interface UserWallet:
     def walletConfig() -> address: view
 
 interface UserWalletConfig:
-    def indexOfManager() -> uint256: view
+    def indexOfManager(_addr: address) -> uint256: view
 
 struct Recovery:
     user: address
