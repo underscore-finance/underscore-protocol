@@ -26,6 +26,12 @@ interface UndyHq:
 interface Ledger:
     def isUserWallet(_user: address) -> bool: view
 
+interface UserWallet:
+    def walletConfig() -> address: view
+
+interface UserWalletConfig:
+    def indexOfManager() -> uint256: view
+
 struct Recovery:
     user: address
     asset: address
@@ -42,29 +48,26 @@ event FundsMigrated:
     recipient: indexed(address)
     amount: uint256
 
-GOVERNANCE: public(immutable(address))
-
 MAX_TOKEN_PATH: constant(uint256) = 5
 MAX_PROOFS: constant(uint256) = 25
 MAX_RECOVERIES: constant(uint256) = 30
+
+AGENT_WRAPPER: constant(address) = 0x8ee401f1E0F4CC0Ed57318AB6dAab1F1Fb59f65f
 
 # user -> asset -> amount
 userAssets: public(HashMap[address, HashMap[address, uint256]])
 
 
 @deploy
-def __init__(_undyHq: address, _governance: address):
-    assert empty(address) not in [_undyHq, _governance] # dev: invalid addrs
+def __init__(_undyHq: address):
+    assert empty(address) not in [_undyHq] # dev: invalid addrs
     addys.__init__(_undyHq)
     yld.__init__(False)
-    GOVERNANCE = _governance
 
 
 @view
 @internal
 def _canMigrate(_caller: address) -> bool:
-    if _caller == GOVERNANCE:
-        return True
     return _caller == staticcall UndyHq(addys._getUndyHq()).governance()
 
 
@@ -237,7 +240,7 @@ def depositForYield(
     self.userAssets[msg.sender][_asset] += depositAmount
 
     log RecoveryDeposit(user=msg.sender, asset=_asset, amount=depositAmount)
-    return depositAmount, empty(address), 0, 0
+    return depositAmount, empty(address), 0, 1
 
 
 @external
@@ -258,6 +261,10 @@ def migrateFunds(_recoveries: DynArray[Recovery, MAX_RECOVERIES]) -> bool:
     for r: Recovery in _recoveries:
         if empty(address) in [r.asset, r.recipient]:
             continue
+
+        assert self._isUserWallet(r.recipient) # dev: not a user wallet
+        config: address = staticcall UserWallet(r.recipient).walletConfig()
+        assert staticcall UserWalletConfig(config).indexOfManager(AGENT_WRAPPER) != 0 # dev: recipient wallet not managed by UndyHq
 
         recordedAmount: uint256 = self.userAssets[r.user][r.asset]
         if recordedAmount == 0:
