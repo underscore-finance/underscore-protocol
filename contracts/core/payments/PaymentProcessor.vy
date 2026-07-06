@@ -22,8 +22,9 @@
 # settles:
 #   • MPP  — escrows the payment, emits OperationRegistered (which gates the omnibus Tempo settle), and
 #            later bridge()s pooled USDC to the configured Base→Tempo route; refund() returns to the payer.
-#   • x402 — binds the USDC EIP-3009 authorization for a destination that ProxyStore says the proxy is
-#            allowed to pay; the processor is the EIP-1271 payer (isValidSignature -> MAGIC), so the
+#   • x402 — binds the USDC EIP-3009 authorization for a destination the proxy's own allow-list marks
+#            live (only while the proxy is enabled in ProxyStore); the processor is the EIP-1271 payer
+#            (isValidSignature -> MAGIC), so the
 #            seller's facilitator settles transferWithAuthorization(from=processor, to=dest).
 # Only Switchboard-registered senders may register ops; bridge()/refund()/revoke are relayer-gated.
 
@@ -47,11 +48,11 @@ interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
 interface ProxyStore:
-    def indexOfProxy(_proxy: address) -> uint256: view
-    def isAllowed(_proxy: address, _dest: address) -> bool: view
+    def isProxyEnabled(_proxy: address) -> bool: view
 
 interface Proxy:
     def transferToProcessor(_asset: address, _amount: uint256) -> uint256: nonpayable
+    def isAllowed(_dest: address) -> bool: view
 
 interface UsdcAuth:
     def authorizationState(_authorizer: address, _nonce: bytes32) -> bool: view
@@ -148,7 +149,7 @@ def _proxyStore() -> address:
 def _pull(_proxy: address, _amount: uint256) -> uint256:
     # the sender has already moved the user's USDC into the proxy; pull it into the processor
     store: address = self._proxyStore()
-    assert staticcall ProxyStore(store).indexOfProxy(_proxy) != 0  # dev: not a proxy
+    assert staticcall ProxyStore(store).isProxyEnabled(_proxy)  # dev: proxy not enabled
     pulled: uint256 = extcall Proxy(_proxy).transferToProcessor(USDC, _amount)
     assert pulled >= _amount  # dev: proxy underfunded
     return pulled
@@ -181,8 +182,8 @@ def registerX402(_agentWrapper: address, _proxy: address, _userWallet: address, 
     assert _amount > 0  # dev: zero amount
     assert not self.operations[_paymentId].exists  # dev: paymentId reused
     store: address = self._proxyStore()
-    assert staticcall ProxyStore(store).indexOfProxy(_proxy) != 0  # dev: not a proxy
-    assert staticcall ProxyStore(store).isAllowed(_proxy, _dest)  # dev: dest not allowed
+    assert staticcall ProxyStore(store).isProxyEnabled(_proxy)  # dev: proxy not enabled
+    assert staticcall Proxy(_proxy).isAllowed(_dest)  # dev: dest not allowed
     pulled: uint256 = extcall Proxy(_proxy).transferToProcessor(USDC, _amount)
     assert pulled >= _amount  # dev: proxy underfunded
     # EIP-3009 nonce is derived from the paymentId — one paymentId => one nonce => one USDC pull

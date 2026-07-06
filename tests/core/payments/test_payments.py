@@ -81,12 +81,13 @@ def agent_wrapper(env):
     return env.generate_address("agent_wrapper")
 
 
-# ═══════════════════════════ ProxyStore: factory + bidirectional index ═══════════════════════════
+# ═══════════════════════════ ProxyStore: factory + registry; Proxy: self-contained allow-list ═══════════════════════════
 
 def test_create_proxy(store, admin, proxy_partial):
     addr = store.createProxy("x402joker.com", sender=admin)
     assert store.indexOfProxy(addr) == 1
     assert store.numProxies() == 1
+    assert store.isProxyEnabled(addr) is True            # enabled on creation
     assert _a(store.getProxyById("x402joker.com")) == _a(addr)
     assert _a(proxy_partial.at(addr).ID()) == "x402joker.com"
     with boa.reverts("id taken"):
@@ -98,26 +99,24 @@ def test_create_proxy_perms(store, alice):
         store.createProxy("nope.com", sender=alice)
 
 
-def test_bidirectional_destination_index(store, admin, joker, env):
+def test_destinations_live_in_proxy(store, admin, joker, proxy_partial, env):
+    # CRUD flows through the ProxyStore (the only entry point), but each proxy owns its own allow-list.
     d1 = env.generate_address("d1")
     d2 = env.generate_address("d2")
-    service2 = proxy2 = None
-    service2 = store.createProxy("service2.com", sender=admin)
+    service2 = proxy_partial.at(store.createProxy("service2.com", sender=admin))
     store.addDestination(joker.address, d1, sender=admin)
     store.addDestination(joker.address, d2, sender=admin)
-    store.addDestination(service2, d1, sender=admin)  # d1 shared by two services
-    # forward: proxy -> [dests]
-    assert store.isAllowed(joker.address, d1) is True
-    assert [_a(x) for x in store.getProxyDestinations(joker.address)] == [_a(d1), _a(d2)]
-    assert [_a(x) for x in store.getProxyDestinations(service2)] == [_a(d1)]
-    # reverse: dest -> [proxies]
-    assert [_a(x) for x in store.getDestinationProxies(d1)] == [_a(joker.address), _a(service2)]
-    assert [_a(x) for x in store.getDestinationProxies(d2)] == [_a(joker.address)]
-    # remove d1 from joker: swap-removed both ways
+    store.addDestination(service2.address, d1, sender=admin)  # same dest, independent per-proxy list
+    assert joker.isAllowed(d1) is True
+    assert [_a(x) for x in joker.getDestinations()] == [_a(d1), _a(d2)]
+    assert [_a(x) for x in service2.getDestinations()] == [_a(d1)]
+    store.addDestination(joker.address, d1, sender=admin)     # idempotent — no duplicate
+    assert [_a(x) for x in joker.getDestinations()] == [_a(d1), _a(d2)]
+    # remove d1 from joker: swap-removed there, service2 untouched (self-contained)
     store.removeDestination(joker.address, d1, sender=admin)
-    assert store.isAllowed(joker.address, d1) is False
-    assert [_a(x) for x in store.getProxyDestinations(joker.address)] == [_a(d2)]
-    assert [_a(x) for x in store.getDestinationProxies(d1)] == [_a(service2)]
+    assert joker.isAllowed(d1) is False
+    assert [_a(x) for x in joker.getDestinations()] == [_a(d2)]
+    assert [_a(x) for x in service2.getDestinations()] == [_a(d1)]
 
 
 def test_add_destination_perms(store, joker, alice, env):
@@ -125,12 +124,31 @@ def test_add_destination_perms(store, joker, alice, env):
         store.addDestination(joker.address, env.generate_address("d"), sender=alice)
 
 
-def test_curator_can_manage(store, admin, alice, env):
+def test_only_store_can_edit_destinations(joker, admin, env):
+    # the proxy holds the data but rejects any editor except the ProxyStore — even a switchboard admin
+    with boa.reverts("only store"):
+        joker.addDestination(env.generate_address("d"), sender=admin)
+    with boa.reverts("only store"):
+        joker.removeDestination(env.generate_address("d"), sender=admin)
+
+
+def test_curator_can_manage(store, admin, alice, proxy_partial, env):
     store.setCurator(alice, True, sender=admin)          # switchboard grants curator
-    proxy = store.createProxy("curated.com", sender=alice)  # curator can now create
-    store.addDestination(proxy, env.generate_address("d"), sender=alice)
+    proxy = proxy_partial.at(store.createProxy("curated.com", sender=alice))  # curator can now create
+    store.addDestination(proxy.address, env.generate_address("d"), sender=alice)  # ...and manage via the store
+    assert len(proxy.getDestinations()) == 1
     with boa.reverts("no perms"):
         store.setCurator(alice, True, sender=alice)      # but not switchboard-admin ops
+
+
+def test_set_proxy_enabled_perms(store, joker, alice):
+    with boa.reverts("no perms"):
+        store.setProxyEnabled(joker.address, False, sender=alice)
+
+
+def test_set_proxy_enabled_requires_proxy(store, admin, env):
+    with boa.reverts("not a proxy"):
+        store.setProxyEnabled(env.generate_address("fake"), False, sender=admin)
 
 
 # ═══════════════════════════ PaymentProcessor: MPP hub ═══════════════════════════
@@ -155,10 +173,28 @@ def test_register_mpp_sender_gated(processor, joker, alice, bob, agent_wrapper):
         processor.registerMpp(agent_wrapper, joker.address, alice, 100, PAY1, REF, sender=bob)
 
 
-def test_register_mpp_rejects_non_proxy(processor, admin, alice, bob, env, agent_wrapper):
+def test_register_mpp_rejects_disabled_or_unknown_proxy(processor, admin, alice, bob, env, agent_wrapper):
+    # a non-proxy (or a disabled proxy) is not enabled in the ProxyStore, so settlement refuses it
     processor.setSender(bob, True, sender=admin)
-    with boa.reverts("not a proxy"):
+    with boa.reverts("proxy not enabled"):
         processor.registerMpp(agent_wrapper, env.generate_address("fake"), alice, 100, PAY1, REF, sender=bob)
+
+
+def test_disabled_proxy_blocks_both_rails(processor, store, joker, usdc, admin, deploy3r, alice, bob, env, agent_wrapper):
+    dest = env.generate_address("payto")
+    processor.setSender(bob, True, sender=admin)
+    store.addDestination(joker.address, dest, sender=admin)
+    usdc.mint(joker.address, 100, sender=deploy3r)
+    store.setProxyEnabled(joker.address, False, sender=admin)     # disable — like removing it from the index
+    assert store.isProxyEnabled(joker.address) is False
+    with boa.reverts("proxy not enabled"):
+        processor.registerMpp(agent_wrapper, joker.address, alice, 100, PAY1, REF, sender=bob)
+    with boa.reverts("proxy not enabled"):
+        processor.registerX402(agent_wrapper, joker.address, alice, 100, dest, 0, FAR_FUTURE, PAY1, REF, sender=bob)
+    store.setProxyEnabled(joker.address, True, sender=admin)      # re-enable — state restored
+    processor.registerMpp(agent_wrapper, joker.address, alice, 100, PAY1, REF, sender=bob)
+    assert usdc.balanceOf(processor.address) == 100
+    assert processor.operations(PAY1)[3] == 100
 
 
 def test_register_rejects_empty_agent_wrapper(processor, joker, admin, alice, bob):

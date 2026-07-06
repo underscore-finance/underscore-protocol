@@ -1,27 +1,29 @@
-#            _            _            _             _            _            _      
-#           / /\         /\ \         /\ \     _    /\ \         /\ \         /\ \    
-#          / /  \       /  \ \       /  \ \   /\_\ /  \ \____   /  \ \       /  \ \   
-#         / / /\ \__   / /\ \ \     / /\ \ \_/ / // /\ \_____\ / /\ \ \     / /\ \ \  
-#        / / /\ \___\ / / /\ \_\   / / /\ \___/ // / /\/___  // / /\ \_\   / / /\ \_\ 
-#        \ \ \ \/___// /_/_ \/_/  / / /  \/____// / /   / / // /_/_ \/_/  / / /_/ / / 
-#         \ \ \     / /____/\    / / /    / / // / /   / / // /____/\    / / /__\/ /  
-#     _    \ \ \   / /\____\/   / / /    / / // / /   / / // /\____\/   / / /_____/   
-#    /_/\__/ / /  / / /______  / / /    / / / \ \ \__/ / // / /______  / / /\ \ \     
-#    \ \/___/ /  / / /_______\/ / /    / / /   \ \___\/ // / /_______\/ / /  \ \ \    
-#     \_____\/   \/__________/\/_/     \/_/     \/_____/ \/__________/\/_/    \_\/    
+#            _            _            _             _            _            _
+#           / /\         /\ \         /\ \     _    /\ \         /\ \         /\ \
+#          / /  \       /  \ \       /  \ \   /\_\ /  \ \____   /  \ \       /  \ \
+#         / / /\ \__   / /\ \ \     / /\ \ \_/ / // /\ \_____\ / /\ \ \     / /\ \ \
+#        / / /\ \___\ / / /\ \_\   / / /\ \___/ // / /\/___  // / /\ \_\   / / /\ \_\
+#        \ \ \ \/___// /_/_ \/_/  / / /  \/____// / /   / / // /_/_ \/_/  / / /_/ / /
+#         \ \ \     / /____/\    / / /    / / // / /   / / // /____/\    / / /__\/ /
+#     _    \ \ \   / /\____\/   / / /    / / // / /   / / // /\____\/   / / /_____/
+#    /_/\__/ / /  / / /______  / / /    / / / \ \ \__/ / // / /______  / / /\ \ \
+#    \ \/___/ /  / / /_______\/ / /    / / /   \ \___\/ // / /_______\/ / /  \ \ \
+#     \_____\/   \/__________/\/_/     \/_/     \/_____/ \/__________/\/_/    \_\/
 #
 #     ╔═══════════════════════════════════════════════════════════════════╗
 #     ║  ** Proxy Store **                                                ║
-#     ║  UndyHq dept: proxy factory + the verified service/dest index.    ║
+#     ║  UndyHq dept: proxy factory + registry (dests live in proxies)    ║
 #     ╚═══════════════════════════════════════════════════════════════════╝
 #
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # The verified-service registry for agent payments. Deploys one PaymentProcessorProxy per service
-# (a string id like "x402joker.com") and holds the bidirectional allow-list mapping each service's
-# proxy to the destination addresses it may settle to — and the reverse (which services a destination
-# serves). The PaymentProcessor reads `isAllowed(proxy, dest)` to gate x402 settlement, and the reverse
-# index maps a settlement back to its service(s). Curators (set by the Switchboard) manage the index.
+# (a string id like "x402joker.com"), indexes it, and can enable/disable it. ProxyStore is also the
+# SOLE CRUD entry point for a proxy's allow-listed destinations: those addresses live inside each proxy
+# (self-contained), and ProxyStore forwards add/remove into the proxy after a curator/switchboard
+# permission check — the proxy in turn only accepts edits from this store. The PaymentProcessor gates
+# x402 settlement on `isProxyEnabled(proxy)` here plus the proxy's own `isAllowed(dest)`. Curators (set
+# by the Switchboard) may create proxies and manage them.
 
 # @version 0.4.3
 # pragma optimize codesize
@@ -38,41 +40,29 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 
-MAX_LIST: constant(uint256) = 100
+interface Proxy:
+    def addDestination(_dest: address): nonpayable
+    def removeDestination(_dest: address): nonpayable
 
 HQ: public(immutable(address))
 
-proxyTemplate: public(address)                                       # blueprint for PaymentProcessorProxy
-curators: public(HashMap[address, bool])                            # may create proxies + manage the index
+proxyTemplate: public(address)                                      # blueprint for PaymentProcessorProxy
+curators: public(HashMap[address, bool])                           # may create proxies + manage the index
 
 # proxy registry
 numProxies: public(uint256)
-proxies: public(HashMap[uint256, address])                          # 1-based index -> proxy
-indexOfProxy: public(HashMap[address, uint256])                    # proxy -> index (0 = not a proxy)
-proxyById: public(HashMap[bytes32, address])                       # keccak(id) -> proxy
-
-# bidirectional destination index
-isAllowed: public(HashMap[address, HashMap[address, bool]])         # proxy -> dest -> allowed (O(1) gate)
-# forward: proxy -> [dest, ...]
-numDests: public(HashMap[address, uint256])
-dests: public(HashMap[address, HashMap[uint256, address]])          # proxy -> idx(1-based) -> dest
-indexOfDest: public(HashMap[address, HashMap[address, uint256]])   # proxy -> dest -> idx
-# reverse: dest -> [proxy, ...]
-numProxiesForDest: public(HashMap[address, uint256])
-proxiesForDest: public(HashMap[address, HashMap[uint256, address]]) # dest -> idx(1-based) -> proxy
-indexOfProxyForDest: public(HashMap[address, HashMap[address, uint256]])
+proxies: public(HashMap[uint256, address])                         # 1-based index -> proxy
+indexOfProxy: public(HashMap[address, uint256])                   # proxy -> index (0 = not a proxy)
+proxyById: public(HashMap[bytes32, address])                      # keccak(id) -> proxy
+isProxyEnabled: public(HashMap[address, bool])                    # proxy -> enabled (PaymentProcessor settlement gate)
 
 event ProxyCreated:
     proxy: indexed(address)
     id: String[128]
 
-event DestinationAdded:
+event ProxyEnabledSet:
     proxy: indexed(address)
-    dest: indexed(address)
-
-event DestinationRemoved:
-    proxy: indexed(address)
-    dest: indexed(address)
+    enabled: bool
 
 event CuratorSet:
     account: indexed(address)
@@ -114,99 +104,45 @@ def createProxy(_id: String[128]) -> address:
     self.indexOfProxy[proxy] = pid
     self.numProxies = pid
     self.proxyById[idHash] = proxy
+    self.isProxyEnabled[proxy] = True
     log ProxyCreated(proxy=proxy, id=_id)
     return proxy
 
 
-#####################################
-# destination index (bidirectional) #
-#####################################
+@external
+def setProxyEnabled(_proxy: address, _enabled: bool):
+    # Disable takes a proxy out of settlement (the PaymentProcessor gate) without dropping its registry
+    # row or allow-list — re-enabling restores it. This is the "remove it from the index" kill-switch.
+    assert self._canManage(msg.sender)  # dev: no perms
+    assert self.indexOfProxy[_proxy] != 0  # dev: not a proxy
+    self.isProxyEnabled[_proxy] = _enabled
+    log ProxyEnabledSet(proxy=_proxy, enabled=_enabled)
+
+
+#################################################
+# destination CRUD (ProxyStore is the only door) #
+#################################################
 
 
 @external
 def addDestination(_proxy: address, _dest: address):
+    # ProxyStore is the sole CRUD entry point for a proxy's allow-list; the data itself lives in the
+    # proxy (self-contained). We gate on curator/switchboard here; the proxy gates on `msg.sender == store`.
     assert self._canManage(msg.sender)  # dev: no perms
     assert self.indexOfProxy[_proxy] != 0  # dev: not a proxy
-    assert _dest != empty(address)  # dev: zero dest
-    if self.isAllowed[_proxy][_dest]:
-        return
-    self.isAllowed[_proxy][_dest] = True
-    # forward: proxy -> dest
-    fidx: uint256 = self.numDests[_proxy] + 1
-    self.dests[_proxy][fidx] = _dest
-    self.indexOfDest[_proxy][_dest] = fidx
-    self.numDests[_proxy] = fidx
-    # reverse: dest -> proxy
-    ridx: uint256 = self.numProxiesForDest[_dest] + 1
-    self.proxiesForDest[_dest][ridx] = _proxy
-    self.indexOfProxyForDest[_dest][_proxy] = ridx
-    self.numProxiesForDest[_dest] = ridx
-    log DestinationAdded(proxy=_proxy, dest=_dest)
+    extcall Proxy(_proxy).addDestination(_dest)
 
 
 @external
 def removeDestination(_proxy: address, _dest: address):
     assert self._canManage(msg.sender)  # dev: no perms
-    assert self.isAllowed[_proxy][_dest]  # dev: not allowed
-    self.isAllowed[_proxy][_dest] = False
-    self._removeForward(_proxy, _dest)
-    self._removeReverse(_dest, _proxy)
-    log DestinationRemoved(proxy=_proxy, dest=_dest)
-
-
-@internal
-def _removeForward(_proxy: address, _dest: address):
-    idx: uint256 = self.indexOfDest[_proxy][_dest]
-    last: uint256 = self.numDests[_proxy]
-    if idx != last:
-        moved: address = self.dests[_proxy][last]
-        self.dests[_proxy][idx] = moved
-        self.indexOfDest[_proxy][moved] = idx
-    self.dests[_proxy][last] = empty(address)
-    self.indexOfDest[_proxy][_dest] = 0
-    self.numDests[_proxy] = last - 1
-
-
-@internal
-def _removeReverse(_dest: address, _proxy: address):
-    idx: uint256 = self.indexOfProxyForDest[_dest][_proxy]
-    last: uint256 = self.numProxiesForDest[_dest]
-    if idx != last:
-        moved: address = self.proxiesForDest[_dest][last]
-        self.proxiesForDest[_dest][idx] = moved
-        self.indexOfProxyForDest[_dest][moved] = idx
-    self.proxiesForDest[_dest][last] = empty(address)
-    self.indexOfProxyForDest[_dest][_proxy] = 0
-    self.numProxiesForDest[_dest] = last - 1
+    assert self.indexOfProxy[_proxy] != 0  # dev: not a proxy
+    extcall Proxy(_proxy).removeDestination(_dest)
 
 
 #########
 # views #
 #########
-
-
-@view
-@external
-def getProxyDestinations(_proxy: address) -> DynArray[address, MAX_LIST]:
-    out: DynArray[address, MAX_LIST] = []
-    n: uint256 = self.numDests[_proxy]
-    for i: uint256 in range(1, MAX_LIST + 1):
-        if i > n:
-            break
-        out.append(self.dests[_proxy][i])
-    return out
-
-
-@view
-@external
-def getDestinationProxies(_dest: address) -> DynArray[address, MAX_LIST]:
-    out: DynArray[address, MAX_LIST] = []
-    n: uint256 = self.numProxiesForDest[_dest]
-    for i: uint256 in range(1, MAX_LIST + 1):
-        if i > n:
-            break
-        out.append(self.proxiesForDest[_dest][i])
-    return out
 
 
 @view
