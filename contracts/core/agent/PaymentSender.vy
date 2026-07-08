@@ -20,9 +20,10 @@
 # The orchestrating AgentSender for agent payments. Like the other senders it is owner-authorized
 # (owner = the agent operator, via the Ownership module) and callable by any broadcaster carrying that
 # signature. On a valid signature it (optionally withdraws from an earn vault first, then) pushes the
-# user's USDC to the service Proxy via AgentWrapper.transferFunds — the proxy is the UserWallet's Payee
-# — and calls PaymentProcessor.registerMpp / registerX402, which pulls the funds out of the proxy and
-# settles. Must be registered in both the AgentWrapper (addSender) and the PaymentProcessor (setSender).
+# user's USDC to the service Proxy — either a direct Payee transfer or, for a one-off / non-payee, a
+# create-and-pay cheque — and calls PaymentProcessor.register (routed by protocolId), which pulls the
+# funds out of the proxy and settles. Must be registered in both the AgentWrapper (addSender) and the
+# PaymentProcessor (setSender).
 
 # @version 0.4.3
 # pragma optimize codesize
@@ -38,8 +39,7 @@ interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
 interface PaymentProcessor:
-    def registerMpp(_agentWrapper: address, _proxy: address, _userWallet: address, _amount: uint256, _paymentId: bytes32, _merchantRef: bytes32) -> uint256: nonpayable
-    def registerX402(_agentWrapper: address, _proxy: address, _userWallet: address, _amount: uint256, _dest: address, _validAfter: uint256, _validBefore: uint256, _paymentId: bytes32, _merchantRef: bytes32) -> bytes32: nonpayable
+    def register(_protocolId: uint8, _agentWrapper: address, _proxy: address, _userWallet: address, _amount: uint256, _dest: address, _paymentId: bytes32, _merchantRef: bytes32, _extraData: Bytes[256]) -> bytes32: nonpayable
 
 PAYMENT_PROCESSOR_ID: constant(uint256) = 13
 ECRECOVER_PRECOMPILE: constant(address) = 0x0000000000000000000000000000000000000001
@@ -87,50 +87,33 @@ def __init__(_undyHq: address, _usdc: address, _owner: address, _minTimeLock: ui
 
 
 @external
-def payMpp(
-    _agentWrapper: address,
-    _userWallet: address,
-    _proxy: address,
-    _amount: uint256,
-    _paymentId: bytes32,
-    _merchantRef: bytes32,
-    _vault: VaultSource = empty(VaultSource),
-    _sig: Signature = empty(Signature),
-) -> uint256:
-    self._authenticateAccess(
-        _userWallet,
-        keccak256(abi_encode(convert(1, uint8), _agentWrapper, _userWallet, _proxy, _amount, _paymentId, _merchantRef, _vault, self, USDC, _sig.nonce, _sig.expiration)),
-        _sig,
-    )
-    moved: uint256 = self._sourceAndSend(_agentWrapper, _userWallet, _proxy, _amount, _vault)
-    extcall PaymentProcessor(self._processor()).registerMpp(_agentWrapper, _proxy, _userWallet, moved, _paymentId, _merchantRef)
-    log PaymentSent(paymentId=_paymentId, userWallet=_userWallet, proxy=_proxy, amount=moved, rail=1)
-    return moved
-
-
-@external
-def payX402(
+def pay(
+    _protocolId: uint8,
     _agentWrapper: address,
     _userWallet: address,
     _proxy: address,
     _amount: uint256,
     _dest: address,
-    _validAfter: uint256,
-    _validBefore: uint256,
     _paymentId: bytes32,
     _merchantRef: bytes32,
+    _isCheque: bool = False,
+    _extraData: Bytes[256] = b"",
     _vault: VaultSource = empty(VaultSource),
     _sig: Signature = empty(Signature),
 ) -> bytes32:
+    # One entry point for every rail. `_protocolId` (1 = MPP, 2 = x402) selects the processor route;
+    # `_isCheque` selects how funds are sourced into the proxy (createAndPayCheque for a one-off /
+    # non-payee, else a direct Payee transfer); `_extraData` carries protocol-specific inputs
+    # (x402: abi_encode(validAfter, validBefore)). Returns the processor result (x402 digest; MPP empty).
     self._authenticateAccess(
         _userWallet,
-        keccak256(abi_encode(convert(2, uint8), _agentWrapper, _userWallet, _proxy, _amount, _dest, _validAfter, _validBefore, _paymentId, _merchantRef, _vault, self, USDC, _sig.nonce, _sig.expiration)),
+        keccak256(abi_encode(_protocolId, _agentWrapper, _userWallet, _proxy, _amount, _dest, _paymentId, _merchantRef, _isCheque, _extraData, self, USDC, _sig.nonce, _sig.expiration)),
         _sig,
     )
-    moved: uint256 = self._sourceAndSend(_agentWrapper, _userWallet, _proxy, _amount, _vault)
-    digest: bytes32 = extcall PaymentProcessor(self._processor()).registerX402(_agentWrapper, _proxy, _userWallet, moved, _dest, _validAfter, _validBefore, _paymentId, _merchantRef)
-    log PaymentSent(paymentId=_paymentId, userWallet=_userWallet, proxy=_proxy, amount=moved, rail=2)
-    return digest
+    moved: uint256 = self._sourceAndSend(_agentWrapper, _userWallet, _proxy, _amount, _isCheque, _vault)
+    result: bytes32 = extcall PaymentProcessor(self._processor()).register(_protocolId, _agentWrapper, _proxy, _userWallet, moved, _dest, _paymentId, _merchantRef, _extraData)
+    log PaymentSent(paymentId=_paymentId, userWallet=_userWallet, proxy=_proxy, amount=moved, rail=_protocolId)
+    return result
 
 
 @view
@@ -140,7 +123,7 @@ def _processor() -> address:
 
 
 @internal
-def _sourceAndSend(_agentWrapper: address, _userWallet: address, _proxy: address, _amount: uint256, _vault: VaultSource) -> uint256:
+def _sourceAndSend(_agentWrapper: address, _userWallet: address, _proxy: address, _amount: uint256, _isCheque: bool, _vault: VaultSource) -> uint256:
     # if a vault is set, withdraw from yield first (excess stays liquid in the wallet); then move the
     # payment amount to the proxy (the UserWallet's Payee) through the AgentWrapper's rules.
     if _vault.legoId != 0 and _vault.vaultToken != empty(address):
@@ -154,7 +137,12 @@ def _sourceAndSend(_agentWrapper: address, _userWallet: address, _proxy: address
         assert wasset == USDC  # dev: vault underlying not USDC
     moved: uint256 = 0
     usdValue: uint256 = 0
-    moved, usdValue = extcall AgentWrapperInt(_agentWrapper).transferFunds(_userWallet, _proxy, USDC, _amount)
+    if _isCheque:
+        # one-off / non-payee proxy: create + pay a cheque so the debit is authorized on the wallet
+        moved, usdValue = extcall AgentWrapperInt(_agentWrapper).createAndPayCheque(_userWallet, _proxy, USDC, _amount)
+    else:
+        # proxy is an approved Payee on the wallet: direct transfer
+        moved, usdValue = extcall AgentWrapperInt(_agentWrapper).transferFunds(_userWallet, _proxy, USDC, _amount)
     assert moved >= _amount  # dev: moved less than the payment
     return moved
 
@@ -214,15 +202,7 @@ def _domainSeparator() -> bytes32:
 
 @view
 @external
-def getPayMppHash(_agentWrapper: address, _userWallet: address, _proxy: address, _amount: uint256, _paymentId: bytes32, _merchantRef: bytes32, _vault: VaultSource, _expiration: uint256) -> (bytes32, uint256, uint256):
+def getPayHash(_protocolId: uint8, _agentWrapper: address, _userWallet: address, _proxy: address, _amount: uint256, _dest: address, _paymentId: bytes32, _merchantRef: bytes32, _isCheque: bool, _extraData: Bytes[256], _expiration: uint256) -> (bytes32, uint256, uint256):
     nonce: uint256 = self.currentNonce[_userWallet]
-    msgHash: bytes32 = keccak256(abi_encode(convert(1, uint8), _agentWrapper, _userWallet, _proxy, _amount, _paymentId, _merchantRef, _vault, self, USDC, nonce, _expiration))
-    return (keccak256(concat(SIG_PREFIX, self._domainSeparator(), msgHash)), nonce, _expiration)
-
-
-@view
-@external
-def getPayX402Hash(_agentWrapper: address, _userWallet: address, _proxy: address, _amount: uint256, _dest: address, _validAfter: uint256, _validBefore: uint256, _paymentId: bytes32, _merchantRef: bytes32, _vault: VaultSource, _expiration: uint256) -> (bytes32, uint256, uint256):
-    nonce: uint256 = self.currentNonce[_userWallet]
-    msgHash: bytes32 = keccak256(abi_encode(convert(2, uint8), _agentWrapper, _userWallet, _proxy, _amount, _dest, _validAfter, _validBefore, _paymentId, _merchantRef, _vault, self, USDC, nonce, _expiration))
+    msgHash: bytes32 = keccak256(abi_encode(_protocolId, _agentWrapper, _userWallet, _proxy, _amount, _dest, _paymentId, _merchantRef, _isCheque, _extraData, self, USDC, nonce, _expiration))
     return (keccak256(concat(SIG_PREFIX, self._domainSeparator(), msgHash)), nonce, _expiration)

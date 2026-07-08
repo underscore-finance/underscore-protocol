@@ -18,12 +18,13 @@
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
 # The money engine for agent payments. A registered PaymentSender pushes a user's USDC into a service
-# Proxy, then calls registerMpp/registerX402 here; the processor pulls the USDC out of the proxy and
+# Proxy, then calls register(protocolId) here; the processor pulls the USDC out of the proxy and
 # settles:
 #   • MPP  — escrows the payment, emits OperationRegistered (which gates the omnibus Tempo settle), and
-#            later bridge()s pooled USDC to the configured Base→Tempo route; refund() returns to the payer.
+#            later bridge()s pooled USDC by sending it to the configured Bridge liquidation address
+#            (which off-ramps to Tempo); refund() returns to the payer.
 #   • x402 — binds the USDC EIP-3009 authorization for a destination the proxy's own allow-list marks
-#            live (only while the proxy is enabled in ProxyStore); the processor is the EIP-1271 payer
+#            live (only while the proxy is registered in ProxyStore); the processor is the EIP-1271 payer
 #            (isValidSignature -> MAGIC), so the
 #            seller's facilitator settles transferWithAuthorization(from=processor, to=dest).
 # Only Switchboard-registered senders may register ops; bridge()/refund()/revoke are relayer-gated.
@@ -48,7 +49,7 @@ interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
 interface ProxyStore:
-    def isProxyEnabled(_proxy: address) -> bool: view
+    def indexOfProxy(_proxy: address) -> uint256: view
 
 interface Proxy:
     def transferToProcessor(_asset: address, _amount: uint256) -> uint256: nonpayable
@@ -57,10 +58,9 @@ interface Proxy:
 interface UsdcAuth:
     def authorizationState(_authorizer: address, _nonce: bytes32) -> bool: view
 
-interface BridgeAdapter:
-    def bridge(_token: address, _amount: uint256, _recipient: address, _destChainId: uint256): nonpayable
-
 PROXY_STORE_ID: constant(uint256) = 12
+RAIL_MPP: constant(uint8) = 1                       # protocolId: Machine Payments Protocol (Tempo)
+RAIL_X402: constant(uint8) = 2                      # protocolId: x402 exact scheme
 HQ: public(immutable(address))
 USDC: public(immutable(address))
 
@@ -84,9 +84,7 @@ struct Operation:
 
 senders: public(HashMap[address, bool])             # PaymentSenders that may register ops (switchboard-set)
 relayers: public(HashMap[address, bool])            # may bridge() / refund() / revoke (switchboard-set)
-bridgeAdapter: public(address)                      # bridge adapter that moves USDC Base→Tempo (switchboard-set)
-tempoRecipient: public(address)                     # the registered Tempo wallet — protected; the server cannot set it
-destChainId: public(uint256)                        # destination chain id (Tempo mainnet = 4217)
+bridgeAddress: public(address)                      # Bridge (company) liquidation address — a plain USDC send off-ramps to Tempo (switchboard-set; the server cannot redirect)
 operations: public(HashMap[bytes32, Operation])     # paymentId => Operation
 opDigest: public(HashMap[bytes32, bytes32])         # paymentId => bound x402 digest (0 for MPP)
 pendingTotal: public(uint256)                      # MPP escrow not yet bridged / refunded
@@ -125,9 +123,7 @@ event RoleSet:
     allowed: bool
 
 event BridgeSet:
-    adapter: indexed(address)
-    recipient: indexed(address)
-    destChainId: uint256
+    bridgeAddress: indexed(address)
 
 
 @deploy
@@ -145,55 +141,52 @@ def _proxyStore() -> address:
     return staticcall Registry(HQ).getAddr(PROXY_STORE_ID)
 
 
-@internal
-def _pull(_proxy: address, _amount: uint256) -> uint256:
-    # the sender has already moved the user's USDC into the proxy; pull it into the processor
-    store: address = self._proxyStore()
-    assert staticcall ProxyStore(store).isProxyEnabled(_proxy)  # dev: proxy not enabled
-    pulled: uint256 = extcall Proxy(_proxy).transferToProcessor(USDC, _amount)
-    assert pulled >= _amount  # dev: proxy underfunded
-    return pulled
-
-
 ########################################
 # register (called by a PaymentSender) #
 ########################################
 
 
 @external
-def registerMpp(_agentWrapper: address, _proxy: address, _userWallet: address, _amount: uint256, _paymentId: bytes32, _merchantRef: bytes32) -> uint256:
+def register(_protocolId: uint8, _agentWrapper: address, _proxy: address, _userWallet: address, _amount: uint256, _dest: address, _paymentId: bytes32, _merchantRef: bytes32, _extraData: Bytes[256] = b"") -> bytes32:
+    # Single entry point for every payment rail. The validation + proxy/dest gate + pull + Operation
+    # record are common to all rails; `_protocolId` routes only the tail (MPP escrow vs x402 digest
+    # binding). Protocol-specific inputs ride in `_extraData` (x402: abi_encode(validAfter, validBefore);
+    # MPP: empty), so adding a rail is one more branch here — no change to PaymentSender or this
+    # signature. Always returns bytes32: the bound EIP-3009 digest for x402, empty for MPP.
     assert not deptBasics.isPaused  # dev: paused
     assert self.senders[msg.sender]  # dev: not a sender
     assert _agentWrapper != empty(address)  # dev: no agent wrapper
-    assert _amount > 0  # dev: zero amount
+    assert _amount != 0  # dev: zero amount
     assert not self.operations[_paymentId].exists  # dev: paymentId reused
-    self._pull(_proxy, _amount)
-    self.operations[_paymentId] = Operation(payer=_userWallet, proxy=_proxy, agentWrapper=_agentWrapper, amount=_amount, refunded=0, merchantRef=_merchantRef, exists=True)
-    self.pendingTotal += _amount
-    log OperationRegistered(paymentId=_paymentId, payer=_userWallet, proxy=_proxy, agentWrapper=_agentWrapper, amount=_amount, merchantRef=_merchantRef, rail=1)
-    return _amount
 
-
-@external
-def registerX402(_agentWrapper: address, _proxy: address, _userWallet: address, _amount: uint256, _dest: address, _validAfter: uint256, _validBefore: uint256, _paymentId: bytes32, _merchantRef: bytes32) -> bytes32:
-    assert not deptBasics.isPaused  # dev: paused
-    assert self.senders[msg.sender]  # dev: not a sender
-    assert _agentWrapper != empty(address)  # dev: no agent wrapper
-    assert _amount > 0  # dev: zero amount
-    assert not self.operations[_paymentId].exists  # dev: paymentId reused
+    # common: proxy must be registered + dest allow-listed, then pull the pushed USDC out of the proxy
     store: address = self._proxyStore()
-    assert staticcall ProxyStore(store).isProxyEnabled(_proxy)  # dev: proxy not enabled
+    assert staticcall ProxyStore(store).indexOfProxy(_proxy) != 0  # dev: not a proxy
     assert staticcall Proxy(_proxy).isAllowed(_dest)  # dev: dest not allowed
     pulled: uint256 = extcall Proxy(_proxy).transferToProcessor(USDC, _amount)
     assert pulled >= _amount  # dev: proxy underfunded
-    # EIP-3009 nonce is derived from the paymentId — one paymentId => one nonce => one USDC pull
-    digest: bytes32 = self._x402Digest(_dest, _amount, _validAfter, _validBefore, keccak256(_paymentId))
-    self.authorized[digest] = True
+
+    # common: record the operation
     self.operations[_paymentId] = Operation(payer=_userWallet, proxy=_proxy, agentWrapper=_agentWrapper, amount=_amount, refunded=0, merchantRef=_merchantRef, exists=True)
-    self.opDigest[_paymentId] = digest
-    log OperationRegistered(paymentId=_paymentId, payer=_userWallet, proxy=_proxy, agentWrapper=_agentWrapper, amount=_amount, merchantRef=_merchantRef, rail=2)
-    log X402Authorized(paymentId=_paymentId, dest=_dest, digest=digest)
-    return digest
+    log OperationRegistered(paymentId=_paymentId, payer=_userWallet, proxy=_proxy, agentWrapper=_agentWrapper, amount=_amount, merchantRef=_merchantRef, rail=_protocolId)
+
+    # route by protocol
+    if _protocolId == RAIL_MPP:
+        self.pendingTotal += _amount
+        return empty(bytes32)
+
+    elif _protocolId == RAIL_X402:
+        validAfter: uint256 = 0
+        validBefore: uint256 = 0
+        validAfter, validBefore = abi_decode(_extraData, (uint256, uint256))
+        # EIP-3009 nonce is derived from the paymentId — one paymentId => one nonce => one USDC pull
+        digest: bytes32 = self._x402Digest(_dest, _amount, validAfter, validBefore, keccak256(_paymentId))
+        self.authorized[digest] = True
+        self.opDigest[_paymentId] = digest
+        log X402Authorized(paymentId=_paymentId, dest=_dest, digest=digest)
+        return digest
+
+    raise "bad protocol"
 
 
 #######################
@@ -258,18 +251,16 @@ def revokeX402(_paymentId: bytes32):
 @external
 def bridge(_amount: uint256):
     # A relayer (the server) triggers the bridge and chooses the amount — but NOT the destination: the
-    # adapter + Tempo recipient are switchboard-set config, so the server can never redirect the funds.
+    # Bridge liquidation address is switchboard-set config, so the server can never redirect the funds.
+    # Settlement is a plain USDC send to that address; Bridge off-ramps the pooled USDC to Tempo.
     assert not deptBasics.isPaused  # dev: paused
     assert self.relayers[msg.sender]  # dev: not a relayer
-    adapter: address = self.bridgeAdapter
-    recipient: address = self.tempoRecipient
-    assert adapter != empty(address) and recipient != empty(address)  # dev: bridge not configured
-    assert _amount > 0 and _amount <= self.pendingTotal  # dev: amount over escrow
+    bridgeAddress: address = self.bridgeAddress
+    assert bridgeAddress != empty(address)  # dev: bridge not configured
+    assert _amount != 0 and _amount <= self.pendingTotal  # dev: amount over escrow
     self.pendingTotal -= _amount
-    assert extcall IERC20(USDC).approve(adapter, _amount, default_return_value=True)  # dev: approve failed
-    extcall BridgeAdapter(adapter).bridge(USDC, _amount, recipient, self.destChainId)
-    assert extcall IERC20(USDC).approve(adapter, 0, default_return_value=True)  # dev: reset failed
-    log Bridged(recipient=recipient, amount=_amount)
+    assert extcall IERC20(USDC).transfer(bridgeAddress, _amount, default_return_value=True)  # dev: bridge send failed
+    log Bridged(recipient=bridgeAddress, amount=_amount)
 
 
 @external
@@ -278,7 +269,7 @@ def refund(_paymentId: bytes32, _amount: uint256):
     assert self.relayers[msg.sender]  # dev: not a relayer
     op: Operation = self.operations[_paymentId]
     assert op.exists  # dev: unknown paymentId
-    assert _amount > 0 and _amount <= op.amount - op.refunded  # dev: over refundable
+    assert _amount != 0 and _amount <= op.amount - op.refunded  # dev: over refundable
     digest: bytes32 = self.opDigest[_paymentId]
     if digest != empty(bytes32):
         # x402: never refund an op the merchant already pulled; else revoke so it can't be pulled after
@@ -305,7 +296,7 @@ def refund(_paymentId: bytes32, _amount: uint256):
 # Sender allow-list — deliberate authorization model.
 #
 # A PaymentSender must be registered on BOTH sides, each switchboard-gated, and both are needed:
-#   • setSender (here)        -> it may call registerMpp / registerX402 on this processor
+#   • setSender (here)        -> it may call register on this processor
 #   • AgentWrapper.addSender  -> it may move that user's USDC through the user's wrapper
 #
 # We keep this explicit list on purpose, rather than deriving authorization from the user's
@@ -332,10 +323,8 @@ def setRelayer(_account: address, _allowed: bool):
 
 
 @external
-def setBridge(_adapter: address, _recipient: address, _destChainId: uint256):
-    # only the Switchboard defines where bridged funds land on Tempo (the recipient) + the adapter/route
+def setBridge(_bridgeAddress: address):
+    # only the Switchboard defines where bridged funds land — the Bridge (company) liquidation address
     assert addys._isSwitchboardAddr(msg.sender)  # dev: no perms
-    self.bridgeAdapter = _adapter
-    self.tempoRecipient = _recipient
-    self.destChainId = _destChainId
-    log BridgeSet(adapter=_adapter, recipient=_recipient, destChainId=_destChainId)
+    self.bridgeAddress = _bridgeAddress
+    log BridgeSet(bridgeAddress=_bridgeAddress)

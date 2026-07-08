@@ -17,13 +17,13 @@
 #
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
-# The verified-service registry for agent payments. Deploys one PaymentProcessorProxy per service
-# (a string id like "x402joker.com"), indexes it, and can enable/disable it. ProxyStore is also the
-# SOLE CRUD entry point for a proxy's allow-listed destinations: those addresses live inside each proxy
-# (self-contained), and ProxyStore forwards add/remove into the proxy after a curator/switchboard
-# permission check — the proxy in turn only accepts edits from this store. The PaymentProcessor gates
-# x402 settlement on `isProxyEnabled(proxy)` here plus the proxy's own `isAllowed(dest)`. Curators (set
-# by the Switchboard) may create proxies and manage them.
+# The verified-service registry for agent payments. Deploys one PaymentProcessorProxy per service and
+# records it in a simple 1-based registry — each row carries the proxy address plus its human string id
+# (e.g. "x402joker.com"), so the id lives on the record (no separate id index). A proxy is "live" while
+# it holds a registry slot: the PaymentProcessor gates settlement on `indexOfProxy(proxy) != 0`, and
+# removeProxy takes it back out (there is no separate enabled/disabled flag). Curators (set by the
+# Switchboard) may create and remove proxies. A proxy's allow-listed destinations are NOT managed here:
+# they live inside each proxy (self-contained) and are edited directly on the proxy by the Switchboard.
 
 # @version 0.4.3
 # pragma optimize codesize
@@ -40,29 +40,26 @@ import contracts.modules.Addys as addys
 import contracts.modules.DeptBasics as deptBasics
 from interfaces import Department
 
-interface Proxy:
-    def addDestination(_dest: address): nonpayable
-    def removeDestination(_dest: address): nonpayable
-
 HQ: public(immutable(address))
 
-proxyTemplate: public(address)                                      # blueprint for PaymentProcessorProxy
-curators: public(HashMap[address, bool])                           # may create proxies + manage the index
+proxyTemplate: public(address)                                     # blueprint for PaymentProcessorProxy
+curators: public(HashMap[address, bool])                          # may create + remove proxies
 
-# proxy registry
-numProxies: public(uint256)
-proxies: public(HashMap[uint256, address])                         # 1-based index -> proxy
-indexOfProxy: public(HashMap[address, uint256])                   # proxy -> index (0 = not a proxy)
-proxyById: public(HashMap[bytes32, address])                      # keccak(id) -> proxy
-isProxyEnabled: public(HashMap[address, bool])                    # proxy -> enabled (PaymentProcessor settlement gate)
+struct ProxyData:
+    proxy: address
+    id: String[128]
+
+# proxy registry (1-based; count == numProxies - 1). Removal swaps the last row into the freed slot.
+numProxies: public(uint256)                                       # next free regId (starts at 1)
+proxies: public(HashMap[uint256, ProxyData])                      # regId -> record (id lives on the record)
+indexOfProxy: public(HashMap[address, uint256])                   # proxy -> regId (0 = not a proxy)
 
 event ProxyCreated:
     proxy: indexed(address)
     id: String[128]
 
-event ProxyEnabledSet:
+event ProxyRemoved:
     proxy: indexed(address)
-    enabled: bool
 
 event CuratorSet:
     account: indexed(address)
@@ -78,6 +75,7 @@ def __init__(_undyHq: address, _proxyTemplate: address):
     deptBasics.__init__(False, False)  # not paused; cannot mint UNDY
     HQ = _undyHq
     self.proxyTemplate = _proxyTemplate
+    self.numProxies = 1  # 1-based registry (Underscore list style)
 
 
 @view
@@ -96,48 +94,33 @@ def createProxy(_id: String[128]) -> address:
     assert self._canManage(msg.sender)  # dev: no perms
     template: address = self.proxyTemplate
     assert template != empty(address)  # dev: no template
-    idHash: bytes32 = keccak256(_id)
-    assert self.proxyById[idHash] == empty(address)  # dev: id taken
     proxy: address = create_from_blueprint(template, HQ, _id)
-    pid: uint256 = self.numProxies + 1
-    self.proxies[pid] = proxy
+    pid: uint256 = self.numProxies
+    self.proxies[pid] = ProxyData(proxy=proxy, id=_id)
     self.indexOfProxy[proxy] = pid
-    self.numProxies = pid
-    self.proxyById[idHash] = proxy
-    self.isProxyEnabled[proxy] = True
+    self.numProxies = pid + 1
     log ProxyCreated(proxy=proxy, id=_id)
     return proxy
 
 
 @external
-def setProxyEnabled(_proxy: address, _enabled: bool):
-    # Disable takes a proxy out of settlement (the PaymentProcessor gate) without dropping its registry
-    # row or allow-list — re-enabling restores it. This is the "remove it from the index" kill-switch.
+def removeProxy(_proxy: address):
+    # Remove a proxy from the registry (the "kill switch"): the PaymentProcessor gates on
+    # `indexOfProxy(proxy) != 0`, so a removed proxy can no longer settle. Swap-remove keeps the list
+    # dense (mirrors the Underscore whitelist idiom); re-listing a service means a fresh createProxy.
     assert self._canManage(msg.sender)  # dev: no perms
-    assert self.indexOfProxy[_proxy] != 0  # dev: not a proxy
-    self.isProxyEnabled[_proxy] = _enabled
-    log ProxyEnabledSet(proxy=_proxy, enabled=_enabled)
+    targetIndex: uint256 = self.indexOfProxy[_proxy]
+    assert targetIndex != 0  # dev: not a proxy
 
+    lastIndex: uint256 = self.numProxies - 1
+    self.numProxies = lastIndex
 
-#################################################
-# destination CRUD (ProxyStore is the only door) #
-#################################################
-
-
-@external
-def addDestination(_proxy: address, _dest: address):
-    # ProxyStore is the sole CRUD entry point for a proxy's allow-list; the data itself lives in the
-    # proxy (self-contained). We gate on curator/switchboard here; the proxy gates on `msg.sender == store`.
-    assert self._canManage(msg.sender)  # dev: no perms
-    assert self.indexOfProxy[_proxy] != 0  # dev: not a proxy
-    extcall Proxy(_proxy).addDestination(_dest)
-
-
-@external
-def removeDestination(_proxy: address, _dest: address):
-    assert self._canManage(msg.sender)  # dev: no perms
-    assert self.indexOfProxy[_proxy] != 0  # dev: not a proxy
-    extcall Proxy(_proxy).removeDestination(_dest)
+    lastData: ProxyData = self.proxies[lastIndex]
+    self.proxies[targetIndex] = lastData
+    self.indexOfProxy[lastData.proxy] = targetIndex
+    self.proxies[lastIndex] = empty(ProxyData)
+    self.indexOfProxy[_proxy] = 0
+    log ProxyRemoved(proxy=_proxy)
 
 
 #########
@@ -147,8 +130,14 @@ def removeDestination(_proxy: address, _dest: address):
 
 @view
 @external
-def getProxyById(_id: String[128]) -> address:
-    return self.proxyById[keccak256(_id)]
+def isProxy(_proxy: address) -> bool:
+    return self.indexOfProxy[_proxy] != 0
+
+
+@view
+@external
+def getNumProxies() -> uint256:
+    return self.numProxies - 1
 
 
 #############################

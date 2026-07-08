@@ -1,14 +1,14 @@
-#            _            _            _             _            _            _      
-#           / /\         /\ \         /\ \     _    /\ \         /\ \         /\ \    
-#          / /  \       /  \ \       /  \ \   /\_\ /  \ \____   /  \ \       /  \ \   
-#         / / /\ \__   / /\ \ \     / /\ \ \_/ / // /\ \_____\ / /\ \ \     / /\ \ \  
-#        / / /\ \___\ / / /\ \_\   / / /\ \___/ // / /\/___  // / /\ \_\   / / /\ \_\ 
-#        \ \ \ \/___// /_/_ \/_/  / / /  \/____// / /   / / // /_/_ \/_/  / / /_/ / / 
-#         \ \ \     / /____/\    / / /    / / // / /   / / // /____/\    / / /__\/ /  
-#     _    \ \ \   / /\____\/   / / /    / / // / /   / / // /\____\/   / / /_____/   
-#    /_/\__/ / /  / / /______  / / /    / / / \ \ \__/ / // / /______  / / /\ \ \     
-#    \ \/___/ /  / / /_______\/ / /    / / /   \ \___\/ // / /_______\/ / /  \ \ \    
-#     \_____\/   \/__________/\/_/     \/_/     \/_____/ \/__________/\/_/    \_\/    
+#            _            _            _             _            _            _
+#           / /\         /\ \         /\ \     _    /\ \         /\ \         /\ \
+#          / /  \       /  \ \       /  \ \   /\_\ /  \ \____   /  \ \       /  \ \
+#         / / /\ \__   / /\ \ \     / /\ \ \_/ / // /\ \_____\ / /\ \ \     / /\ \ \
+#        / / /\ \___\ / / /\ \_\   / / /\ \___/ // / /\/___  // / /\ \_\   / / /\ \_\
+#        \ \ \ \/___// /_/_ \/_/  / / /  \/____// / /   / / // /_/_ \/_/  / / /_/ / /
+#         \ \ \     / /____/\    / / /    / / // / /   / / // /____/\    / / /__\/ /
+#     _    \ \ \   / /\____\/   / / /    / / // / /   / / // /\____\/   / / /_____/
+#    /_/\__/ / /  / / /______  / / /    / / / \ \ \__/ / // / /______  / / /\ \ \
+#    \ \/___/ /  / / /_______\/ / /    / / /   \ \___\/ // / /_______\/ / /  \ \ \
+#     \_____\/   \/__________/\/_/     \/_/     \/_____/ \/__________/\/_/    \_\/
 #
 #     ╔═══════════════════════════════════════════════════════════════════╗
 #     ║  ** Payment Processor Proxy **                                    ║
@@ -21,9 +21,9 @@
 # "x402joker.com") and IS the address a UserWallet authorizes as a Payee — so authorizing "pay this
 # service" is a first-class Underscore Payee grant. It only holds funds transiently: after a debit
 # lands here (UserWallet → proxy), the PaymentProcessor pulls it out via `transferToProcessor` to
-# settle. It also owns this service's allow-listed destinations (self-contained): the PaymentProcessor
-# reads `isAllowed` to gate x402 settlement, and the list is edited exclusively through the ProxyStore
-# CRUD entry point — enforced here by `msg.sender == ProxyStore`.
+# settle. It is self-contained: it owns this service's allow-listed destinations, and the list is edited
+# directly by the Switchboard (`isSwitchboardAddr(msg.sender)`). The PaymentProcessor reads `isAllowed`
+# to gate x402 settlement. The Switchboard can also recover any stray funds parked on the proxy.
 
 # @version 0.4.3
 # pragma optimize codesize
@@ -34,18 +34,26 @@ from ethereum.ercs import IERC20
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
+interface Switchboard:
+    def isSwitchboardAddr(_addr: address) -> bool: view
+
+interface Billing:
+    def pullPaymentAsCheque(_userWallet: address, _paymentAsset: address, _paymentAmount: uint256) -> (uint256, uint256): nonpayable
+    def pullPaymentAsPayee(_userWallet: address, _paymentAsset: address, _paymentAmount: uint256) -> (uint256, uint256): nonpayable
+
 PAYMENT_PROCESSOR_ID: constant(uint256) = 13  # UndyHq dept id of the PaymentProcessor
-PROXY_STORE_ID: constant(uint256) = 12        # UndyHq dept id of the ProxyStore (the only allow-list editor)
-MAX_LIST: constant(uint256) = 100
+SWITCHBOARD_ID: constant(uint256) = 4         # UndyHq dept id of the Switchboard (the only allow-list editor)
+BILLING_ID: constant(uint256) = 9             # UndyHq dept id of Billing (payee / cheque pull entry point)
+MAX_RECOVER_ASSETS: constant(uint256) = 20
 
 HQ: public(immutable(address))
 ID: public(immutable(String[128]))
 
-# self-contained destination allow-list (managed only via the ProxyStore CRUD entry point)
+# self-contained destination allow-list (1-based; count == numDests - 1). Edited only by the Switchboard.
 isAllowed: public(HashMap[address, bool])       # dest -> allowed (O(1) gate read by the PaymentProcessor)
-numDests: public(uint256)
-dests: public(HashMap[uint256, address])        # 1-based idx -> dest
-indexOfDest: public(HashMap[address, uint256])  # dest -> idx
+numDests: public(uint256)                       # next free idx (starts at 1)
+dests: public(HashMap[uint256, address])        # idx -> dest
+indexOfDest: public(HashMap[address, uint256])  # dest -> idx (0 = not allowed)
 
 event PulledToProcessor:
     processor: indexed(address)
@@ -58,12 +66,18 @@ event DestinationAdded:
 event DestinationRemoved:
     dest: indexed(address)
 
+event FundsRecovered:
+    asset: indexed(address)
+    recipient: indexed(address)
+    balance: uint256
+
 
 @deploy
 def __init__(_hq: address, _id: String[128]):
     assert _hq != empty(address)  # dev: hq required
     HQ = _hq
     ID = _id
+    self.numDests = 1  # 1-based list (Underscore list style)
 
 
 @view
@@ -80,8 +94,9 @@ def processor() -> address:
 
 @view
 @internal
-def _store() -> address:
-    return staticcall Registry(HQ).getAddr(PROXY_STORE_ID)
+def _isSwitchboard(_caller: address) -> bool:
+    switchboard: address = staticcall Registry(HQ).getAddr(SWITCHBOARD_ID)
+    return switchboard != empty(address) and staticcall Switchboard(switchboard).isSwitchboardAddr(_caller)
 
 
 @external
@@ -99,49 +114,86 @@ def transferToProcessor(_asset: address, _amount: uint256 = max_value(uint256)) 
     return amount
 
 
-#######################################################
-# destination allow-list (edited only via ProxyStore) #
-#######################################################
+######################################################
+# pull a payment (payee / cheque) — processor only #
+######################################################
+
+
+@external
+def pullPayment(_userWallet: address, _asset: address, _amount: uint256, _isCheque: bool) -> (uint256, uint256):
+    # This proxy is registered as a payee / cheque recipient on the user wallet; the PaymentProcessor
+    # drives the pull and the funds land HERE (this proxy is the recipient) via Billing. Processor-only.
+    # Future-proof: `_isCheque` routes between Billing's two pull paths (cheque vs payee).
+    assert msg.sender == self._processor()  # dev: only processor
+    billing: address = staticcall Registry(HQ).getAddr(BILLING_ID)
+    assert billing != empty(address)  # dev: no billing
+    if _isCheque:
+        return extcall Billing(billing).pullPaymentAsCheque(_userWallet, _asset, _amount)
+    return extcall Billing(billing).pullPaymentAsPayee(_userWallet, _asset, _amount)
+
+
+###############################################
+# destination allow-list (edited by Switchboard) #
+###############################################
 
 
 @external
 def addDestination(_dest: address):
-    assert msg.sender == self._store()  # dev: only store
+    assert self._isSwitchboard(msg.sender)  # dev: not switchboard
     assert _dest != empty(address)  # dev: zero dest
     if self.isAllowed[_dest]:
         return
     self.isAllowed[_dest] = True
-    idx: uint256 = self.numDests + 1
-    self.dests[idx] = _dest
-    self.indexOfDest[_dest] = idx
-    self.numDests = idx
+    did: uint256 = self.numDests
+    self.dests[did] = _dest
+    self.indexOfDest[_dest] = did
+    self.numDests = did + 1
     log DestinationAdded(dest=_dest)
 
 
 @external
 def removeDestination(_dest: address):
-    assert msg.sender == self._store()  # dev: only store
-    assert self.isAllowed[_dest]  # dev: not allowed
+    assert self._isSwitchboard(msg.sender)  # dev: not switchboard
+    targetIndex: uint256 = self.indexOfDest[_dest]
+    assert targetIndex != 0  # dev: not allowed
     self.isAllowed[_dest] = False
-    idx: uint256 = self.indexOfDest[_dest]
-    last: uint256 = self.numDests
-    if idx != last:
-        moved: address = self.dests[last]
-        self.dests[idx] = moved
-        self.indexOfDest[moved] = idx
-    self.dests[last] = empty(address)
+
+    # swap the last dest into the freed slot (dense list, Underscore whitelist idiom)
+    lastIndex: uint256 = self.numDests - 1
+    self.numDests = lastIndex
+    lastItem: address = self.dests[lastIndex]
+    self.dests[targetIndex] = lastItem
+    self.indexOfDest[lastItem] = targetIndex
+    self.dests[lastIndex] = empty(address)
     self.indexOfDest[_dest] = 0
-    self.numDests = last - 1
     log DestinationRemoved(dest=_dest)
 
 
-@view
+#################
+# recover funds #
+#################
+
+# Same behavior as the DeptBasics module's recover functions, inlined (the proxy is a minimal blueprint
+# and does not initialize the full module). Switchboard-gated, like every other dept recover path.
+
+
 @external
-def getDestinations() -> DynArray[address, MAX_LIST]:
-    out: DynArray[address, MAX_LIST] = []
-    n: uint256 = self.numDests
-    for i: uint256 in range(1, MAX_LIST + 1):
-        if i > n:
-            break
-        out.append(self.dests[i])
-    return out
+def recoverFunds(_recipient: address, _asset: address):
+    assert self._isSwitchboard(msg.sender)  # dev: not switchboard
+    self._recoverFunds(_recipient, _asset)
+
+
+@external
+def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS]):
+    assert self._isSwitchboard(msg.sender)  # dev: not switchboard
+    for a: address in _assets:
+        self._recoverFunds(_recipient, a)
+
+
+@internal
+def _recoverFunds(_recipient: address, _asset: address):
+    assert empty(address) not in [_recipient, _asset]  # dev: invalid recipient or asset
+    balance: uint256 = staticcall IERC20(_asset).balanceOf(self)
+    assert balance != 0  # dev: nothing to recover
+    assert extcall IERC20(_asset).transfer(_recipient, balance, default_return_value=True)  # dev: recovery failed
+    log FundsRecovered(asset=_asset, recipient=_recipient, balance=balance)
