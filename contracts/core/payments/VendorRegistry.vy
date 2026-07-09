@@ -75,6 +75,7 @@ def __init__(_undyHq: address, _vendorTemplate: address):
 
 @external
 def createVendor(_id: String[128]) -> address:
+    assert not deptBasics.isPaused  # dev: paused
     assert addys._isSwitchboardAddr(msg.sender)  # dev: no perms
     template: address = self.vendorTemplate
     assert template != empty(address)  # dev: no template
@@ -92,6 +93,7 @@ def removeVendor(_vendor: address):
     # Remove a vendor from the registry (the "kill switch"): the PayProcessor gates on
     # `indexOfVendor(vendor) != 0`, so a removed vendor can no longer settle. Swap-remove keeps the list
     # dense (mirrors the Underscore whitelist idiom); re-listing a service means a fresh createVendor.
+    assert not deptBasics.isPaused  # dev: paused
     assert addys._isSwitchboardAddr(msg.sender)  # dev: no perms
     targetIndex: uint256 = self.indexOfVendor[_vendor]
     assert targetIndex != 0  # dev: not a vendor
