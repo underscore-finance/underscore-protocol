@@ -1,6 +1,6 @@
 # @version 0.4.3
 # Minimal UndyHq + Switchboard stand-in for the payments tests: resolves dept ids (4=switchboard,
-# 12=ProxyStore, 13=PaymentProcessor) and answers isSwitchboardAddr for a settable admin set.
+# 12=VendorRegistry, 13=PayProcessor) and answers isSwitchboardAddr for a settable admin set.
 
 addrs: public(HashMap[uint256, address])
 switchers: public(HashMap[address, bool])

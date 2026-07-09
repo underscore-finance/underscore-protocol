@@ -1,5 +1,5 @@
 # @version 0.4.3
-# Mock USDC for the payments tests: ERC20 + EIP-3009 `authorizationState` so the PaymentProcessor's
+# Mock USDC for the payments tests: ERC20 + EIP-3009 `authorizationState` so the PayProcessor's
 # refund guard can tell whether a merchant already pulled. `setAuthUsed` simulates a
 # transferWithAuthorization consuming a nonce.
 

@@ -1,29 +1,23 @@
-#            _            _            _             _            _            _
-#           / /\         /\ \         /\ \     _    /\ \         /\ \         /\ \
-#          / /  \       /  \ \       /  \ \   /\_\ /  \ \____   /  \ \       /  \ \
-#         / / /\ \__   / /\ \ \     / /\ \ \_/ / // /\ \_____\ / /\ \ \     / /\ \ \
-#        / / /\ \___\ / / /\ \_\   / / /\ \___/ // / /\/___  // / /\ \_\   / / /\ \_\
-#        \ \ \ \/___// /_/_ \/_/  / / /  \/____// / /   / / // /_/_ \/_/  / / /_/ / /
-#         \ \ \     / /____/\    / / /    / / // / /   / / // /____/\    / / /__\/ /
-#     _    \ \ \   / /\____\/   / / /    / / // / /   / / // /\____\/   / / /_____/
-#    /_/\__/ / /  / / /______  / / /    / / / \ \ \__/ / // / /______  / / /\ \ \
-#    \ \/___/ /  / / /_______\/ / /    / / /   \ \___\/ // / /_______\/ / /  \ \ \
-#     \_____\/   \/__________/\/_/     \/_/     \/_____/ \/__________/\/_/    \_\/
-#
+#      _   __            __           ___                   
+#     | | / /__ ___  ___/ /__  ____  / _ \_______ __ ____ __
+#     | |/ / -_) _ \/ _  / _ \/ __/ / ___/ __/ _ \\ \ / // /
+#     |___/\__/_//_/\_,_/\___/_/   /_/  /_/  \___/_\_\\_, / 
+#                                                    /___/  
+#                                                                                                     
 #     ╔═══════════════════════════════════════════════════════════════════╗
-#     ║  ** Payment Processor Proxy **                                    ║
-#     ║  Per-service payee that forwards funds to the PaymentProcessor.   ║
+#     ║  ** Vendor Proxy **                                               ║
+#     ║  Per-service payee that forwards funds to the PayProcessor.       ║
 #     ╚═══════════════════════════════════════════════════════════════════╝
 #
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
-# A minimal, per-service contract deployed by the ProxyStore. It carries a human string `ID` (e.g.
-# "x402joker.com") and IS the address a UserWallet authorizes as a Payee — so authorizing "pay this
+# A minimal, per-service contract deployed by the VendorRegistry (which holds the vendor's human id on
+# its own record). It IS the address a UserWallet authorizes as a Payee — so authorizing "pay this
 # service" is a first-class Underscore Payee grant. It only holds funds transiently: after a debit
-# lands here (UserWallet → proxy), the PaymentProcessor pulls it out via `transferToProcessor` to
+# lands here (UserWallet → vendor), the PayProcessor pulls it out via `transferToProcessor` to
 # settle. It is self-contained: it owns this service's allow-listed destinations, and the list is edited
-# directly by the Switchboard (`isSwitchboardAddr(msg.sender)`). The PaymentProcessor reads `isAllowed`
-# to gate x402 settlement. The Switchboard can also recover any stray funds parked on the proxy.
+# directly by the Switchboard (`isSwitchboardAddr(msg.sender)`). The PayProcessor reads `isAllowed`
+# to gate x402 settlement. The Switchboard can also recover any stray funds parked on the vendor.
 
 # @version 0.4.3
 # pragma optimize codesize
@@ -41,16 +35,15 @@ interface Billing:
     def pullPaymentAsCheque(_userWallet: address, _paymentAsset: address, _paymentAmount: uint256) -> (uint256, uint256): nonpayable
     def pullPaymentAsPayee(_userWallet: address, _paymentAsset: address, _paymentAmount: uint256) -> (uint256, uint256): nonpayable
 
-PAYMENT_PROCESSOR_ID: constant(uint256) = 13  # UndyHq dept id of the PaymentProcessor
+PAY_PROCESSOR_ID: constant(uint256) = 13  # UndyHq dept id of the PayProcessor
 SWITCHBOARD_ID: constant(uint256) = 4         # UndyHq dept id of the Switchboard (the only allow-list editor)
 BILLING_ID: constant(uint256) = 9             # UndyHq dept id of Billing (payee / cheque pull entry point)
 MAX_RECOVER_ASSETS: constant(uint256) = 20
 
 HQ: public(immutable(address))
-ID: public(immutable(String[128]))
 
 # self-contained destination allow-list (1-based; count == numDests - 1). Edited only by the Switchboard.
-isAllowed: public(HashMap[address, bool])       # dest -> allowed (O(1) gate read by the PaymentProcessor)
+isAllowed: public(HashMap[address, bool])       # dest -> allowed (O(1) gate read by the PayProcessor)
 numDests: public(uint256)                       # next free idx (starts at 1)
 dests: public(HashMap[uint256, address])        # idx -> dest
 indexOfDest: public(HashMap[address, uint256])  # dest -> idx (0 = not allowed)
@@ -73,17 +66,16 @@ event FundsRecovered:
 
 
 @deploy
-def __init__(_hq: address, _id: String[128]):
+def __init__(_hq: address):
     assert _hq != empty(address)  # dev: hq required
     HQ = _hq
-    ID = _id
     self.numDests = 1  # 1-based list (Underscore list style)
 
 
 @view
 @internal
 def _processor() -> address:
-    return staticcall Registry(HQ).getAddr(PAYMENT_PROCESSOR_ID)
+    return staticcall Registry(HQ).getAddr(PAY_PROCESSOR_ID)
 
 
 @view
@@ -101,7 +93,7 @@ def _isSwitchboard(_caller: address) -> bool:
 
 @external
 def transferToProcessor(_asset: address, _amount: uint256 = max_value(uint256)) -> uint256:
-    # Only the PaymentProcessor may pull funds out of this proxy (into itself, to settle). `_amount`
+    # Only the PayProcessor may pull funds out of this vendor (into itself, to settle). `_amount`
     # defaults to the full balance.
     processor: address = self._processor()
     assert msg.sender == processor  # dev: only processor
@@ -121,8 +113,8 @@ def transferToProcessor(_asset: address, _amount: uint256 = max_value(uint256)) 
 
 @external
 def pullPayment(_userWallet: address, _asset: address, _amount: uint256, _isCheque: bool) -> (uint256, uint256):
-    # This proxy is registered as a payee / cheque recipient on the user wallet; the PaymentProcessor
-    # drives the pull and the funds land HERE (this proxy is the recipient) via Billing. Processor-only.
+    # This vendor is registered as a payee / cheque recipient on the user wallet; the PayProcessor
+    # drives the pull and the funds land HERE (this vendor is the recipient) via Billing. Processor-only.
     # Future-proof: `_isCheque` routes between Billing's two pull paths (cheque vs payee).
     assert msg.sender == self._processor()  # dev: only processor
     billing: address = staticcall Registry(HQ).getAddr(BILLING_ID)
@@ -173,7 +165,7 @@ def removeDestination(_dest: address):
 # recover funds #
 #################
 
-# Same behavior as the DeptBasics module's recover functions, inlined (the proxy is a minimal blueprint
+# Same behavior as the DeptBasics module's recover functions, inlined (the vendor is a minimal blueprint
 # and does not initialize the full module). Switchboard-gated, like every other dept recover path.
 
 

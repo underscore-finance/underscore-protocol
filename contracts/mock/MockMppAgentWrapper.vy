@@ -1,7 +1,7 @@
 # @version 0.4.3
 # Minimal AgentWrapper stand-in for the payments unit tests. `transferFunds` / `createAndPayCheque`
 # move the token from this (pre-funded) mock to the recipient, simulating a push from the user's
-# wallet; `lastWasCheque` records which path the PaymentSender took. `withdrawFromYield` reports a
+# wallet; `lastWasCheque` records which path the AgentSenderPay took. `withdrawFromYield` reports a
 # configurable underlying amount received (the funds are assumed already held here).
 
 from ethereum.ercs import IERC20

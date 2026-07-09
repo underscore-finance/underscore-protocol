@@ -1,33 +1,34 @@
-#            _            _            _             _            _            _      
-#           / /\         /\ \         /\ \     _    /\ \         /\ \         /\ \    
-#          / /  \       /  \ \       /  \ \   /\_\ /  \ \____   /  \ \       /  \ \   
-#         / / /\ \__   / /\ \ \     / /\ \ \_/ / // /\ \_____\ / /\ \ \     / /\ \ \  
-#        / / /\ \___\ / / /\ \_\   / / /\ \___/ // / /\/___  // / /\ \_\   / / /\ \_\ 
-#        \ \ \ \/___// /_/_ \/_/  / / /  \/____// / /   / / // /_/_ \/_/  / / /_/ / / 
-#         \ \ \     / /____/\    / / /    / / // / /   / / // /____/\    / / /__\/ /  
-#     _    \ \ \   / /\____\/   / / /    / / // / /   / / // /\____\/   / / /_____/   
-#    /_/\__/ / /  / / /______  / / /    / / / \ \ \__/ / // / /______  / / /\ \ \     
-#    \ \/___/ /  / / /_______\/ / /    / / /   \ \___\/ // / /_______\/ / /  \ \ \    
-#     \_____\/   \/__________/\/_/     \/_/     \/_____/ \/__________/\/_/    \_\/    
+#     /$$$$$$$                     /$$$$$$$                                                                               
+#     | $$__  $$                   | $$__  $$                                                                              
+#     | $$  \ $$ /$$$$$$  /$$   /$$| $$  \ $$ /$$$$$$   /$$$$$$   /$$$$$$$  /$$$$$$   /$$$$$$$ /$$$$$$$  /$$$$$$   /$$$$$$ 
+#     | $$$$$$$/|____  $$| $$  | $$| $$$$$$$//$$__  $$ /$$__  $$ /$$_____/ /$$__  $$ /$$_____//$$_____/ /$$__  $$ /$$__  $$
+#     | $$____/  /$$$$$$$| $$  | $$| $$____/| $$  \__/| $$  \ $$| $$      | $$$$$$$$|  $$$$$$|  $$$$$$ | $$  \ $$| $$  \__/
+#     | $$      /$$__  $$| $$  | $$| $$     | $$      | $$  | $$| $$      | $$_____/ \____  $$\____  $$| $$  | $$| $$      
+#     | $$     |  $$$$$$$|  $$$$$$$| $$     | $$      |  $$$$$$/|  $$$$$$$|  $$$$$$$ /$$$$$$$//$$$$$$$/|  $$$$$$/| $$      
+#     |__/      \_______/ \____  $$|__/     |__/       \______/  \_______/ \_______/|_______/|_______/  \______/ |__/      
+#                         /$$  | $$                                                                                        
+#                        |  $$$$$$/                                                                                        
+#                         \______/                                                                                           
 #
 #     ╔═══════════════════════════════════════════════════════════════════╗
-#     ║  ** Payment Processor **                                          ║
+#     ║  ** Pay Processor **                                              ║
 #     ║  UndyHq dept: the x402 hub + MPP hub (settlement engine).         ║
 #     ╚═══════════════════════════════════════════════════════════════════╝
 #
 #     Underscore Protocol License: https://github.com/underscore-finance/underscore-protocol/blob/master/LICENSE.md
 
-# The money engine for agent payments. A registered PaymentSender pushes a user's USDC into a service
-# Proxy, then calls register(protocolId) here; the processor pulls the USDC out of the proxy and
+# The money engine for agent payments. A registered AgentSenderPay pushes a user's USDC into a service
+# VendorProxy, then calls register(protocolId) here; the processor pulls the USDC out of the vendor and
 # settles:
-#   • MPP  — escrows the payment, emits OperationRegistered (which gates the omnibus Tempo settle), and
-#            later bridge()s pooled USDC by sending it to the configured Bridge liquidation address
-#            (which off-ramps to Tempo); refund() returns to the payer.
-#   • x402 — binds the USDC EIP-3009 authorization for a destination the proxy's own allow-list marks
-#            live (only while the proxy is registered in ProxyStore); the processor is the EIP-1271 payer
+#   • MPP  — escrows the payment, emits OperationRegistered (which gates the omnibus Tempo settle); then
+#            settle() marks each op non-refundable and moves its balance into availToBridge, and bridge()
+#            later batches availToBridge to the configured Bridge liquidation address (which off-ramps to
+#            Tempo). refund() returns an unsettled op to the payer.
+#   • x402 — binds the USDC EIP-3009 authorization for a destination the vendor's own allow-list marks
+#            live (only while the vendor is registered in VendorRegistry); the processor is the EIP-1271 payer
 #            (isValidSignature -> MAGIC), so the
 #            seller's facilitator settles transferWithAuthorization(from=processor, to=dest).
-# Only Switchboard-registered senders may register ops; bridge()/refund()/revoke are relayer-gated.
+# Only Switchboard-registered senders may register ops; settle()/bridge()/refund() are switchboard-gated.
 
 # @version 0.4.3
 # pragma optimize codesize
@@ -48,17 +49,17 @@ from ethereum.ercs import IERC20
 interface Registry:
     def getAddr(_regId: uint256) -> address: view
 
-interface ProxyStore:
-    def indexOfProxy(_proxy: address) -> uint256: view
+interface VendorRegistry:
+    def indexOfVendor(_vendor: address) -> uint256: view
 
-interface Proxy:
+interface VendorProxy:
     def transferToProcessor(_asset: address, _amount: uint256) -> uint256: nonpayable
     def isAllowed(_dest: address) -> bool: view
 
 interface UsdcAuth:
     def authorizationState(_authorizer: address, _nonce: bytes32) -> bool: view
 
-PROXY_STORE_ID: constant(uint256) = 12
+VENDOR_REGISTRY_ID: constant(uint256) = 12
 RAIL_MPP: constant(uint8) = 1                       # protocolId: Machine Payments Protocol (Tempo)
 RAIL_X402: constant(uint8) = 2                      # protocolId: x402 exact scheme
 HQ: public(immutable(address))
@@ -75,25 +76,26 @@ _EIP712_PREFIX: constant(bytes2) = 0x1901
 
 struct Operation:
     payer: address          # the UserWallet (refund destination — locked)
-    proxy: address          # the service proxy this payment went through
+    vendor: address          # the service vendor this payment went through
     agentWrapper: address   # the AgentWrapper that initiated it (audit/query only — never an authz input)
     amount: uint256
     refunded: uint256
     merchantRef: bytes32
     exists: bool
+    settled: bool           # MPP: finalized (sent to the bridge) — no longer refundable
 
-senders: public(HashMap[address, bool])             # PaymentSenders that may register ops (switchboard-set)
-relayers: public(HashMap[address, bool])            # may bridge() / refund() / revoke (switchboard-set)
+senders: public(HashMap[address, bool])             # AgentSenderPays that may register ops (switchboard-set)
 bridgeAddress: public(address)                      # Bridge (company) liquidation address — a plain USDC send off-ramps to Tempo (switchboard-set; the server cannot redirect)
 operations: public(HashMap[bytes32, Operation])     # paymentId => Operation
 opDigest: public(HashMap[bytes32, bytes32])         # paymentId => bound x402 digest (0 for MPP)
-pendingTotal: public(uint256)                      # MPP escrow not yet bridged / refunded
+pendingTotal: public(uint256)                      # MPP escrow not yet settled / refunded (refundable)
+availToBridge: public(uint256)                      # MPP settled, awaiting a bridge() batch (non-refundable)
 authorized: public(HashMap[bytes32, bool])          # x402 EIP-3009 digests this processor will honor
 
 event OperationRegistered:
     paymentId: indexed(bytes32)
     payer: indexed(address)
-    proxy: indexed(address)
+    vendor: indexed(address)
     agentWrapper: address                           # initiating wrapper (data field — 3 indexed topics already used)
     amount: uint256
     merchantRef: bytes32
@@ -104,9 +106,9 @@ event X402Authorized:
     dest: indexed(address)
     digest: bytes32
 
-event X402Revoked:
+event Settled:
     paymentId: indexed(bytes32)
-    digest: bytes32
+    amount: uint256
 
 event Bridged:
     recipient: indexed(address)
@@ -117,8 +119,7 @@ event Refunded:
     payer: indexed(address)
     amount: uint256
 
-event RoleSet:
-    what: indexed(bytes32)
+event SenderSet:
     account: indexed(address)
     allowed: bool
 
@@ -137,21 +138,21 @@ def __init__(_undyHq: address, _usdc: address):
 
 @view
 @internal
-def _proxyStore() -> address:
-    return staticcall Registry(HQ).getAddr(PROXY_STORE_ID)
+def _vendorRegistry() -> address:
+    return staticcall Registry(HQ).getAddr(VENDOR_REGISTRY_ID)
 
 
-########################################
-# register (called by a PaymentSender) #
-########################################
+##########################################
+# register (called by an AgentSenderPay) #
+##########################################
 
 
 @external
-def register(_protocolId: uint8, _agentWrapper: address, _proxy: address, _userWallet: address, _amount: uint256, _dest: address, _paymentId: bytes32, _merchantRef: bytes32, _extraData: Bytes[256] = b"") -> bytes32:
-    # Single entry point for every payment rail. The validation + proxy/dest gate + pull + Operation
+def register(_protocolId: uint8, _agentWrapper: address, _vendor: address, _userWallet: address, _amount: uint256, _dest: address, _paymentId: bytes32, _merchantRef: bytes32, _extraData: Bytes[256] = b"") -> bytes32:
+    # Single entry point for every payment rail. The validation + vendor/dest gate + pull + Operation
     # record are common to all rails; `_protocolId` routes only the tail (MPP escrow vs x402 digest
     # binding). Protocol-specific inputs ride in `_extraData` (x402: abi_encode(validAfter, validBefore);
-    # MPP: empty), so adding a rail is one more branch here — no change to PaymentSender or this
+    # MPP: empty), so adding a rail is one more branch here — no change to AgentSenderPay or this
     # signature. Always returns bytes32: the bound EIP-3009 digest for x402, empty for MPP.
     assert not deptBasics.isPaused  # dev: paused
     assert self.senders[msg.sender]  # dev: not a sender
@@ -159,16 +160,16 @@ def register(_protocolId: uint8, _agentWrapper: address, _proxy: address, _userW
     assert _amount != 0  # dev: zero amount
     assert not self.operations[_paymentId].exists  # dev: paymentId reused
 
-    # common: proxy must be registered + dest allow-listed, then pull the pushed USDC out of the proxy
-    store: address = self._proxyStore()
-    assert staticcall ProxyStore(store).indexOfProxy(_proxy) != 0  # dev: not a proxy
-    assert staticcall Proxy(_proxy).isAllowed(_dest)  # dev: dest not allowed
-    pulled: uint256 = extcall Proxy(_proxy).transferToProcessor(USDC, _amount)
-    assert pulled >= _amount  # dev: proxy underfunded
+    # common: vendor must be registered + dest allow-listed, then pull the pushed USDC out of the vendor
+    registry: address = self._vendorRegistry()
+    assert staticcall VendorRegistry(registry).indexOfVendor(_vendor) != 0  # dev: not a vendor
+    assert staticcall VendorProxy(_vendor).isAllowed(_dest)  # dev: dest not allowed
+    pulled: uint256 = extcall VendorProxy(_vendor).transferToProcessor(USDC, _amount)
+    assert pulled >= _amount  # dev: vendor underfunded
 
     # common: record the operation
-    self.operations[_paymentId] = Operation(payer=_userWallet, proxy=_proxy, agentWrapper=_agentWrapper, amount=_amount, refunded=0, merchantRef=_merchantRef, exists=True)
-    log OperationRegistered(paymentId=_paymentId, payer=_userWallet, proxy=_proxy, agentWrapper=_agentWrapper, amount=_amount, merchantRef=_merchantRef, rail=_protocolId)
+    self.operations[_paymentId] = Operation(payer=_userWallet, vendor=_vendor, agentWrapper=_agentWrapper, amount=_amount, refunded=0, merchantRef=_merchantRef, exists=True, settled=False)
+    log OperationRegistered(paymentId=_paymentId, payer=_userWallet, vendor=_vendor, agentWrapper=_agentWrapper, amount=_amount, merchantRef=_merchantRef, rail=_protocolId)
 
     # route by protocol
     if _protocolId == RAIL_MPP:
@@ -231,34 +232,44 @@ def isValidSignature(_hash: bytes32, _signature: Bytes[256]) -> bytes4:
     return FAIL
 
 
+######################################################
+# settle / bridge (MPP) + refund — switchboard-gated #
+######################################################
+
+
 @external
-def revokeX402(_paymentId: bytes32):
-    # Relayer un-binds an x402 authorization that hasn't settled (e.g. the invoice failed) so USDC can
-    # no longer be pulled; funds still held can then be refund()ed to the payer.
-    assert self.relayers[msg.sender]  # dev: not a relayer
-    digest: bytes32 = self.opDigest[_paymentId]
-    assert digest != empty(bytes32)  # dev: no x402 op
-    self.authorized[digest] = False
-    self.opDigest[_paymentId] = empty(bytes32)
-    log X402Revoked(paymentId=_paymentId, digest=digest)
-
-
-######################################################
-# bridge (MPP) + refund (both rails) — relayer-gated #
-######################################################
+def settle(_paymentId: bytes32):
+    # Finalize one MPP op: mark it non-refundable and move its balance from the refundable escrow into
+    # availToBridge (no transfer — the USDC stays here until bridge() sends a batch). The Switchboard
+    # triggers it one payment at a time. x402 ops settle via the facilitator's EIP-3009 pull, not here.
+    assert not deptBasics.isPaused  # dev: paused
+    assert addys._isSwitchboardAddr(msg.sender)  # dev: not switchboard
+    op: Operation = self.operations[_paymentId]
+    assert op.exists  # dev: unknown paymentId
+    assert self.opDigest[_paymentId] == empty(bytes32)  # dev: x402 op
+    assert not op.settled  # dev: already settled
+    amount: uint256 = op.amount - op.refunded
+    assert amount != 0  # dev: nothing to settle
+    self.operations[_paymentId].settled = True
+    if self.pendingTotal >= amount:
+        self.pendingTotal -= amount
+    else:
+        self.pendingTotal = 0
+    self.availToBridge += amount
+    log Settled(paymentId=_paymentId, amount=amount)
 
 
 @external
 def bridge(_amount: uint256):
-    # A relayer (the server) triggers the bridge and chooses the amount — but NOT the destination: the
-    # Bridge liquidation address is switchboard-set config, so the server can never redirect the funds.
-    # Settlement is a plain USDC send to that address; Bridge off-ramps the pooled USDC to Tempo.
+    # The Switchboard batches settled funds to the Bridge liquidation address (also switchboard-set).
+    # Draws only from availToBridge (settled, non-refundable); Bridge off-ramps the pooled USDC to Tempo.
+    # Batched off-chain so each transfer clears the Bridge company's per-transfer minimum.
     assert not deptBasics.isPaused  # dev: paused
-    assert self.relayers[msg.sender]  # dev: not a relayer
+    assert addys._isSwitchboardAddr(msg.sender)  # dev: not switchboard
     bridgeAddress: address = self.bridgeAddress
     assert bridgeAddress != empty(address)  # dev: bridge not configured
-    assert _amount != 0 and _amount <= self.pendingTotal  # dev: amount over escrow
-    self.pendingTotal -= _amount
+    assert _amount != 0 and _amount <= self.availToBridge  # dev: amount over avail
+    self.availToBridge -= _amount
     assert extcall IERC20(USDC).transfer(bridgeAddress, _amount, default_return_value=True)  # dev: bridge send failed
     log Bridged(recipient=bridgeAddress, amount=_amount)
 
@@ -266,18 +277,19 @@ def bridge(_amount: uint256):
 @external
 def refund(_paymentId: bytes32, _amount: uint256):
     assert not deptBasics.isPaused  # dev: paused
-    assert self.relayers[msg.sender]  # dev: not a relayer
+    assert addys._isSwitchboardAddr(msg.sender)  # dev: not switchboard
     op: Operation = self.operations[_paymentId]
     assert op.exists  # dev: unknown paymentId
     assert _amount != 0 and _amount <= op.amount - op.refunded  # dev: over refundable
     digest: bytes32 = self.opDigest[_paymentId]
     if digest != empty(bytes32):
-        # x402: never refund an op the merchant already pulled; else revoke so it can't be pulled after
+        # x402: never refund an op the merchant already pulled; else un-bind so it can't be pulled after
         assert not (staticcall UsdcAuth(USDC).authorizationState(self, keccak256(_paymentId)))  # dev: already settled
         self.authorized[digest] = False
         self.opDigest[_paymentId] = empty(bytes32)
     else:
-        # MPP: release the escrow that backs the bridge
+        # MPP: release the escrow — but only if it hasn't been settled (sent to the bridge)
+        assert not op.settled  # dev: already settled
         if self.pendingTotal >= _amount:
             self.pendingTotal -= _amount
         else:
@@ -295,7 +307,7 @@ def refund(_paymentId: bytes32, _amount: uint256):
 
 # Sender allow-list — deliberate authorization model.
 #
-# A PaymentSender must be registered on BOTH sides, each switchboard-gated, and both are needed:
+# A AgentSenderPay must be registered on BOTH sides, each switchboard-gated, and both are needed:
 #   • setSender (here)        -> it may call register on this processor
 #   • AgentWrapper.addSender  -> it may move that user's USDC through the user's wrapper
 #
@@ -312,14 +324,7 @@ def refund(_paymentId: bytes32, _amount: uint256):
 def setSender(_account: address, _allowed: bool):
     assert addys._isSwitchboardAddr(msg.sender)  # dev: no perms
     self.senders[_account] = _allowed
-    log RoleSet(what=convert(b"sender", bytes32), account=_account, allowed=_allowed)
-
-
-@external
-def setRelayer(_account: address, _allowed: bool):
-    assert addys._isSwitchboardAddr(msg.sender)  # dev: no perms
-    self.relayers[_account] = _allowed
-    log RoleSet(what=convert(b"relayer", bytes32), account=_account, allowed=_allowed)
+    log SenderSet(account=_account, allowed=_allowed)
 
 
 @external

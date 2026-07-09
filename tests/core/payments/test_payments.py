@@ -26,9 +26,9 @@ def _logs(c, name):
     return [e for e in c.get_logs() if type(e).__name__ == name]
 
 
-def _dests(proxy):
-    # enumerate the proxy's 1-based dest list via its public getters (getDestinations was removed)
-    return [_a(proxy.dests(i)) for i in range(1, proxy.numDests())]
+def _dests(vendor):
+    # enumerate the vendor's 1-based dest list via its public getters (getDestinations was removed)
+    return [_a(vendor.dests(i)) for i in range(1, vendor.numDests())]
 
 
 def _x402_extra(valid_after, valid_before):
@@ -56,14 +56,14 @@ def mock_hq(admin):
 
 
 @pytest.fixture
-def proxy_partial():
-    return boa.load_partial("contracts/core/payments/PaymentProcessorProxy.vy")
+def vendor_partial():
+    return boa.load_partial("contracts/core/payments/VendorProxy.vy")
 
 
 @pytest.fixture
-def store(mock_hq, proxy_partial, admin):
-    template = proxy_partial.deploy_as_blueprint()
-    s = boa.load("contracts/core/payments/ProxyStore.vy", mock_hq.address, template.address)
+def registry(mock_hq, vendor_partial, admin):
+    template = vendor_partial.deploy_as_blueprint()
+    s = boa.load("contracts/core/payments/VendorRegistry.vy", mock_hq.address, template.address)
     mock_hq.setAddr(12, s.address)
     return s
 
@@ -82,14 +82,14 @@ def mock_billing(mock_hq):
 
 @pytest.fixture
 def processor(mock_hq, usdc):
-    p = boa.load("contracts/core/payments/PaymentProcessor.vy", mock_hq.address, usdc.address)
+    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address)
     mock_hq.setAddr(13, p.address)
     return p
 
 
 @pytest.fixture
-def joker(store, admin, proxy_partial):
-    return proxy_partial.at(store.createProxy("x402joker.com", sender=admin))
+def joker(registry, admin, vendor_partial):
+    return vendor_partial.at(registry.createVendor("x402joker.com", sender=admin))
 
 
 @pytest.fixture
@@ -97,35 +97,34 @@ def agent_wrapper(env):
     return env.generate_address("agent_wrapper")
 
 
-# ═══════════════════════════ ProxyStore: factory + registry; Proxy: self-contained allow-list ═══════════════════════════
+# ═══════════════════════════ VendorRegistry: factory + registry; VendorProxy: self-contained allow-list ═══════════════════════════
 
-def test_create_proxy(store, admin, proxy_partial):
-    addr = store.createProxy("x402joker.com", sender=admin)
-    assert store.indexOfProxy(addr) == 1                 # 1-based registry
-    assert store.getNumProxies() == 1
-    assert store.isProxy(addr) is True                   # registered on creation
-    assert _a(store.proxies(1)[0]) == _a(addr)           # id lives on the record
-    assert store.proxies(1)[1] == "x402joker.com"
-    assert _a(proxy_partial.at(addr).ID()) == "x402joker.com"
-    # ids are labels now (no id index): a second proxy just takes the next reg id
-    addr2 = store.createProxy("x402joker.com", sender=admin)
-    assert store.indexOfProxy(addr2) == 2
-    assert store.getNumProxies() == 2
+def test_create_vendor(registry, admin, vendor_partial):
+    addr = registry.createVendor("x402joker.com", sender=admin)
+    assert registry.indexOfVendor(addr) == 1                 # 1-based registry
+    assert registry.getNumVendors() == 1
+    assert registry.isVendor(addr) is True                   # registered on creation
+    assert _a(registry.vendors(1)[0]) == _a(addr)           # id lives on the record
+    assert registry.vendors(1)[1] == "x402joker.com"
+    # ids are labels now (no id index): a second vendor just takes the next reg id
+    addr2 = registry.createVendor("x402joker.com", sender=admin)
+    assert registry.indexOfVendor(addr2) == 2
+    assert registry.getNumVendors() == 2
 
 
-def test_create_proxy_perms(store, alice):
+def test_create_vendor_perms(registry, alice):
     with boa.reverts("no perms"):
-        store.createProxy("nope.com", sender=alice)
+        registry.createVendor("nope.com", sender=alice)
 
 
-def test_destinations_live_in_proxy(store, admin, joker, proxy_partial, env):
-    # each proxy owns its own allow-list; the Switchboard edits it directly on the proxy.
+def test_destinations_live_in_vendor(registry, admin, joker, vendor_partial, env):
+    # each vendor owns its own allow-list; the Switchboard edits it directly on the vendor.
     d1 = env.generate_address("d1")
     d2 = env.generate_address("d2")
-    service2 = proxy_partial.at(store.createProxy("service2.com", sender=admin))
+    service2 = vendor_partial.at(registry.createVendor("service2.com", sender=admin))
     joker.addDestination(d1, sender=admin)
     joker.addDestination(d2, sender=admin)
-    service2.addDestination(d1, sender=admin)  # same dest, independent per-proxy list
+    service2.addDestination(d1, sender=admin)  # same dest, independent per-vendor list
     assert joker.isAllowed(d1) is True
     assert _dests(joker) == [_a(d1), _a(d2)]
     assert _dests(service2) == [_a(d1)]
@@ -144,7 +143,7 @@ def test_add_destination_perms(joker, alice, env):
 
 
 def test_only_switchboard_can_edit_destinations(joker, admin, alice, env):
-    # the proxy owns the data and lets the Switchboard edit it directly; everyone else is rejected
+    # the vendor owns the data and lets the Switchboard edit it directly; everyone else is rejected
     d = env.generate_address("d")
     joker.addDestination(d, sender=admin)                # switchboard OK
     assert joker.isAllowed(d) is True
@@ -154,31 +153,17 @@ def test_only_switchboard_can_edit_destinations(joker, admin, alice, env):
         joker.removeDestination(d, sender=alice)
 
 
-def test_curator_can_manage(store, admin, alice, proxy_partial, env):
-    store.setCurator(alice, True, sender=admin)          # switchboard grants curator
-    proxy = proxy_partial.at(store.createProxy("curated.com", sender=alice))  # curator can create
-    assert store.isProxy(proxy.address) is True
-    store.removeProxy(proxy.address, sender=alice)        # ...and remove proxies (factory role)
-    assert store.isProxy(proxy.address) is False
-    # but destinations are switchboard-only, and a curator is not a switchboard admin
-    proxy2 = proxy_partial.at(store.createProxy("curated2.com", sender=alice))
-    with boa.reverts("not switchboard"):
-        proxy2.addDestination(env.generate_address("d"), sender=alice)
+def test_remove_vendor_perms(registry, joker, alice):
     with boa.reverts("no perms"):
-        store.setCurator(alice, True, sender=alice)      # not switchboard-admin ops
+        registry.removeVendor(joker.address, sender=alice)
 
 
-def test_remove_proxy_perms(store, joker, alice):
-    with boa.reverts("no perms"):
-        store.removeProxy(joker.address, sender=alice)
+def test_remove_vendor_requires_vendor(registry, admin, env):
+    with boa.reverts("not a vendor"):
+        registry.removeVendor(env.generate_address("fake"), sender=admin)
 
 
-def test_remove_proxy_requires_proxy(store, admin, env):
-    with boa.reverts("not a proxy"):
-        store.removeProxy(env.generate_address("fake"), sender=admin)
-
-
-# ═══════════════════════════ Proxy: recover funds + pull payment ═══════════════════════════
+# ═══════════════════════════ VendorProxy: recover funds + pull payment ═══════════════════════════
 
 def test_recover_funds_switchboard_only(joker, usdc, admin, deploy3r, alice, bob):
     usdc.mint(joker.address, 100, sender=deploy3r)
@@ -189,13 +174,13 @@ def test_recover_funds_switchboard_only(joker, usdc, admin, deploy3r, alice, bob
     assert usdc.balanceOf(joker.address) == 0
 
 
-def test_proxy_pull_payment_only_processor(joker, alice, bob, usdc):
+def test_vendor_pull_payment_only_processor(joker, alice, bob, usdc):
     with boa.reverts("only processor"):
         joker.pullPayment(alice, usdc.address, 100, False, sender=bob)
 
 
-def test_proxy_pull_payment_routes_billing(processor, joker, mock_billing, usdc, alice):
-    # only the PaymentProcessor may drive the pull; `_isCheque` routes cheque vs payee in Billing
+def test_vendor_pull_payment_routes_billing(processor, joker, mock_billing, usdc, alice):
+    # only the PayProcessor may drive the pull; `_isCheque` routes cheque vs payee in Billing
     joker.pullPayment(alice, usdc.address, 100, True, sender=processor.address)
     assert mock_billing.lastWasCheque() is True
     assert _a(mock_billing.lastUserWallet()) == _a(alice)
@@ -205,13 +190,13 @@ def test_proxy_pull_payment_routes_billing(processor, joker, mock_billing, usdc,
     assert mock_billing.lastAmount() == 50
 
 
-# ═══════════════════════════ PaymentProcessor: register (MPP rail) ═══════════════════════════
+# ═══════════════════════════ PayProcessor: register (MPP rail) ═══════════════════════════
 
 def test_register_mpp_pulls_and_escrows(processor, joker, usdc, admin, deploy3r, alice, bob, agent_wrapper, env):
     dest = env.generate_address("merchant")
     processor.setSender(bob, True, sender=admin)
     joker.addDestination(dest, sender=admin)
-    usdc.mint(joker.address, 100, sender=deploy3r)       # sender already pushed funds into the proxy
+    usdc.mint(joker.address, 100, sender=deploy3r)       # sender already pushed funds into the vendor
     ret = processor.register(RAIL_MPP, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, b"", sender=bob)
     assert bytes(ret) == EMPTY32                          # MPP returns empty
     logs = _logs(processor, "OperationRegistered")
@@ -226,7 +211,7 @@ def test_register_mpp_pulls_and_escrows(processor, joker, usdc, admin, deploy3r,
 
 
 def test_register_mpp_gates_dest(processor, joker, usdc, admin, deploy3r, alice, bob, agent_wrapper, env):
-    # MPP now takes + validates a dest against the proxy allow-list, like x402
+    # MPP now takes + validates a dest against the vendor allow-list, like x402
     dest = env.generate_address("merchant")
     processor.setSender(bob, True, sender=admin)
     usdc.mint(joker.address, 100, sender=deploy3r)
@@ -242,10 +227,10 @@ def test_register_sender_gated(processor, joker, alice, bob, agent_wrapper, env)
         processor.register(RAIL_MPP, agent_wrapper, joker.address, alice, 100, env.generate_address("d"), PAY1, REF, b"", sender=bob)
 
 
-def test_register_rejects_unknown_proxy(processor, admin, alice, bob, env, agent_wrapper):
-    # a non-proxy is not registered in the ProxyStore, so settlement refuses it
+def test_register_rejects_unknown_vendor(processor, admin, alice, bob, env, agent_wrapper):
+    # a non-vendor is not registered in the VendorRegistry, so settlement refuses it
     processor.setSender(bob, True, sender=admin)
-    with boa.reverts("not a proxy"):
+    with boa.reverts("not a vendor"):
         processor.register(RAIL_MPP, agent_wrapper, env.generate_address("fake"), alice, 100, env.generate_address("d"), PAY1, REF, b"", sender=bob)
 
 
@@ -265,22 +250,22 @@ def test_register_rejects_bad_protocol(processor, joker, usdc, admin, deploy3r, 
         processor.register(3, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, b"", sender=bob)
 
 
-def test_removed_proxy_blocks_both_rails(processor, store, joker, usdc, admin, deploy3r, alice, bob, env, agent_wrapper):
+def test_removed_vendor_blocks_both_rails(processor, registry, joker, usdc, admin, deploy3r, alice, bob, env, agent_wrapper):
     dest = env.generate_address("payto")
     processor.setSender(bob, True, sender=admin)
     joker.addDestination(dest, sender=admin)
     usdc.mint(joker.address, 100, sender=deploy3r)
-    store.removeProxy(joker.address, sender=admin)               # remove — takes it out of the index
-    assert store.isProxy(joker.address) is False
-    with boa.reverts("not a proxy"):
+    registry.removeVendor(joker.address, sender=admin)               # remove — takes it out of the index
+    assert registry.isVendor(joker.address) is False
+    with boa.reverts("not a vendor"):
         processor.register(RAIL_MPP, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, b"", sender=bob)
-    with boa.reverts("not a proxy"):
+    with boa.reverts("not a vendor"):
         processor.register(RAIL_X402, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, _x402_extra(0, FAR_FUTURE), sender=bob)
 
 
-# ═══════════════════════════ PaymentProcessor: register (x402 rail) ═══════════════════════════
+# ═══════════════════════════ PayProcessor: register (x402 rail) ═══════════════════════════
 
-def test_register_x402_binds_digest_and_gates_dest(processor, store, joker, usdc, admin, deploy3r, alice, bob, env, agent_wrapper):
+def test_register_x402_binds_digest_and_gates_dest(processor, registry, joker, usdc, admin, deploy3r, alice, bob, env, agent_wrapper):
     dest = env.generate_address("joker_payto")
     extra = _x402_extra(0, FAR_FUTURE)
     processor.setSender(bob, True, sender=admin)
@@ -294,73 +279,132 @@ def test_register_x402_binds_digest_and_gates_dest(processor, store, joker, usdc
     assert bytes(digest) == bytes(processor.getX402Digest(dest, 100, 0, FAR_FUTURE, PAY1))  # nonce derived from paymentId
     assert bytes(processor.isValidSignature(digest, b"")) == MAGIC
     assert bytes(processor.isValidSignature(PAY2, b"")) == FAIL   # unbound digest
-    # revoke -> no longer honored
-    processor.setRelayer(bob, True, sender=admin)
-    processor.revokeX402(PAY1, sender=bob)
-    assert bytes(processor.isValidSignature(digest, b"")) == FAIL
 
 
-def _register_x402(processor, store, joker, usdc, admin, deploy3r, alice, bob, dest, agent_wrapper, amount=100, pid=PAY1):
+def _register_x402(processor, registry, joker, usdc, admin, deploy3r, alice, bob, dest, agent_wrapper, amount=100, pid=PAY1):
     processor.setSender(bob, True, sender=admin)
-    processor.setRelayer(bob, True, sender=admin)
     joker.addDestination(dest, sender=admin)
     usdc.mint(joker.address, amount, sender=deploy3r)
     return processor.register(RAIL_X402, agent_wrapper, joker.address, alice, amount, dest, pid, REF, _x402_extra(0, FAR_FUTURE), sender=bob)
 
 
-def test_refund_x402_before_pull_revokes_and_refunds(processor, store, joker, usdc, admin, deploy3r, alice, bob, env, agent_wrapper):
+def test_refund_x402_before_pull_revokes_and_refunds(processor, registry, joker, usdc, admin, deploy3r, alice, bob, env, agent_wrapper):
     dest = env.generate_address("payto")
-    digest = _register_x402(processor, store, joker, usdc, admin, deploy3r, alice, bob, dest, agent_wrapper)
+    digest = _register_x402(processor, registry, joker, usdc, admin, deploy3r, alice, bob, dest, agent_wrapper)
     # merchant has NOT pulled -> refund revokes the authorization and returns the funds to the payer
-    processor.refund(PAY1, 100, sender=bob)
+    processor.refund(PAY1, 100, sender=admin)
     assert usdc.balanceOf(alice) == 100
     assert bytes(processor.isValidSignature(digest, b"")) == FAIL   # revoked — can't be pulled after
     assert processor.operations(PAY1)[4] == 100                     # refunded at [4] (agentWrapper recorded at [2])
 
 
-def test_refund_x402_after_pull_reverts(processor, store, joker, usdc, admin, deploy3r, alice, bob, env, agent_wrapper):
+def test_refund_x402_after_pull_reverts(processor, registry, joker, usdc, admin, deploy3r, alice, bob, env, agent_wrapper):
     dest = env.generate_address("payto")
-    _register_x402(processor, store, joker, usdc, admin, deploy3r, alice, bob, dest, agent_wrapper)
+    _register_x402(processor, registry, joker, usdc, admin, deploy3r, alice, bob, dest, agent_wrapper)
     # simulate the merchant pulling via transferWithAuthorization -> the EIP-3009 nonce is consumed
     usdc.setAuthUsed(processor.address, processor.x402Nonce(PAY1), True)
     with boa.reverts("already settled"):
-        processor.refund(PAY1, 100, sender=bob)
+        processor.refund(PAY1, 100, sender=admin)
 
 
-# ═══════════════════════════ PaymentProcessor: bridge + refund ═══════════════════════════
+# ═══════════════════════════ PayProcessor: settle / bridge (MPP) + refund ═══════════════════════════
 
-def test_bridge_sends_usdc_and_refund(processor, joker, usdc, admin, deploy3r, alice, bob, bridge_address, agent_wrapper, env):
+def test_settle_moves_to_avail_to_bridge(processor, joker, usdc, admin, deploy3r, alice, bob, agent_wrapper, env):
     dest = env.generate_address("merchant")
     processor.setSender(bob, True, sender=admin)
-    processor.setRelayer(bob, True, sender=admin)
-    processor.setBridge(bridge_address, sender=admin)    # only switchboard sets the destination
     joker.addDestination(dest, sender=admin)
     usdc.mint(joker.address, 100, sender=deploy3r)
     processor.register(RAIL_MPP, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, b"", sender=bob)
-    # the relayer (server) triggers the bridge + amount; the destination is fixed switchboard config
-    processor.bridge(60, sender=bob)
-    assert usdc.balanceOf(bridge_address) == 60          # plain USDC send to the Bridge liquidation address
-    assert usdc.balanceOf(processor.address) == 40
-    assert processor.pendingTotal() == 40
-    # refund 25 to the recorded payer
-    processor.refund(PAY1, 25, sender=bob)
+    assert processor.pendingTotal() == 100 and processor.availToBridge() == 0
+    # settle moves the balance escrow -> availToBridge; no USDC leaves the processor yet
+    processor.settle(PAY1, sender=admin)
+    assert processor.pendingTotal() == 0
+    assert processor.availToBridge() == 100
+    assert usdc.balanceOf(processor.address) == 100      # funds stay until bridge()
+    assert processor.operations(PAY1)[7] is True         # settled flag at [7]
+    # settled -> no longer refundable, and can't be settled twice
+    with boa.reverts("already settled"):
+        processor.refund(PAY1, 100, sender=admin)
+    with boa.reverts("already settled"):
+        processor.settle(PAY1, sender=admin)
+
+
+def test_mpp_refund_then_settle_remainder(processor, joker, usdc, admin, deploy3r, alice, bob, agent_wrapper, env):
+    dest = env.generate_address("merchant")
+    processor.setSender(bob, True, sender=admin)
+    joker.addDestination(dest, sender=admin)
+    usdc.mint(joker.address, 100, sender=deploy3r)
+    processor.register(RAIL_MPP, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, b"", sender=bob)
+    # before settlement the payer can be refunded (partial ok)
+    processor.refund(PAY1, 25, sender=admin)
     assert usdc.balanceOf(alice) == 25
-    assert processor.operations(PAY1)[4] == 25           # refunded at [4] (agentWrapper recorded at [2])
-    with boa.reverts("not a relayer"):
-        processor.bridge(10, sender=alice)
+    assert processor.operations(PAY1)[4] == 25           # refunded at [4]
+    assert processor.pendingTotal() == 75
+    # settle the remainder -> 75 moves into availToBridge, op final
+    processor.settle(PAY1, sender=admin)
+    assert processor.availToBridge() == 75
+    assert processor.pendingTotal() == 0
+    assert processor.operations(PAY1)[7] is True
+    with boa.reverts("already settled"):
+        processor.refund(PAY1, 10, sender=admin)
+
+
+def test_settle_gated_and_mpp_only(processor, joker, usdc, admin, deploy3r, alice, bob, agent_wrapper, env):
+    dest = env.generate_address("merchant")
+    processor.setSender(bob, True, sender=admin)
+    joker.addDestination(dest, sender=admin)
+    # an x402 op cannot be settled here (it settles via the facilitator's EIP-3009 pull)
+    usdc.mint(joker.address, 100, sender=deploy3r)
+    processor.register(RAIL_X402, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, _x402_extra(0, FAR_FUTURE), sender=bob)
+    with boa.reverts("x402 op"):
+        processor.settle(PAY1, sender=admin)
+    # and only switchboard may settle
+    usdc.mint(joker.address, 100, sender=deploy3r)
+    processor.register(RAIL_MPP, agent_wrapper, joker.address, alice, 100, dest, PAY2, REF, b"", sender=bob)
+    with boa.reverts("not switchboard"):
+        processor.settle(PAY2, sender=alice)
+
+
+def test_bridge_batches_avail_to_bridge(processor, joker, usdc, admin, deploy3r, alice, bob, bridge_address, agent_wrapper, env):
+    dest = env.generate_address("merchant")
+    processor.setSender(bob, True, sender=admin)
+    processor.setBridge(bridge_address, sender=admin)    # only switchboard sets the destination
+    joker.addDestination(dest, sender=admin)
+    # settle two ops into availToBridge, then bridge the accumulated batch in one transfer
+    usdc.mint(joker.address, 100, sender=deploy3r)
+    processor.register(RAIL_MPP, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, b"", sender=bob)
+    usdc.mint(joker.address, 100, sender=deploy3r)
+    processor.register(RAIL_MPP, agent_wrapper, joker.address, alice, 100, dest, PAY2, REF, b"", sender=bob)
+    processor.settle(PAY1, sender=admin)
+    processor.settle(PAY2, sender=admin)
+    assert processor.availToBridge() == 200
+    assert usdc.balanceOf(processor.address) == 200      # nothing bridged yet
+    processor.bridge(200, sender=admin)                    # switchboard clears the batch (>= Bridge min, off-chain)
+    assert usdc.balanceOf(bridge_address) == 200
+    assert usdc.balanceOf(processor.address) == 0
+    assert processor.availToBridge() == 0
+    with boa.reverts("amount over avail"):
+        processor.bridge(1, sender=admin)                  # nothing left to bridge
+    with boa.reverts("not switchboard"):
+        processor.bridge(1, sender=alice)
+
+
+def test_bridge_requires_config(processor, admin):
+    with boa.reverts("bridge not configured"):
+        processor.bridge(1, sender=admin)                  # no Bridge address set
 
 
 def test_only_switchboard_sets_the_bridge_address(processor, admin, bob, alice, bridge_address):
-    # the relayer (server) can trigger bridge() but can NOT define where the funds land
+    # only the Switchboard defines where the funds land — no other caller can setBridge
     processor.setBridge(bridge_address, sender=admin)
     assert _a(processor.bridgeAddress()) == _a(bridge_address)
     with boa.reverts("no perms"):
-        processor.setBridge(bob, sender=bob)             # relayer can't redirect
+        processor.setBridge(bob, sender=bob)             # non-switchboard can't redirect
     with boa.reverts("no perms"):
         processor.setBridge(alice, sender=alice)
 
 
-# ═══════════════════════════ PaymentSender: unified pay() orchestration ═══════════════════════════
+# ═══════════════════════════ AgentSenderPay: unified pay() orchestration ═══════════════════════════
 
 @pytest.fixture
 def test_signer():
@@ -378,7 +422,7 @@ def mock_wrapper(usdc, deploy3r):
 def sender(mock_hq, usdc, test_signer, processor, admin, fork):
     from config.BluePrint import PARAMS
     s = boa.load(
-        "contracts/core/agent/PaymentSender.vy",
+        "contracts/core/agent/AgentSenderPay.vy",
         mock_hq.address, usdc.address, test_signer.address,
         PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"], PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
     )
@@ -386,8 +430,8 @@ def sender(mock_hq, usdc, test_signer, processor, admin, fork):
     return s
 
 
-def _sign_pay(sender, test_signer, protocol_id, wrapper, wallet, proxy, amount, dest, pid, ref, is_cheque=False, extra=b""):
-    digest, nonce, exp = sender.getPayHash(protocol_id, wrapper, wallet, proxy, amount, dest, pid, ref, is_cheque, extra, FAR_FUTURE)
+def _sign_pay(sender, test_signer, protocol_id, wrapper, wallet, vendor, amount, dest, pid, ref, is_cheque=False, extra=b""):
+    digest, nonce, exp = sender.getPayHash(protocol_id, wrapper, wallet, vendor, amount, dest, pid, ref, is_cheque, extra, FAR_FUTURE)
     return (test_signer.unsafe_sign_hash(digest).signature, nonce, exp)
 
 
@@ -397,11 +441,11 @@ def test_pay_mpp_end_to_end(sender, mock_wrapper, joker, processor, usdc, test_s
     sig = _sign_pay(sender, test_signer, RAIL_MPP, mock_wrapper.address, alice, joker.address, 100, dest, PAY1, REF)
     # any broadcaster submits; owner (test_signer) signature authorizes
     sender.pay(RAIL_MPP, mock_wrapper.address, alice, joker.address, 100, dest, PAY1, REF, False, b"", NO_VAULT, sig, sender=bob)
-    # funds flowed UW(mock) -> proxy -> processor; op recorded
+    # funds flowed UW(mock) -> vendor -> processor; op recorded
     assert usdc.balanceOf(processor.address) == 100
     assert usdc.balanceOf(joker.address) == 0
     assert processor.operations(PAY1)[3] == 100                          # amount at [3] (agentWrapper recorded at [2])
-    assert _a(processor.operations(PAY1)[2]) == _a(mock_wrapper.address)  # PaymentSender threads the wrapper through
+    assert _a(processor.operations(PAY1)[2]) == _a(mock_wrapper.address)  # AgentSenderPay threads the wrapper through
     assert sender.currentNonce(alice) == 1
     assert mock_wrapper.lastWasCheque() is False                         # direct Payee transfer, not a cheque
 
