@@ -1,5 +1,5 @@
 """
-Regression tests (Moto) for F1 — cross-rail refund/settle contamination.
+Regression tests for cross-rail refund/settle contamination.
 
 Before the fix, PayProcessor inferred the rail from the *mutable* `opDigest[paymentId]`.
 A partial x402 refund cleared `opDigest`, after which the op masqueraded as MPP:
@@ -94,7 +94,7 @@ def _register_x402(processor, joker, usdc, admin, deploy3r, alice, bob, dest, ag
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# F1a: a partial x402 refund is rejected; a full one revokes + refunds cleanly.
+# A partial x402 refund is rejected; a full one revokes + refunds cleanly.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_x402_partial_refund_is_blocked(processor, joker, usdc, admin, deploy3r,
@@ -115,7 +115,7 @@ def test_x402_partial_refund_is_blocked(processor, joker, usdc, admin, deploy3r,
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# F1b: an x402 op is NEVER settleable/bridgeable — even after a full refund the
+# An x402 op is NEVER settleable/bridgeable — even after a full refund the
 #      immutable protocolId keeps settle() locked out. (Old bug: a partial refund
 #      let settle() sweep the remainder into availToBridge.)
 # ═══════════════════════════════════════════════════════════════════════════════

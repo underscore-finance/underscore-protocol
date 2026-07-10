@@ -33,7 +33,7 @@ HUNDRED_PERCENT = 100_00  # 100.00%
 DECIMALS_18 = 10**18
 DECIMALS_6 = 10**6
 
-# Registry IDs (from contracts/modules/Addys.vy)
+# Registry IDs (core Addys slots plus payments department slots)
 LEDGER_ID = 1
 MISSION_CONTROL_ID = 2
 LEGO_BOOK_ID = 3
@@ -45,6 +45,8 @@ WALLET_BACKPACK_ID = 8
 BILLING_ID = 9
 VAULT_REGISTRY_ID = 10
 HELPERS_ID = 11
+VENDOR_REGISTRY_ID = 12
+PAY_PROCESSOR_ID = 13
 
 # Build KNOWN_TOKENS from BluePrint (invert address -> symbol mapping)
 KNOWN_TOKENS = {addr.lower(): symbol for symbol, addr in TOKENS.get("base", {}).items()}

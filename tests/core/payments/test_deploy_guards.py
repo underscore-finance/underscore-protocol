@@ -1,10 +1,10 @@
 """
-Regression tests (Moto) for the deploy-time / input guards T1 + T2.
+Regression tests for the deploy-time and input guards.
 
-T1: PayProcessor.__init__ asserts the USDC's DOMAIN_SEPARATOR() equals the EIP-712 domain it hardcodes,
-    so pointing it at the wrong token (e.g. bridged USDbC == "USD Base Coin") fails the deploy loudly
-    instead of silently shipping an x402 rail that can never settle.
-T2: register() rejects an x402 window with validAfter >= validBefore (an op real USDC would always reject).
+PayProcessor.__init__ asserts the USDC's DOMAIN_SEPARATOR() equals the EIP-712 domain it hardcodes,
+so pointing it at the wrong token (e.g. bridged USDbC == "USD Base Coin") fails the deploy loudly
+instead of silently shipping an x402 rail that can never settle.
+register() rejects an x402 window with validAfter >= validBefore, matching what real USDC rejects.
 """
 
 import boa
@@ -71,7 +71,7 @@ def agent_wrapper(env):
     return env.generate_address("agent_wrapper")
 
 
-# ─────────────────────────── T1: USDC domain must match at deploy ───────────────────────────
+# ─────────────────────────── USDC domain must match at deploy ───────────────────────────
 
 def test_deploy_ok_with_matching_usdc_domain(processor, usdc):
     # the standard fixture deploys against a matching-domain mock; deploy succeeds and binds USDC
@@ -100,7 +100,7 @@ def test_init_skips_empty_bootstrap(mock_hq, usdc):
     assert str(p.bridgeAddress()).lower() == str(ZERO_ADDRESS).lower()
 
 
-# ─────────────────────────── T2: x402 window must be validAfter < validBefore ───────────────────────────
+# ─────────────────────────── x402 window must be validAfter < validBefore ───────────────────────────
 
 def test_register_rejects_inverted_window(processor, joker, usdc, admin, deploy3r, alice, bob, agent_wrapper, env):
     dest = env.generate_address("merchant")

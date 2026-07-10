@@ -1,11 +1,10 @@
 """
-Regression tests (Moto, for Gina's F2/F3/F4) — AgentSenderPay signing scheme.
+Regression tests for the AgentSenderPay signing scheme.
 
-F2 (HIGH): `_vault` must be covered by the owner signature — a broadcaster must not be able to
-           inject/alter the yield withdrawal on a validly-signed payment.
-F3 (MED):  owner-only `incrementNonce()` can revoke a leaked/stale payment signature.
-F4 (LOW):  `_sourceAndSend` asserts `moved == _amount` (covered indirectly here; the canonical
-           mock returns exactly `_amount`, so the end-to-end payments in test_payments.py exercise it).
+`_vault` must be covered by the owner signature, so a broadcaster cannot inject or alter the yield
+withdrawal on a validly signed payment. Owner-only `incrementNonce()` can revoke a leaked or stale
+payment signature. `_sourceAndSend` asserts `moved == _amount`; the canonical mock returns exactly
+`_amount`, so the end-to-end payments in test_payments.py exercise it indirectly.
 Plus: a partial VaultSource is rejected.
 """
 
@@ -102,7 +101,7 @@ def _sign(sender, test_signer, wrapper, wallet, vendor, amount, dest, pid, ref, 
     return (test_signer.unsafe_sign_hash(digest).signature, nonce, exp)
 
 
-# ═══════════════════════════ F2: the vault is part of the signed payload ═══════════════════════════
+# ═══════════════════════ the vault is part of the signed payload ═══════════════════════
 
 def test_vault_injection_fails_signature(sender, mock_wrapper, joker, test_signer, admin, alice, bob, env):
     # owner signs a payment with NO vault; a broadcaster tries to bolt on a yield withdrawal
@@ -134,7 +133,7 @@ def test_partial_vault_is_rejected(sender, mock_wrapper, joker, test_signer, adm
         sender.pay(RAIL_MPP, mock_wrapper.address, alice, joker.address, 100, dest, PAY1, REF, False, b"", partial, sig, sender=bob)
 
 
-# ═══════════════════════════ F3: owner can revoke a leaked signature ═══════════════════════════
+# ═════════════════════════ owner can revoke a leaked signature ═════════════════════════
 
 def test_increment_nonce_revokes_pending_signature(sender, mock_wrapper, joker, test_signer, admin, alice, bob, env):
     dest = env.generate_address("merchant")

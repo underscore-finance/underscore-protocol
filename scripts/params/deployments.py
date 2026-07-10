@@ -33,6 +33,8 @@ try:
         BILLING_ID,
         VAULT_REGISTRY_ID,
         HELPERS_ID,
+        VENDOR_REGISTRY_ID,
+        PAY_PROCESSOR_ID,
         ZERO_ADDRESS,
         setup_boa_etherscan,
         boa_fork_context,
@@ -55,6 +57,8 @@ except ImportError:
         BILLING_ID,
         VAULT_REGISTRY_ID,
         HELPERS_ID,
+        VENDOR_REGISTRY_ID,
+        PAY_PROCESSOR_ID,
         ZERO_ADDRESS,
         setup_boa_etherscan,
         boa_fork_context,
@@ -104,6 +108,8 @@ def load_core_addresses(hq):
         "Billing": str(hq.getAddr(BILLING_ID)),
         "VaultRegistry": str(hq.getAddr(VAULT_REGISTRY_ID)),
         "Helpers": str(hq.getAddr(HELPERS_ID)),
+        "VendorRegistry": str(hq.getAddr(VENDOR_REGISTRY_ID)),
+        "PayProcessor": str(hq.getAddr(PAY_PROCESSOR_ID)),
     }
 
 
@@ -277,6 +283,9 @@ def print_all_addresses():
         WALLET_BACKPACK_ID: "WalletBackpack",
         BILLING_ID: "Billing",
         VAULT_REGISTRY_ID: "VaultRegistry",
+        HELPERS_ID: "Helpers",
+        VENDOR_REGISTRY_ID: "VendorRegistry",
+        PAY_PROCESSOR_ID: "PayProcessor",
     }
     for reg_id, name in id_to_name.items():
         addr = state.core_addresses.get(name, "")
