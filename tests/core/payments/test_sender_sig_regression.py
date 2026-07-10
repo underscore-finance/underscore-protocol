@@ -63,7 +63,7 @@ def registry(mock_hq, vendor_partial, admin):
 
 @pytest.fixture
 def processor(mock_hq, usdc):
-    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address)
+    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address, ZERO_ADDRESS, ZERO_ADDRESS)
     mock_hq.setAddr(13, p.address)
     return p
 

@@ -11,6 +11,8 @@ import boa
 import pytest
 from eth_utils import keccak
 
+from constants import ZERO_ADDRESS
+
 FAR_FUTURE = 9_999_999_999
 PAY1 = (1).to_bytes(32, "big")
 REF = keccak(text="challenge:joker")
@@ -54,7 +56,7 @@ def registry(mock_hq, vendor_partial, admin):
 
 @pytest.fixture
 def processor(mock_hq, usdc):
-    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address)
+    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address, ZERO_ADDRESS, ZERO_ADDRESS)
     mock_hq.setAddr(13, p.address)
     return p
 
@@ -80,7 +82,22 @@ def test_deploy_reverts_on_usdc_domain_mismatch(mock_hq, usdc):
     # force the USDC to report a domain that doesn't match the processor's hardcoded one
     usdc.setDomainSeparator((0xDEAD).to_bytes(32, "big"))
     with boa.reverts("usdc domain mismatch"):
-        boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address)
+        boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address, ZERO_ADDRESS, ZERO_ADDRESS)
+
+
+def test_init_bootstraps_bridge_and_sender(mock_hq, usdc, env):
+    # genesis config: the constructor can seed the initial bridge + sender in one deploy
+    b = env.generate_address("genesis_bridge")
+    s = env.generate_address("genesis_sender")
+    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address, b, s)
+    assert str(p.bridgeAddress()).lower() == str(b).lower()
+    assert p.senders(s) is True
+
+
+def test_init_skips_empty_bootstrap(mock_hq, usdc):
+    # passing empty leaves both unset (the existing fixtures rely on this)
+    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address, ZERO_ADDRESS, ZERO_ADDRESS)
+    assert str(p.bridgeAddress()).lower() == str(ZERO_ADDRESS).lower()
 
 
 # ─────────────────────────── T2: x402 window must be validAfter < validBefore ───────────────────────────

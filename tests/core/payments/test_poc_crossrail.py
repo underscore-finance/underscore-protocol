@@ -14,6 +14,8 @@ import boa
 import pytest
 from eth_utils import keccak
 
+from constants import ZERO_ADDRESS
+
 EMPTY32 = b"\x00" * 32
 FAR_FUTURE = 9_999_999_999
 PAY1 = (1).to_bytes(32, "big")
@@ -63,7 +65,7 @@ def registry(mock_hq, vendor_partial, admin):
 
 @pytest.fixture
 def processor(mock_hq, usdc):
-    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address)
+    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address, ZERO_ADDRESS, ZERO_ADDRESS)
     mock_hq.setAddr(13, p.address)
     return p
 

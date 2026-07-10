@@ -131,7 +131,7 @@ event BridgeSet:
 
 
 @deploy
-def __init__(_undyHq: address, _usdc: address):
+def __init__(_undyHq: address, _usdc: address, _initialBridge: address, _initialSender: address):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False)  # not paused; cannot mint UNDY
     assert _usdc != empty(address)  # dev: usdc required
@@ -141,6 +141,15 @@ def __init__(_undyHq: address, _usdc: address):
     # name() is "USD Base Coin") would leave x402 silently un-settleable — the processor would authorize
     # digests no facilitator can ever satisfy. Fail the deploy loudly instead of shipping a dead rail.
     assert staticcall UsdcAuth(_usdc).DOMAIN_SEPARATOR() == self._domainSeparator()  # dev: usdc domain mismatch
+    # Genesis config: seed the initial bridge + sender so a fresh deploy is usable without a separate
+    # switchboard round-trip. Both optional (pass empty to skip). Post-deploy changes go through the
+    # timelocked switchboard (setBridge / setSender) — this bootstrap is the one trusted-at-genesis write.
+    if _initialBridge != empty(address):
+        self.bridgeAddress = _initialBridge
+        log BridgeSet(bridgeAddress=_initialBridge)
+    if _initialSender != empty(address):
+        self.senders[_initialSender] = True
+        log SenderSet(account=_initialSender, allowed=True)
 
 
 @view
