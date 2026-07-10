@@ -85,6 +85,7 @@ struct Operation:
     exists: bool
     settled: bool           # MPP: finalized (sent to the bridge) — no longer refundable
     protocolId: uint8       # immutable rail discriminant (RAIL_MPP / RAIL_X402), set at register — never inferred from the mutable opDigest
+    dest: address           # payment destination (x402: the bound payee; MPP: recorded for audit + future settlement confirmation)
 
 senders: public(HashMap[address, bool])             # AgentSenderPays that may register ops (switchboard-set)
 bridgeAddress: public(address)                      # Bridge (company) liquidation address — a plain USDC send off-ramps to Tempo (switchboard-set; the server cannot redirect)
@@ -136,7 +137,7 @@ def __init__(_undyHq: address, _usdc: address):
     assert _usdc != empty(address)  # dev: usdc required
     HQ = _undyHq
     USDC = _usdc
-    # T1: bind to the exact USDC EIP-712 domain at deploy. A wrong token (e.g. bridged USDbC, whose
+    # Bind to the exact USDC EIP-712 domain at deploy. A wrong token (e.g. bridged USDbC, whose
     # name() is "USD Base Coin") would leave x402 silently un-settleable — the processor would authorize
     # digests no facilitator can ever satisfy. Fail the deploy loudly instead of shipping a dead rail.
     assert staticcall UsdcAuth(_usdc).DOMAIN_SEPARATOR() == self._domainSeparator()  # dev: usdc domain mismatch
@@ -174,7 +175,7 @@ def register(_protocolId: uint8, _agentWrapper: address, _vendor: address, _user
     assert pulled >= _amount  # dev: vendor underfunded
 
     # common: record the operation
-    self.operations[_paymentId] = Operation(payer=_userWallet, vendor=_vendor, agentWrapper=_agentWrapper, amount=_amount, refunded=0, merchantRef=_merchantRef, exists=True, settled=False, protocolId=_protocolId)
+    self.operations[_paymentId] = Operation(payer=_userWallet, vendor=_vendor, agentWrapper=_agentWrapper, amount=_amount, refunded=0, merchantRef=_merchantRef, exists=True, settled=False, protocolId=_protocolId, dest=_dest)
     log OperationRegistered(paymentId=_paymentId, payer=_userWallet, vendor=_vendor, agentWrapper=_agentWrapper, amount=_amount, merchantRef=_merchantRef, rail=_protocolId)
 
     # route by protocol

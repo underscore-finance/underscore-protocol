@@ -205,6 +205,7 @@ def test_register_mpp_pulls_and_escrows(processor, joker, usdc, admin, deploy3r,
     op = processor.operations(PAY1)
     assert _a(op[0]) == _a(alice) and _a(op[1]) == _a(joker.address) and _a(op[2]) == _a(agent_wrapper)
     assert op[3] == 100 and op[6] is True                # agentWrapper recorded at [2]; amount [3]; exists [6]
+    assert _a(op[9]) == _a(dest)                          # dest recorded on the op ([9])
     assert processor.pendingTotal() == 100
     assert logs[0].amount == 100 and logs[0].rail == 1
     assert _a(logs[0].agentWrapper) == _a(agent_wrapper)  # initiating wrapper emitted for audit

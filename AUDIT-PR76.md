@@ -268,6 +268,9 @@ unmistakable to the next reader.
 MPP branch never uses `_dest` (MPP off-ramps to the switchboard-set `bridgeAddress`). Every MPP payment
 must still carry *some* allow-listed dest with zero effect on fund flow. Intended (per
 `test_register_mpp_gates_dest`), but worth a one-line comment; an MPP-only vendor still needs ≥1 dest.
+**Update (per @you):** `dest` is now recorded on the `Operation` (auditable + available for the future MPP
+`confirmSettlement` cross-check). It still doesn't *bind* MPP fund flow (funds go to `bridgeAddress`), but
+the destination is no longer discarded.
 
 ### [INFO] Leto-C — PR body test count stale ("17-case suite"; actual is 54).
 
