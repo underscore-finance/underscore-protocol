@@ -487,3 +487,84 @@ def test_pay_replay_reverts(sender, mock_wrapper, joker, test_signer, admin, ali
     sender.pay(RAIL_MPP, mock_wrapper.address, alice, joker.address, 100, dest, PAY1, REF, False, b"", NO_VAULT, sig, sender=bob)
     with boa.reverts("invalid nonce"):
         sender.pay(RAIL_MPP, mock_wrapper.address, alice, joker.address, 100, dest, PAY2, REF, False, b"", NO_VAULT, sig, sender=bob)
+
+
+# ═══════════════════════════ SwitchboardDelta: payments config + ops gateway ═══════════════════════════
+
+@pytest.fixture
+def mock_mc(mock_hq):
+    mc = boa.load("contracts/mock/MockMissionControl.vy")
+    mock_hq.setAddr(2, mc.address)      # MISSION_CONTROL_ID
+    return mc
+
+
+@pytest.fixture
+def delta(mock_hq, registry, processor, mock_mc, admin, env, fork):
+    from config.BluePrint import PARAMS
+    mock_hq.setGov(env.generate_address("hq_gov"))   # LocalGov needs an hq gov, distinct from the local gov (admin)
+    d = boa.load(
+        "contracts/config/SwitchboardDelta.vy",
+        mock_hq.address, admin,          # tempGov = admin (local governor)
+        PARAMS[fork]["GEN_MIN_CONFIG_TIMELOCK"], PARAMS[fork]["GEN_MAX_CONFIG_TIMELOCK"],
+    )
+    mock_hq.setSwitcher(d.address, True)  # Delta is a switchboard address -> the departments accept its calls
+    return d
+
+
+def test_delta_operate_gating(delta, registry, mock_mc, admin, alice, bob):
+    # a random address can't run operate actions
+    with boa.reverts("no perms"):
+        delta.createVendor("nope.com", sender=alice)
+    # a MissionControl security signer can
+    mock_mc.setSecuritySigner(bob, True)
+    addr = delta.createVendor("via-signer.com", sender=bob)
+    assert registry.isVendor(addr) is True
+    # governance is a superuser too
+    addr2 = delta.createVendor("via-gov.com", sender=admin)
+    assert registry.isVendor(addr2) is True
+
+
+def test_delta_operate_routes_to_payprocessor(delta, mock_mc, alice, bob):
+    mock_mc.setSecuritySigner(bob, True)
+    # settle routes Delta -> PayProcessor; an unknown op reverts with PayProcessor's error (the call landed)
+    with boa.reverts("unknown paymentId"):
+        delta.settle(PAY1, sender=bob)
+    # Delta gates a non-authorized caller before it ever reaches PayProcessor
+    with boa.reverts("no perms"):
+        delta.settle(PAY1, sender=alice)
+
+
+def test_delta_config_setSender_timelocked(delta, processor, admin, alice, bob):
+    delta.setActionTimeLockAfterSetup(0, sender=admin)   # config timelock = minimum
+    # only governance may initiate config
+    with boa.reverts("no perms"):
+        delta.setSender(bob, True, sender=alice)
+    aid = delta.setSender(bob, True, sender=admin)
+    # not executable before the timelock elapses
+    assert delta.executePendingAction(aid, sender=admin) is False
+    assert processor.senders(bob) is False
+    boa.env.time_travel(blocks=delta.actionTimeLock())
+    assert delta.executePendingAction(aid, sender=admin) is True
+    assert processor.senders(bob) is True                 # Delta set it on PayProcessor
+
+
+def test_delta_pause_immediate_unpause_timelocked(delta, registry, processor, mock_mc, admin, alice, bob):
+    delta.setActionTimeLockAfterSetup(0, sender=admin)
+    mock_mc.setSecuritySigner(bob, True)
+    # disable is immediate (a security signer) and freezes both departments
+    delta.setPaused(True, sender=bob)
+    assert processor.isPaused() is True and registry.isPaused() is True
+    with boa.reverts("paused"):
+        delta.createVendor("frozen.com", sender=bob)
+    with boa.reverts("no perms"):
+        delta.setPaused(True, sender=alice)               # random addr can't pause
+    with boa.reverts("no perms"):
+        delta.setPaused(False, sender=bob)                # a security signer can't unpause (governance only)
+    # enable (unpause) is governance + timelock
+    aid = delta.setPaused(False, sender=admin)
+    assert delta.executePendingAction(aid, sender=admin) is False
+    assert processor.isPaused() is True                   # still paused before the timelock
+    boa.env.time_travel(blocks=delta.actionTimeLock())
+    assert delta.executePendingAction(aid, sender=admin) is True
+    assert processor.isPaused() is False and registry.isPaused() is False
+    delta.createVendor("thawed.com", sender=bob)          # works again
