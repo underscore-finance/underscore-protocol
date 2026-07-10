@@ -113,9 +113,12 @@ def transferToProcessor(_asset: address, _amount: uint256 = max_value(uint256)) 
 
 @external
 def pullPayment(_userWallet: address, _asset: address, _amount: uint256, _isCheque: bool) -> (uint256, uint256):
-    # This vendor is registered as a payee / cheque recipient on the user wallet; the PayProcessor
-    # drives the pull and the funds land HERE (this vendor is the recipient) via Billing. Processor-only.
-    # Future-proof: `_isCheque` routes between Billing's two pull paths (cheque vs payee).
+    # INTENTIONAL FORWARD-DECLARATION — kept on purpose, not yet wired. No PayProcessor flow calls this
+    # today; the live rails PUSH funds into the vendor (register -> transferToProcessor). This is the
+    # future PULL path: the vendor is a registered payee / cheque recipient on the user wallet and the
+    # PayProcessor drives the pull so the funds land HERE (this vendor is the recipient) via Billing.
+    # Processor-only; `_isCheque` routes between Billing's two pull paths (cheque vs payee). Note: has no
+    # integration coverage against real Billing authorization yet — must be tested before it is wired.
     assert msg.sender == self._processor()  # dev: only processor
     billing: address = staticcall Registry(HQ).getAddr(BILLING_ID)
     assert billing != empty(address)  # dev: no billing

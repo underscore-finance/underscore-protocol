@@ -107,13 +107,23 @@ def pay(
     # (x402: abi_encode(validAfter, validBefore)). Returns the processor result (x402 digest; MPP empty).
     self._authenticateAccess(
         _userWallet,
-        keccak256(abi_encode(_protocolId, _agentWrapper, _userWallet, _vendor, _amount, _dest, _paymentId, _merchantRef, _isCheque, _extraData, self, USDC, _sig.nonce, _sig.expiration)),
+        keccak256(abi_encode(_protocolId, _agentWrapper, _userWallet, _vendor, _amount, _dest, _paymentId, _merchantRef, _isCheque, _extraData, _vault, self, USDC, _sig.nonce, _sig.expiration)),
         _sig,
     )
     moved: uint256 = self._sourceAndSend(_agentWrapper, _userWallet, _vendor, _amount, _isCheque, _vault)
     result: bytes32 = extcall PayProcessor(self._processor()).register(_protocolId, _agentWrapper, _vendor, _userWallet, moved, _dest, _paymentId, _merchantRef, _extraData)
     log PaymentSent(paymentId=_paymentId, userWallet=_userWallet, vendor=_vendor, amount=moved, rail=_protocolId)
     return result
+
+
+@external
+def incrementNonce(_userWallet: address):
+    # owner-only escape hatch: bump the nonce to invalidate any outstanding (leaked / stale) payment
+    # signature for this userWallet. Mirrors AgentSenderGeneric / AgentSenderSpecial.
+    assert msg.sender == ownership.owner  # dev: no perms
+    newNonce: uint256 = self.currentNonce[_userWallet] + 1
+    self.currentNonce[_userWallet] = newNonce
+    log NonceIncremented(userWallet=_userWallet, newNonce=newNonce)
 
 
 @view
@@ -126,6 +136,9 @@ def _processor() -> address:
 def _sourceAndSend(_agentWrapper: address, _userWallet: address, _vendor: address, _amount: uint256, _isCheque: bool, _vault: VaultSource) -> uint256:
     # if a vault is set, withdraw from yield first (excess stays liquid in the wallet); then move the
     # payment amount to the vendor (the UserWallet's Payee) through the AgentWrapper's rules.
+    # reject a partial VaultSource (one of legoId / vaultToken set without the other) so a malformed
+    # config can neither silently skip a signed withdrawal nor slip an unsigned one through.
+    assert (_vault.legoId != 0) == (_vault.vaultToken != empty(address))  # dev: partial vault config
     if _vault.legoId != 0 and _vault.vaultToken != empty(address):
         vt: uint256 = 0
         wasset: address = empty(address)
@@ -143,7 +156,7 @@ def _sourceAndSend(_agentWrapper: address, _userWallet: address, _vendor: addres
     else:
         # vendor is an approved Payee on the wallet: direct transfer
         moved, usdValue = extcall AgentWrapperInt(_agentWrapper).transferFunds(_userWallet, _vendor, USDC, _amount)
-    assert moved >= _amount  # dev: moved less than the payment
+    assert moved == _amount  # dev: moved must equal the signed amount
     return moved
 
 
@@ -202,7 +215,7 @@ def _domainSeparator() -> bytes32:
 
 @view
 @external
-def getPayHash(_protocolId: uint8, _agentWrapper: address, _userWallet: address, _vendor: address, _amount: uint256, _dest: address, _paymentId: bytes32, _merchantRef: bytes32, _isCheque: bool, _extraData: Bytes[256], _expiration: uint256) -> (bytes32, uint256, uint256):
+def getPayHash(_protocolId: uint8, _agentWrapper: address, _userWallet: address, _vendor: address, _amount: uint256, _dest: address, _paymentId: bytes32, _merchantRef: bytes32, _isCheque: bool, _extraData: Bytes[256], _expiration: uint256, _vault: VaultSource = empty(VaultSource)) -> (bytes32, uint256, uint256):
     nonce: uint256 = self.currentNonce[_userWallet]
-    msgHash: bytes32 = keccak256(abi_encode(_protocolId, _agentWrapper, _userWallet, _vendor, _amount, _dest, _paymentId, _merchantRef, _isCheque, _extraData, self, USDC, nonce, _expiration))
+    msgHash: bytes32 = keccak256(abi_encode(_protocolId, _agentWrapper, _userWallet, _vendor, _amount, _dest, _paymentId, _merchantRef, _isCheque, _extraData, _vault, self, USDC, nonce, _expiration))
     return (keccak256(concat(SIG_PREFIX, self._domainSeparator(), msgHash)), nonce, _expiration)

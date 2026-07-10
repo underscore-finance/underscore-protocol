@@ -58,6 +58,7 @@ interface VendorProxy:
 
 interface UsdcAuth:
     def authorizationState(_authorizer: address, _nonce: bytes32) -> bool: view
+    def DOMAIN_SEPARATOR() -> bytes32: view
 
 VENDOR_REGISTRY_ID: constant(uint256) = 12
 RAIL_MPP: constant(uint8) = 1                       # protocolId: Machine Payments Protocol (Tempo)
@@ -83,6 +84,7 @@ struct Operation:
     merchantRef: bytes32
     exists: bool
     settled: bool           # MPP: finalized (sent to the bridge) — no longer refundable
+    protocolId: uint8       # immutable rail discriminant (RAIL_MPP / RAIL_X402), set at register — never inferred from the mutable opDigest
 
 senders: public(HashMap[address, bool])             # AgentSenderPays that may register ops (switchboard-set)
 bridgeAddress: public(address)                      # Bridge (company) liquidation address — a plain USDC send off-ramps to Tempo (switchboard-set; the server cannot redirect)
@@ -134,6 +136,10 @@ def __init__(_undyHq: address, _usdc: address):
     assert _usdc != empty(address)  # dev: usdc required
     HQ = _undyHq
     USDC = _usdc
+    # T1: bind to the exact USDC EIP-712 domain at deploy. A wrong token (e.g. bridged USDbC, whose
+    # name() is "USD Base Coin") would leave x402 silently un-settleable — the processor would authorize
+    # digests no facilitator can ever satisfy. Fail the deploy loudly instead of shipping a dead rail.
+    assert staticcall UsdcAuth(_usdc).DOMAIN_SEPARATOR() == self._domainSeparator()  # dev: usdc domain mismatch
 
 
 @view
@@ -168,7 +174,7 @@ def register(_protocolId: uint8, _agentWrapper: address, _vendor: address, _user
     assert pulled >= _amount  # dev: vendor underfunded
 
     # common: record the operation
-    self.operations[_paymentId] = Operation(payer=_userWallet, vendor=_vendor, agentWrapper=_agentWrapper, amount=_amount, refunded=0, merchantRef=_merchantRef, exists=True, settled=False)
+    self.operations[_paymentId] = Operation(payer=_userWallet, vendor=_vendor, agentWrapper=_agentWrapper, amount=_amount, refunded=0, merchantRef=_merchantRef, exists=True, settled=False, protocolId=_protocolId)
     log OperationRegistered(paymentId=_paymentId, payer=_userWallet, vendor=_vendor, agentWrapper=_agentWrapper, amount=_amount, merchantRef=_merchantRef, rail=_protocolId)
 
     # route by protocol
@@ -180,6 +186,7 @@ def register(_protocolId: uint8, _agentWrapper: address, _vendor: address, _user
         validAfter: uint256 = 0
         validBefore: uint256 = 0
         validAfter, validBefore = abi_decode(_extraData, (uint256, uint256))
+        assert validAfter < validBefore  # dev: bad x402 window
         # EIP-3009 nonce is derived from the paymentId — one paymentId => one nonce => one USDC pull
         digest: bytes32 = self._x402Digest(_dest, _amount, validAfter, validBefore, keccak256(_paymentId))
         self.authorized[digest] = True
@@ -246,15 +253,12 @@ def settle(_paymentId: bytes32):
     assert addys._isSwitchboardAddr(msg.sender)  # dev: not switchboard
     op: Operation = self.operations[_paymentId]
     assert op.exists  # dev: unknown paymentId
-    assert self.opDigest[_paymentId] == empty(bytes32)  # dev: x402 op
+    assert op.protocolId == RAIL_MPP  # dev: not mpp op
     assert not op.settled  # dev: already settled
     amount: uint256 = op.amount - op.refunded
     assert amount != 0  # dev: nothing to settle
     self.operations[_paymentId].settled = True
-    if self.pendingTotal >= amount:
-        self.pendingTotal -= amount
-    else:
-        self.pendingTotal = 0
+    self.pendingTotal -= amount
     self.availToBridge += amount
     log Settled(paymentId=_paymentId, amount=amount)
 
@@ -281,19 +285,19 @@ def refund(_paymentId: bytes32, _amount: uint256):
     op: Operation = self.operations[_paymentId]
     assert op.exists  # dev: unknown paymentId
     assert _amount != 0 and _amount <= op.amount - op.refunded  # dev: over refundable
-    digest: bytes32 = self.opDigest[_paymentId]
-    if digest != empty(bytes32):
-        # x402: never refund an op the merchant already pulled; else un-bind so it can't be pulled after
+    if op.protocolId == RAIL_X402:
+        # x402 is all-or-nothing (the facilitator pulls the full value or nothing), so a refund must
+        # clear the whole op — a partial would leave a half-bound op that later masquerades as MPP.
+        # Rail is read from the immutable op flag, never from opDigest (which this branch mutates).
+        assert _amount == op.amount - op.refunded  # dev: x402 partial refund
+        # never refund an op the merchant already pulled; else un-bind so it can't be pulled after
         assert not (staticcall UsdcAuth(USDC).authorizationState(self, keccak256(_paymentId)))  # dev: already settled
-        self.authorized[digest] = False
+        self.authorized[self.opDigest[_paymentId]] = False
         self.opDigest[_paymentId] = empty(bytes32)
     else:
         # MPP: release the escrow — but only if it hasn't been settled (sent to the bridge)
         assert not op.settled  # dev: already settled
-        if self.pendingTotal >= _amount:
-            self.pendingTotal -= _amount
-        else:
-            self.pendingTotal = 0
+        self.pendingTotal -= _amount
     assert staticcall IERC20(USDC).balanceOf(self) >= _amount  # dev: not funded
     self.operations[_paymentId].refunded = op.refunded + _amount
     assert extcall IERC20(USDC).transfer(op.payer, _amount, default_return_value=True)  # dev: refund failed
