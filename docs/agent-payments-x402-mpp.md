@@ -86,7 +86,7 @@ revokes by clearing `authorized[digest]` and `opDigest[paymentId]` before return
 - **Settlement is permissionless but safe.** `isValidSignature` ignores the signature, so anyone holding
   the full params can trigger the pull — but only ever *toward the bound dest*, i.e. accelerating the
   intended payment. The one residual is that a pending refund is a race against the pull.
-  `validAfter`/`validBefore` are **not** emitted on-chain (only `amount`/`dest`/`digest`/`nonce` via
+  `validAfter`/`validBefore` are **not** emitted on-chain (only `amount`/`dest`/`digest`/`paymentId` via
   `OperationRegistered` / `X402Authorized`), so in practice only the party holding the x402 payload (the
   merchant/facilitator) can form the call — matching EIP-3009 semantics. If guaranteed refunds are
   required they must be enforced off-chain (a settlement hold with the facilitator); the chain cannot
@@ -219,7 +219,7 @@ other agent sender contracts registered on the same wrapper.
 `agentWrapper`, `userWallet`, `vendor`, `amount`, `dest`, `paymentId`, `merchantRef`, `isCheque`,
 rail-specific `extraData`, `vault`, `self`, `USDC`, `nonce`, `expiration`.
 
-The domain separator is `UnderscoreAgent` with `chain.id` and `verifyingContract = self`. Including `self`
+The EIP-712 domain name is `UnderscoreAgent`, with `chain.id` and `verifyingContract = self`. Including `self`
 and `USDC` makes the signature specific to this sender and asset. Including `vault` is required because the
 vault source controls an optional yield withdrawal before payment — it must not be broadcaster-injectable.
 
