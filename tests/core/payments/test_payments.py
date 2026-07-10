@@ -82,7 +82,7 @@ def mock_billing(mock_hq):
 
 @pytest.fixture
 def processor(mock_hq, usdc):
-    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address)
+    p = boa.load("contracts/core/payments/PayProcessor.vy", mock_hq.address, usdc.address, ZERO_ADDRESS, ZERO_ADDRESS)
     mock_hq.setAddr(13, p.address)
     return p
 
@@ -205,6 +205,7 @@ def test_register_mpp_pulls_and_escrows(processor, joker, usdc, admin, deploy3r,
     op = processor.operations(PAY1)
     assert _a(op[0]) == _a(alice) and _a(op[1]) == _a(joker.address) and _a(op[2]) == _a(agent_wrapper)
     assert op[3] == 100 and op[6] is True                # agentWrapper recorded at [2]; amount [3]; exists [6]
+    assert _a(op[9]) == _a(dest)                          # dest recorded on the op ([9])
     assert processor.pendingTotal() == 100
     assert logs[0].amount == 100 and logs[0].rail == 1
     assert _a(logs[0].agentWrapper) == _a(agent_wrapper)  # initiating wrapper emitted for audit
@@ -356,7 +357,7 @@ def test_settle_gated_and_mpp_only(processor, joker, usdc, admin, deploy3r, alic
     # an x402 op cannot be settled here (it settles via the facilitator's EIP-3009 pull)
     usdc.mint(joker.address, 100, sender=deploy3r)
     processor.register(RAIL_X402, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, _x402_extra(0, FAR_FUTURE), sender=bob)
-    with boa.reverts("x402 op"):
+    with boa.reverts("not mpp op"):
         processor.settle(PAY1, sender=admin)
     # and only switchboard may settle
     usdc.mint(joker.address, 100, sender=deploy3r)
@@ -489,6 +490,103 @@ def test_pay_replay_reverts(sender, mock_wrapper, joker, test_signer, admin, ali
         sender.pay(RAIL_MPP, mock_wrapper.address, alice, joker.address, 100, dest, PAY2, REF, False, b"", NO_VAULT, sig, sender=bob)
 
 
+# ═══════════════════════════ Leto: Vendor* list-idiom edge cases + untested branches ═══════════════════════════
+# Coverage gaps found during the PR #76 audit (VendorRegistry / VendorProxy). The swap-remove idiom has a
+# self-referential write when the removed element is the LAST slot (indexOf[last]=target then indexOf[removed]=0
+# on the same address) — these lock in that ordering, plus branches the original 31-case suite never exercised.
+
+def test_registry_remove_middle_vendor_swaps_last_into_slot(registry, admin, vendor_partial):
+    # 3 vendors, remove the MIDDLE one: the last row must swap into the freed slot and keep a valid index,
+    # or PayProcessor.register (which gates on indexOfVendor != 0) would wrongly reject the swapped vendor.
+    a = vendor_partial.at(registry.createVendor("a.com", sender=admin))   # regId 1
+    b = vendor_partial.at(registry.createVendor("b.com", sender=admin))   # regId 2
+    c = vendor_partial.at(registry.createVendor("c.com", sender=admin))   # regId 3
+    assert registry.getNumVendors() == 3
+    registry.removeVendor(b.address, sender=admin)
+    # b is gone
+    assert registry.isVendor(b.address) is False and registry.indexOfVendor(b.address) == 0
+    # c (was last) swapped into slot 2 and is still live at the RIGHT index
+    assert registry.indexOfVendor(c.address) == 2
+    assert _a(registry.vendors(2)[0]) == _a(c.address)
+    assert registry.isVendor(c.address) is True
+    # a untouched, tail slot cleared, count decremented
+    assert registry.indexOfVendor(a.address) == 1 and registry.isVendor(a.address) is True
+    assert _a(registry.vendors(3)[0]) == _a(ZERO_ADDRESS)
+    assert registry.getNumVendors() == 2
+
+
+def test_registry_remove_last_index_vendor_self_swap(registry, admin, vendor_partial):
+    # removing the vendor that occupies the LAST slot hits the self-referential write path; the record
+    # must end at index 0 (not 1), else a removed vendor would still pass the settlement gate.
+    a = vendor_partial.at(registry.createVendor("a.com", sender=admin))   # regId 1
+    b = vendor_partial.at(registry.createVendor("b.com", sender=admin))   # regId 2 (last)
+    registry.removeVendor(b.address, sender=admin)
+    assert registry.indexOfVendor(b.address) == 0 and registry.isVendor(b.address) is False
+    assert _a(registry.vendors(2)[0]) == _a(ZERO_ADDRESS)
+    assert registry.getNumVendors() == 1 and registry.isVendor(a.address) is True
+    # re-create reuses the freed slot with a fresh index — no collision with the live vendor
+    d = vendor_partial.at(registry.createVendor("d.com", sender=admin))
+    assert registry.indexOfVendor(d.address) == 2 and registry.getNumVendors() == 2
+
+
+def test_vendor_remove_last_destination_self_swap_and_reempty(joker, admin, env):
+    # dest allow-list uses the same swap-remove idiom: removing the LAST dest (targetIndex == lastIndex)
+    # must clear indexOfDest AND isAllowed; emptying then re-adding must yield a fresh 1-based index.
+    d1 = env.generate_address("d1")
+    d2 = env.generate_address("d2")
+    joker.addDestination(d1, sender=admin)   # idx 1
+    joker.addDestination(d2, sender=admin)   # idx 2 (last)
+    joker.removeDestination(d2, sender=admin)
+    assert joker.isAllowed(d2) is False and joker.indexOfDest(d2) == 0
+    assert _dests(joker) == [_a(d1)]
+    assert joker.isAllowed(d1) is True and joker.indexOfDest(d1) == 1
+    # remove the final dest -> empty
+    joker.removeDestination(d1, sender=admin)
+    assert joker.isAllowed(d1) is False and joker.indexOfDest(d1) == 0
+    assert _dests(joker) == [] and joker.numDests() == 1
+    # re-add after emptying: fresh index, allow-list flag restored
+    joker.addDestination(d1, sender=admin)
+    assert joker.indexOfDest(d1) == 1 and joker.isAllowed(d1) is True
+
+
+def test_vendor_transfer_to_processor_only_processor(joker, usdc, deploy3r, bob):
+    # the funds-out path is processor-only; a stranger cannot drain a vendor's transient balance
+    usdc.mint(joker.address, 100, sender=deploy3r)
+    with boa.reverts("only processor"):
+        joker.transferToProcessor(usdc.address, 100, sender=bob)
+
+
+def test_vendor_transfer_to_processor_full_balance_default(processor, joker, usdc, deploy3r):
+    # the default _amount = max_value branch sweeps the whole balance (register always passes an explicit
+    # amount, so this branch was never exercised by the original suite)
+    usdc.mint(joker.address, 250, sender=deploy3r)
+    moved = joker.transferToProcessor(usdc.address, sender=processor.address)
+    assert moved == 250
+    assert usdc.balanceOf(joker.address) == 0 and usdc.balanceOf(processor.address) == 250
+
+
+def test_vendor_recover_many_and_nothing_to_recover(joker, usdc, admin, deploy3r, alice):
+    # recoverFundsMany + the "nothing to recover" guard (both untested in the original suite)
+    with boa.reverts("nothing to recover"):
+        joker.recoverFunds(alice, usdc.address, sender=admin)
+    usdc.mint(joker.address, 100, sender=deploy3r)
+    joker.recoverFundsMany(alice, [usdc.address], sender=admin)
+    assert usdc.balanceOf(alice) == 100 and usdc.balanceOf(joker.address) == 0
+
+
+def test_registry_create_requires_template(mock_hq, admin):
+    # a registry with no vendor template cannot mint vendors
+    s = boa.load("contracts/core/payments/VendorRegistry.vy", mock_hq.address, ZERO_ADDRESS)
+    with boa.reverts("no template"):
+        s.createVendor("x.com", sender=admin)
+
+
+def test_registry_set_template_switchboard_only(registry, admin, alice, vendor_partial):
+    t2 = vendor_partial.deploy_as_blueprint()
+    with boa.reverts("no perms"):
+        registry.setVendorTemplate(t2.address, sender=alice)
+    registry.setVendorTemplate(t2.address, sender=admin)
+    assert _a(registry.vendorTemplate()) == _a(t2.address)
 # ═══════════════════════════ SwitchboardDelta: payments config + ops gateway ═══════════════════════════
 
 @pytest.fixture
