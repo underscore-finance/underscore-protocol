@@ -73,6 +73,8 @@ BASELINES = {
     "cheque_owner_pay_existing_steady": 468_790,
     "cheque_agent_atomic_create_and_pay": 691_384,
     "agent_batch_two_steady": 565_915,
+    "billing_payee_pull_first": 470_708,
+    "billing_payee_pull_repeat": 345_461,
 }
 TOLERANCE = 0.025
 BATCH_SAVING_BASELINE = 284_293
