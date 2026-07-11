@@ -13,6 +13,7 @@ def migrate(migration: Migration):
         "PAYMENTS_BRIDGE",
         migration.blueprint.CONSTANTS.ZERO_ADDRESS,
     )
+    print(f"Using initial bridge: {initial_bridge}")
 
     vendor_template = migration.deploy_bp("VendorProxy")
     migration.deploy("VendorRegistry", hq, vendor_template)
