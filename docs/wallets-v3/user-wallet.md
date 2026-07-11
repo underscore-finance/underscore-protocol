@@ -1,191 +1,222 @@
 # User Wallet v3 — Architecture & Spec
 
-**Status:** DRAFT for review. High-level plan only — sections expand with full signatures, storage layouts, and flows after the overall shape is approved.
+**Status:** DRAFT v9 — PoC-ready per external review; freeze-blockers tracked in §16. (v9: purpose-scoped general 1271; capability schema with beneficiary/resource fields + mechanicalClass/semanticKind split; restored session/bundle commitments; corrected lock semantics + transient mandate; honest commitment packing + executable policySnapshot; idempotent transition notifications; lego callback machine; permanent Tier-C/callback limitations; freeze matrix decisions; B-only and C+B PoC coverage. Prior: v8 mechanisms/lock/rails; v7 tiers/phases; v6 manifest/commitments/ownership root; v5 backpack; v4 ground-up rebuild.)
 
-**One-line goal:** a wallet users never migrate again — new protocols and verbs ship as attachable modules, positions and payment routes stay keyed to one permanent address, and every sponsored action costs materially less gas.
+**Scope:** the user wallet stack only — core, config, backpack modules, extenders. Settlement-side payment infrastructure is out of scope.
+
+**One-line goal:** rebuild the wallet from the ground up — a permanent-address core users never migrate away from, everything else attachable, replaceable, rebuilt fresh.
 
 ---
 
-## 1. Why v3
+## 1. Build strategy
 
-- **Migrations are painful and lossy.** External positions keyed to the wallet address (Ripe collateral/debt, locked gov-vault RIPE stakes) cannot move — they must be unwound and rebuilt. Config cloning is version-coupled with no on-chain version tag. Pending payment refunds (`op.payer`) go stale.
-- **We're out of code space.** UserWalletConfig sits ~720 bytes under EIP-170; UserWallet needs `pragma optimize codesize`. x402/MPP support cannot be bolted onto the v2 monolith.
-- **Gas is sponsored and expensive.** Profiling (docs/gas-profiling/) shows a payment costs 335–740k gas of which the actual transfer is ~5–25k. Most overhead is structural (unconditional struct loads, duplicate derivations, unpacked storage) — v3 is a fresh storage layout, so the fixes are free to bake in.
+- **Ground-up rebuild.** Every v3 contract is new; v2 is a requirements reference (§14), never a constraint. Nothing existing is edited. New contracts in `contracts/walletsV3/`, greenfield tests, mock legos/policies.
+- **The PoC proves the frozen surface** — and must not accidentally define it. Freeze only after §16 is demonstrated, including the adversarial suite. Exploratory code is disposable.
+- **Deployment assumptions stated:** Base (Cancun) — EIP-1153 transient storage is mandatory for all lock/session/capability state (a persistent lock would tax every sponsored action with SSTOREs and invalidate the gas gates).
 
-## 2. Design principles
+## 2. Why v3
 
-1. **The wallet address is the user's permanent identity.** The core contract is small enough to audit exhaustively, then frozen. Everything else around it is replaceable.
-2. **Core implements EVM standards; Extenders implement protocols.** EIP-1271, token receiver hooks, and a selector router live in core (protocol-agnostic). x402 digests, Ripe verbs, DEX routing live in Extenders.
-3. **Funds live only in the wallet.** Extenders and legos never custody user assets beyond a metered, single-action approval window. No hub/omnibus contracts holding pooled user funds.
-4. **All permissioning stays at the top.** Every action — regardless of which Extender routes it — passes through the same config → Sentinel gate, and every outbound transfer passes the payee/whitelist/cheque gates in core.
-5. **Pay for what the action needs, nothing more.** Owner-signed simple transfers must not load manager machinery; whitelist recipients must not load payee machinery; the tx-invariant context is derived once per transaction.
+- Migrations are painful and lossy (address-keyed Ripe positions, locked RIPE, version-coupled config, stale refund addresses).
+- Out of code space (v2 config ~720 bytes under EIP-170).
+- Gas is sponsored and expensive (v2: ~385k owner→whitelist repeat cross-block; ~482k payee; ~780k first agent-payee; token movement ~10–27k).
+- v2 accreted complexity — yield tracking, fees, points, pricing, deleverage — all permanently removed from the wallet.
 
-## 3. Component map
+## 3. Design principles
 
-```
-                    ┌───────────────────────────────────────────────┐
-  agents / users ──▶│  EXTENDERS (stateless singletons, swappable)  │
-                    │  Yield · Swap · Debt · Liquidity · Rewards    │
-                    │  Pay-x402 · Pay-MPP · future protocols        │
-                    └───────────────┬───────────────────────────────┘
-                                    │ beginAction / grantApproval /
-                                    │ settleAction / authorizeHash
-                    ┌───────────────▼───────────────┐     ┌──────────────────┐
-                    │  USER WALLET (core, frozen)   │────▶│  LEGOS (v2-style) │──▶ external
-                    │  custody · transfer gates ·   │◀────│  called by        │    protocols
-                    │  action bracket · EIP-1271 ·  │     │  extenders        │
-                    │  selector router · asset data │     └──────────────────┘
-                    └───────────────┬───────────────┘
-                                    │ permission checks / state
-                    ┌───────────────▼───────────────┐
-                    │  USER WALLET CONFIG (state)   │◀──── backpack items
-                    │  managers · payees · whitelist│      (Kernel, HighCommand,
-                    │  cheques · attachments ·      │       Paymaster, ChequeBook,
-                    │  timelocks                    │       Sentinel, Migrator)
-                    └───────────────────────────────┘
-```
+1. **The wallet address is the user's permanent identity.** Core small enough to audit exhaustively, then frozen.
+2. **One wired operational dependency (config)** + the core's own **ownership root** (owner, timelocked transfer, `ownerEpoch`), which outranks config. All other targets dynamically resolved under pinning rules (§5.4).
+3. **Mechanics in core, policy behind config** — valuation/fees/points/limit semantics are module-side and swappable forever.
+4. **Every new top-level execution frame requires IDLE and acquires its locked phase before the first external call.** Internal wallet effects are permitted only in their designated phase, against the active authorization (§5.2). Cleanup never depends on module good behavior.
+5. **No arbitrary-target or unbounded wallet-originated calldata execution.** Opaque *typed* calldata routes only to pinned attached extenders; wallet effects are capability-bound; Tier-C uses a frozen template vocabulary (§5.6).
+6. **Funds live only in the wallet;** deferred payments are reserved commitments; no signature path can move value without commitment backing (§5.5a).
+7. **Permissions fail closed; trust boundaries explicit** (§5.3): extenders translate intent; legos are trusted enforcement adapters audited at core seriousness.
 
-| Component | Deployment | Upgradeable? | Holds funds? | Holds state? |
+## 4. Component map
+
+*(unchanged from v8.1 — users/agents → wallet router → extenders → legos → protocols; config + stateless ParamsModule/Sentinel behind sender gates; ModuleBook + ExtenderBook registries; append-only versioned lego ids.)*
+
+| Component | Deployment | Upgradeable? | Holds funds? | Knows about |
 |---|---|---|---|---|
-| UserWallet (core) | per-user blueprint | **never** (that's the point) | yes — all of it | asset registry, attachments, authorized hashes |
-| UserWalletConfig | per-user blueprint | re-pointable (timelocked; see §5) | no | all user settings |
-| Extenders | shared singletons | swap anytime (registry + attach) | no | protocol bookkeeping only, keyed by wallet |
-| Backpack items | shared singletons | owner opt-in per wallet (as today) | no | none (logic only) |
-| Legos | shared singletons | governance registry (as today) | transient only | none |
+| UserWallet (core) | per-user blueprint | **never** | yes — all of it | its config + its own ownership root |
+| UserWalletConfig | per-user blueprint | replaceable/recoverable (§6) | no | its modules, registries |
+| Backpack modules | shared **stateless** singletons | owner opt-in via ModuleBook | no | config layout |
+| Extenders | shared singletons | bundle attach; two-level lifecycle (§8) | no | legos, protocols |
+| Legos | shared singletons | append-only versioned; **trusted enforcement adapters** | transient only | one protocol each |
 
-## 4. UserWallet core (permanent)
+Attachment state: core stores active attachments (address, codehash, epoch, local status, selector routes, **compact bundle/registration id** — full bundle metadata is never copied per wallet); config stores pending proposals/timelocks/policy.
 
-The complete external surface. Everything here is protocol-agnostic; the bet is that this list never grows.
+## 5. UserWallet core (permanent)
 
-**Custody & transfer**
-- `transferFunds(recipient, asset, amount, ...)` — the *only* way value leaves at rest. Runs payee/whitelist/cheque gates via config/Sentinel. Includes a native batch variant (one permission bundle, N transfers — profiling measured −27–30% for batches of 2).
-- `__default__` (receive) + `onERC721Received`.
+**Ownership root** — owner + timelocked transfer + `ownerEpoch` (bumped on transfer; invalidates pending proposals). Includes the core emergency freeze (§5.7). The only unconditional authority when config is unhealthy.
 
-**Action bracket** (callable only by attached Extenders; one open action per tx, tracked in transient storage)
-- `beginAction(signer, action, assets[], legoIds[]) -> ActionData` — runs the full signer permission path once, snapshots declared asset balances, caches the bundle in transient storage.
-- `grantApproval(asset, amount, legoId) -> amount` — exact approval; target resolved from LegoBook by the core, never supplied by the caller.
-- `settleAction(assets[], usdValue)` — zeroes every approval granted this action, balance-diffs declared assets, realizes yield, pays fees, updates asset registry + deposit points, runs manager post-tx limits **from the cached bundle** (no re-reads).
+**Custody & transfer** — `transferFunds`: config validate-and-consume (nonpayable, atomic), spends `available = max(balance − reserved, 0)`; batch = shared auth, per-transfer validation. ETH + ERC-20, `__default__`, `onERC721Received`.
 
-**Outbound authorization** (deferred payments — x402/EIP-3009, future signature-based rails)
-- `authorizeHash(hash, expiry)` — attached-Extender-only, inside an open action whose outbound gate (payee checks on dest/asset/amount) passed. Core stores `(binderExtender, expiry)`.
-- `revokeHash(hash)` — binder, owner, or security action.
-- `isValidSignature(hash, sig) -> bytes4` — EIP-1271. MAGIC iff hash is stored, unexpired, **and its binder is still attached**. Core never interprets hashes; detaching an Extender instantly voids everything it bound.
+### 5.1 Execution mechanisms — cumulative, per versioned action tuple
 
-**Forward compatibility**
-- Selector router in `__default__`: unknown selector → `selector -> handler` lookup (owner-set via config, registry-validated) → plain `call`/`staticcall` forward with original caller appended. Handlers answer; they cannot move funds. Core selectors cannot be shadowed. This is how the wallet exposes interfaces that don't exist yet (flash-loan callbacks, new receiver hooks, future payment standards) without a core change.
-- `setLegoAccessForAction` — the existing constrained operator-grant raw_call (e.g. Ripe `setUndyLegoAccess`), unchanged. The wallet remains the on-record owner of external positions forever.
+| Mechanism | Protection |
+|---|---|
+| **A — loss containment** | exact approvals / balance-loss bounds, wherever an allowance is involved |
+| **B — semantic consumption** | lego consumes a semantic commitment + typed budgets before effects — applies to *all* protocol interactions |
+| **C — wallet-originated call** | frozen-template CALL (native value, operator grants, wallet-as-msg.sender); always +B, +A where applicable |
 
-**Wiring**
-- `attachments` mapping (Extender set + selector handlers) — mutated only by config, which enforces owner intent, timelock, and ExtenderBook registration.
-- `walletConfig` pointer — **re-pointable** via a heavily-guarded, timelocked flow (see §5). This is the escape hatch that makes config evolution non-migratory.
-- Special paths that must survive: trial-funds clawback, `preparePayment`/Billing pulls, eject mode, freeze.
+Vault deposit / swap / add-liquidity = A+B; borrow / removeCollateral = B; WETH wrap / operator grant = C+B. Classification key: `(extender version, actionId/selector, lego version, verb/schema version, dependency policy)`.
 
-## 5. UserWalletConfig
+**Capability schema** (committed at `openSession`, config-approved; exact encodings are PoC deliverables, the shape is not):
 
-Same role as v2 — the per-wallet state container — with four changes:
-
-1. **New packed storage layout.** Hot structs hand-packed (profiling: `PayeeData` 8→3 slots, `ManagerData` 7→3, `Cheque` 11→5, `ChequeData` 11→4, points 6→2–4). Halves recurring writes and first-touch 20k/slot cliffs.
-2. **Owner fast path is a layout concern.** `canOwnerManage` + frozen/eject flags packed into one slot read first; the three manager-struct getters (measured 130k cold on every v2 owner action) are only touched when the signer is actually a manager.
-3. **ActionDataProvider becomes swappable** (it is `immutable` in v2 — a documented migration-forcing landmine). Same owner-opt-in rules as backpack items.
-4. **Extender attachment lifecycle** lives here: `attachExtender` (timelocked, must be ExtenderBook-registered), `detachExtender` (instant — kill switch, also usable by security signers), selector-handler management with the same rules.
-5. **Config replacement without wallet migration:** owner initiates → timelock → new config (governance-registered template) is deployed, state copied by the Migrator, core re-pointed. Funds, positions, address, attachments never move. This retires the "same-version config clone" constraint; add `version()` tags to both contracts regardless.
-
-Action types become plain `uint256` at the core/config boundary (not a compile-time flag) so new action classes ship via a Sentinel upgrade, never a core change.
-
-## 6. Extenders
-
-**Definition:** stateless singleton logic modules, registered in an **ExtenderBook** (LegoBook-style timelocked governance registry), attached per-wallet by the owner. They are to UserWallet what backpack items are to UserWalletConfig — trusted registered code that relays the real signer and calls privileged, sender-gated functions.
-
-**What an Extender does:** owns the typed user-facing ABI for a domain, validates protocol-specific inputs, orchestrates legos with plain typed `extcall`s (no raw_call), and does its bookkeeping in its own storage keyed by wallet address. Because the wallet address is permanent, that bookkeeping survives everything.
-
-**What an Extender cannot do:** hold funds; receive approvals; move value except through the core's gated primitives; act on a wallet it isn't attached to; bypass Sentinel (the signer it relays goes through the same checks as v2).
-
-**Initial set (maps 1:1 to v2 wallet verb groups):**
-
-| Extender | Absorbs from v2 | Notes |
-|---|---|---|
-| YieldExtender | depositForYield / withdrawFromYield / rebalance | |
-| SwapExtender | swapTokens / mintOrRedeem / confirmMintOrRedeem | swap-fee logic moves with it; fee *enforcement* stays in core settle |
-| DebtExtender | addCollateral / removeCollateral / borrow / repay / deleverage | Ripe positions stay keyed to the wallet address — nothing to migrate, ever |
-| LiquidityExtender | add/removeLiquidity (+ concentrated) | NFT round-trip checks come along |
-| RewardsExtender | claimIncentives | |
-| PayExtender-x402 | replaces the PayProcessor hub | binds EIP-3009 digests with `from = wallet` via `authorizeHash`; facilitator pulls wallet → merchant directly; refund-before-pull = revoke. No pooled funds, no commingling |
-| PayExtender-MPP | replaces MPP escrow | wallet *is* the escrow: register = record op (nothing moves), settle = gated transfer to bridge address, refund = cancel. Residual: per-transfer bridge minimums may require per-wallet op batching |
-| WethExtender | convertEthToWeth / convertWethToEth | candidate to keep in core if cheap enough — open question |
-
-**Lego-side changes required (one-time, we own all legos):** legos pull from the explicit `_user` instead of `msg.sender`, and caller guards like Ripe's `assert msg.sender == _recipient` relax to "recipient or an attached Extender of recipient." External protocols see no difference — the lego is still what calls them, and operator grants are still wallet→protocol.
-
-## 7. Backpack items
-
-Largely unchanged in role; all get the packed-layout treatment.
-
-- **Kernel / HighCommand / Paymaster / ChequeBook** — same responsibilities against the new config layout. ChequeBook adds the instant-cheque short-circuit (create-and-pay without persisting the 11-slot record; profiling: saves ~300–400k of the ~973k atomic flow).
-- **Sentinel** — same validation role; consumes `uint256` action ids (unknown ids → a default extension-action permission class with USD limits); owner path reduced to the packed fast-path slot.
-- **Migrator** — shrinks to: v2→v3 cutover tool + config-replacement copier (§5.5). Steady-state wallet-to-wallet migration stops being a product feature.
-- **ActionDataProvider** — assembles the bundle once per tx into the core's transient cache; loses the per-helper back-call chatter (v2: ~14 staticcalls, 16 registry `getAddr`s per action).
-
-## 8. Transaction flows (abbreviated)
-
-**Yield deposit (agent):**
 ```
-agent → YieldExtender.depositForYield(wallet, legoId, asset, vault, amt)
-  → wallet.beginAction(agent, EARN_DEPOSIT, [asset], [legoId])   # perms, snapshot, bundle→transient
-  → wallet.grantApproval(asset, amt, legoId)                     # exact, LegoBook-resolved
-  → Lego.depositForYield(asset, amt, vault, wallet, ...)         # typed extcall; shares minted to wallet
-  → wallet.settleAction([asset, vaultToken], usd)                # approvals zeroed, diffs, fees, limits
+Capability { id, legoRef, verbId, schemaId, semanticHash,
+             beneficiaryMode, approvedBeneficiary, maxUses }
+Budget     { capabilityId, mechanicalClass, semanticKind, resourceId, maxAmount }
+
+mechanicalClass (permanent core enum): SPEND | LIABILITY | ASSET_RELEASE | NFT | NATIVE | AUTHORITY
+semanticKind (registered, open-ended):  e.g. keccak256("RIPE_DEBT_INCREASE_V1")
 ```
 
-**x402 payment (no hub):**
+Core understands only the six mechanical classes — new protocol effects register new `semanticKind`s under an existing class with **no core change**. The manifest carries a **bounded canonical semantic payload** (schema-validated) so Sentinel can police policy-relevant fields — approved vaults/pools, recipients, minOut, position ids, lock periods — while the core only commits to the canonical hash. Beneficiary is a **typed field** (`beneficiaryMode` + `approvedBeneficiary`), mechanically enforced by core — never inferred from a hash.
+
+`consumeCapability(capabilityId, semanticHash, budgetLeaves[])` — session-resolved lego only; hash computed from actual typed args (domain-separated by lego version + verb + schema) immediately before the effect. Encoding validation rejects: duplicate capability ids, duplicate/overlapping budget keys, unknown mechanical classes, wrong schema versions, noncanonical leaf ordering, missing mandatory leaves, consumption overflow. **Manifest cardinality maxima fixed pre-freeze.**
+
+### 5.2 Execution lock + phase machine (transient storage mandated)
+
 ```
-agent → PayExtender402.pay(wallet, vendor, amt, dest, paymentId, window)
-  → wallet.beginAction(...)                        # payee/cheque gates run on dest+amt
-  → extender builds EIP-3009 digest (from = wallet)
-  → wallet.authorizeHash(digest, validBefore)      # + op recorded in extender storage
-  ... later: facilitator → USDC.transferWithAuthorization(from=wallet, to=dest, ...)
-             USDC → wallet.isValidSignature(digest) → MAGIC → funds move wallet→merchant
+IDLE → DISPATCHING → ACTIVE → SETTLING → CALLBACK → IDLE      (sessions)
+IDLE → DIRECT_EXECUTING → IDLE                                 (transfers/batch)
+IDLE → COMMITMENT_SETTLING → IDLE                              (settle/sync/refund/cleanup)
+IDLE → ANSWER_CALLBACK → IDLE                                  (non-static answer-only forwards)
 ```
 
-**Simple transfer (owner):** stays entirely in core — `wallet.transferFunds(...)`, no Extender hop, owner fast-path permission read, whitelist early-out. This is the highest-volume path and is designed to be the cheapest.
+- **Top-level frames require IDLE; the phase is set before the first external call** (config, Sentinel, extenders, tokens, native recipients, rail adapters, handlers). Internal effects (Tier-C during ACTIVE, fee adjustment during SETTLING, hook during CALLBACK) run only in their designated phase against active authorization.
+- Answer-only handlers use STATICCALL where possible; otherwise ANSWER_CALLBACK with gas/returndata caps.
+- `isValidSignature` answers only in global IDLE (prevents mid-session external pulls). **Stated limitation:** a protocol cannot verify this wallet's signature during the wallet's own session — permit-style flows inside extender actions are unsupported; any future exception requires a session-approved digest capability designed into core, not a Sentinel change.
+- Config refuses mutations unless the wallet reports not-busy.
+- **Session commitment (transient, complete list — restored):** attachmentKey/version · extender address + codehash · attachment epoch · **bundleHash** · registry lifecycle result/epoch · selector + route-derived actionId · calldata hash · manifest hash · config address + configEpoch · ownerEpoch · signer · session nonce · resolved target/codehash root · capability/schema root · hook flags. Nothing mutable is re-resolved mid-session.
+- **bundleHash covers:** extender version/codehash, manifest schema, capability/effect schemas, mechanism set, lego versions, dependency policies, rail adapters, Tier-C template version, hook behavior, exit selectors, required core version — plus the signed tier checklist (§17).
+- SETTLING→CALLBACK ordering as v8 (approvals zeroed first; postconditions; policy; bounded adjustment; final postconditions; authority revoked; capped best-effort hook; IDLE). One active session; sequential sessions with fresh nonce; mutable state revalidated per session.
 
-## 9. Gas strategy (baked into the design, not bolted on)
+### 5.3 Trust boundaries
 
-From docs/gas-profiling/ (measured on v2; the v2 transfer is 335–740k with ~5–25k of actual transfer):
+1. **Calldata → manifest:** extender translates intent; containment begins at the config-approved manifest (pinned, timelocked bundle attach, revocable). Optional later: caller-signed intents.
+2. **Manifest → effect:** core-enforced (budgets, semantic consumption, postconditions). Legos are trusted enforcement adapters under an explicit contract: every effect path requires `msg.sender == wallet.activeExtender()` and `_user ==` active wallet; consumption strictly before effects; outputs forced to the wallet unless the capability's beneficiary field says otherwise; no bypass entry points; operator access unusable through unguarded functions. **Protocol callbacks into legos get their own machine:** the lego enters `EXPECTING_CALLBACK(protocol, selector, wallet, semanticHash, maxCalls)` when the active extender initiates, accepts exactly the expected callback, consumes only pre-authorized capability/budget state, and clears the context transactionally — namespaced per wallet (one shared lego may serve multiple wallets per tx).
 
-| Rule | Source finding | v3 mechanism |
-|---|---|---|
-| Owner actions never load manager structs | 130k cold wasted per owner action (R1, both reports) | packed fast-path slot read before any struct getter |
-| Derive the bundle once per tx | pre/post double-derivation; batch 2nd action −120k (R14) | `beginAction` caches to transient; `settleAction` and batched actions reuse |
-| Pack every hot struct | Vyper = 1 slot/field; first-touch cliffs of 100–236k (R10) | new layout: PayeeData 8→3, ManagerData 7→3, Cheque 11→5, ChequeData 11→4, points packed |
-| Price once per action | 2 Appraiser round-trips + 2×`isBasicEarnVault` (26.9k) per transfer (R2/R8) | Appraiser returns unit price + yield flag once; core computes both values; O(1) vault classification |
-| Trust resolved addresses | Ledger resolved 4–6×, 16 `getAddr`/action (R3) | bundle addresses passed down; callee trust = registered-wallet check already in place |
-| Points accrual off the hot path | 20–99k per action, unconditional (R15) | skip when value unchanged; evaluate lazy checkpoint (open question) |
-| Batch natively | −27–30% measured for 2 actions (R4/R7) | core batch transfer + one bracket for multi-step Extender actions |
-| Cheap paths stay cheap | whitelist ~3k vs payee 80–236k (R9) | whitelist early-outs preserved; product favors whitelisting; instant-cheque short-circuit |
-| No minimal proxies | +2.6k/call forever to save one-time deploy (both reports §8.5) | keep full blueprint deploys; core is small so deploy cost drops anyway |
+### 5.4 Dependency pinning — with the honest qualification
 
-The Extender hop itself costs one call frame (~2.6k) — noise against the structural savings above. Net expectation: the common sponsored paths land well under half of today's cost; re-measure per combination rather than summing (per the reports' warning). Fix the exact-full-ETH deregister revert (§9 of both reports) in the v3 core from day one.
+Registration classifies each lego dependency: immutable / append-only versioned / owner-approved root / **governance-mutable (disclosed)**. The no-forced-code invariant is qualified precisely: Underscore-controlled executable dependencies cannot widen without a new owner-approved bundle; **third-party proxies/governance are external risks explicitly accepted at attachment** (a proxy upgrade changes behavior without changing codehash — surfaced in attachment UX/events); parameter-only dependencies move only within committed policy; pause/narrow-only actions may stay governance-controlled. Attached-version metadata can only narrow. Owners attach **bundles** (referenced per wallet by compact id).
 
-## 10. Migration story
+### 5.5 Commitments (deferred outbound value)
 
-- **One final v2→v3 migration** per user: move token balances (incl. receipt tokens), clone config into the new layout, re-establish attachments. Ripe debt / locked-stake wallets (<10 today): either a Ripe-side, Migrator-gated `transferPosition` (preferred — moves collateral/debt/lock timers intact; we control Ripe) or concierge unwind.
-- **After v3:** there is no wallet migration. New protocol = new Extender. New validation logic = new Sentinel/backpack item. New config layout = config replacement behind the permanent core. New inbound interface = selector handler.
+Packed layout target **≤5 words, hard ceiling 6** — achieved via compact registry ids (verifier/adapter), a policy-record id or hash, derived protocol nonce (from commitment id), narrow checked amounts/timestamps; exact bit layout demonstrated pre-freeze. **Total system storage reported separately:** `reserved[asset]`, replay tombstone, per-wallet pending-commitment counter, extender metadata, failed-notification retry state.
 
-## 11. Security invariants
+Fields: binder + binderEpoch, verifier id, rail-adapter root, asset, originalAmount, remainingLiability, **cumulative settled (or hasSettled bit)** — settle 5 then refund 5 must resolve terminal state unambiguously (SETTLED if any settlement occurred and liability is zero; REVOKED only if fully refunded with none) — destination, window, mode, state, **policySnapshot hash**, **transitionNonce**.
 
-1. Value at rest leaves only via `transferFunds` (payee/whitelist/cheque gated) or a facilitator pull against a hash bound through those same gates.
-2. Approvals are exact, action-scoped, and zeroed at settle; targets only ever resolve from LegoBook.
-3. Every action's signer passes the identical config→Sentinel path regardless of entry point.
-4. Extenders/handlers are doubly gated: governance registration (timelocked) AND owner attachment (timelocked on, instant off). Detach voids the Extender's pending hash authorizations atomically.
-5. No delegatecall anywhere. Handlers are `call`-forwarded answerers with no custody and no privileged wallet access.
-6. Governance can never force code onto an existing wallet (unchanged from v2 backpack sovereignty).
+- **Modes:** EXTERNAL_EXACT (x402: full pull / full revoke / expiry only; no partial release under a valid digest) · RESERVED_TRANSFER (MPP: `settleReservedTransfer(id, amount)` transfers to the **stored** destination; `refundReserved(id, amount)` **releases reservation back to this wallet's available balance — no token transfer**; state + reservation updated before external transfer, under the lock; refunds never restore consumed limits).
+- **policySnapshot — executable, model chosen:** core stores the hash; settlement callers supply the bounded `PolicyTerms` preimage; core verifies and enforces — works even if config is broken. Fees on externally-completed pulls: reserved at authorization if applicable, otherwise **best-effort/accounting-only** — sync never reverts for an unavailable fee.
+- **Idempotent, retryable notification:** every commitment transition (settle, refund, cancel, expire, cleanup — not just x402 sync) notifies policy **non-bubbling**, identified by `keccak256(commitmentId, transitionNonce)`; core tracks monotonic nonce + cumulative totals, config records latest applied — a later successful notification catches policy up; retries can never reapply fees, double-consume limits, or apply stale transitions. (Synchronous session `onSettle` still bubbles — atomic revert is correct there.)
+- **Authority matrix (per rail adapter registration):** x402 sync permissionless with conclusive on-token evidence; MPP settlement per adapter proof (never assumed-safe permissionless); refunds per defined authority; expiry permissionless after deadline; cancel/`cleanupInvalidBinder` check external-pull evidence first (including pre-HARD_REVOKE pulls).
+- **Adapter liveness:** a pre-approved compatible adapter set/root is committed at authorization; after the commitment window passes, **expiry releases the reservation without adapter cooperation** (timeout fallback). Governance can never substitute an adapter that fabricates evidence (append-only + authorization-bound root).
 
-## 12. Open questions (for review)
+### 5.5a EIP-1271 — two strictly separated perimeters
 
-1. **Naming:** "Extender" vs "Extension"; "ExtenderBook" vs folding registration into LegoBook with a type flag.
-2. **WETH wrap/unwrap:** keep in core (tiny, high-frequency) or first Extender?
-3. **Attach timelock length** — same as wallet timelock, or a shorter dedicated one? Should security signers be able to detach (kill switch) as specced?
-4. **MPP without the hub:** accept per-wallet batching latency against bridge minimums, or keep a slim staging pool as a transitional MPP-only component?
-5. **x402 v1 sequencing:** ship the existing hub branch first and treat it as scaffolding, or hold x402 for v3 Extenders?
-6. **Deposit points:** how lazy can accrual get without breaking loot fairness? (Biggest remaining unconditional per-action cost.)
-7. **Agent stack:** AgentWrapper/senders point at Extender ABIs in v3 — fold the payments sender (AgentSenderPay) into PayExtenders, or keep the sender layer as-is?
-8. **Config replacement guardrails:** what's copied automatically vs re-established manually (managers yes; pending cheques?), and does replacement require a fresh global registry template check only, or per-field validation like today's Migrator?
+**Rail-backed (commitment) validation:** MAGIC iff an ACTIVE, unexpired commitment matches the hash, binder attached at recorded epoch, wallet globally IDLE. Caller-binding to verifier = Base-fork test decision. Terminal (revoked/expired/settled) rail digests **never fall through to the general path**; commitment lookup takes precedence.
+
+**General-signature path (reserved, ships disabled) — purpose-scoped, not generic:** a versioned signature envelope `{validationMode, purposeId, validatorId, ownerEpoch, nonce, deadline, signature}` validated by owner-timelocked, purpose-scoped validators via config/Sentinel. Hard rules: **value-moving verifiers (tokens, Permit2, settlement conduits) can never be satisfied here — value movement requires the commitment/reservation path, no exceptions** (otherwise an owner-signed EIP-3009 digest would bypass reservations entirely); fails closed on unknown versions, malformed returndata, or validator revert; always fails during emergency freeze, recovery, and every non-IDLE phase; binds chain, wallet, ownerEpoch, nonce, deadline. Initial enablement, if any: an explicit **authentication purpose only** (sign-in-with-wallet). Order-signing is potentially value-moving and gets its own purpose review — and if value-moving general signatures are ever enabled, they become a **seventh outflow-authority class** added to invariant 2 explicitly.
+
+### 5.6 Tier-C templates & router — permanent limitations, stated plainly
+
+**The template vocabulary is frozen with the core.** Each template freezes: id + schema, target/selector source, argument order + core-forced fields, native value + gas behavior, returndata handling, reservation treatment, required semantic capability, reversal/emergency behavior, NFT approve vs `setApprovalForAll` restrictions. A future call shape outside the vocabulary is **unsupported by this core** unless the operation is redesigned so a lego becomes the caller — a registry cannot teach frozen core a new template. The PoC proves one independently-chosen fitting shape *and* one intentionally-unsupported shape that must reject.
+
+**Privileged wallet callbacks are permanently unsupported:** privileged protocol callbacks must terminate at a lego (via §5.3's EXPECTING_CALLBACK machine); protocols requiring the *wallet itself* to perform a privileged callback are out of scope for this core, permanently. (No disabled permit mechanism is reserved — a speculative callback surface without a concrete protocol requirement is worse than the limitation.)
+
+Router: fail-closed; `executeAttached(attachmentKey, calldata)` keyed to the exact attached version, restricted to registration-pinned exit/refund/sync capabilities.
+
+### 5.7 Emergency freeze + recovery matrix (decisions)
+
+- **Freeze:** owner, or a security signer attested by a *healthy* config, freezes immediately. **Unfreeze: owner only, timelocked.**
+- While frozen: general 1271 always fails; existing rail commitments either explicitly survive (sync/expiry continue) or are explicitly HARD_REVOKED — never incidentally; MPP maintenance (sync, cancel, expire, cleanup) stays enabled; new sessions, transfers, and authorizations blocked except the risk-reducing set.
+- **Risk-reducing liveness route:** frozen exits must not wait on RECOVER_FRESH's long timelock — the core provides an **owner-only route to registration-pinned risk-reducing selectors** (debt repayment, collateral top-up, DRAIN exits, operator revocation, commitment maintenance) that functions even when config is broken. Scope: exactly the registration-pinned exit capability set, nothing else.
+- Both MIGRATE and RECOVER_FRESH increment `configEpoch`. Eject semantics, operator/NFT recovery under freeze, and the full matrix (which actionIds are risk-reducing) are the §16 deliverable.
+
+**Explicitly NOT in core, permanently:** pricing, yield tracking, fee logic (beyond the bounded adjustment), points, WETH wrap, deleverage, lego interfaces, USD-anything.
+
+## 6. UserWalletConfig — state + gates, policy-free
+
+*(Structure as v8.1; deltas only.)* Hooks: `validateAndConsumeTransfer`; `authorizeSession` + target resolution in one traversal (returns targets + hook bitmap); `onSettle(report) → bounded adjustment`; core passes an authenticated authority class (config never calls back to re-read owner). All per-wallet **policy** state lives here (core keeps ownership, attachments, commitments, epochs, lifecycle). Amount-denominated limits for now; USD returns as a Sentinel upgrade. Writes sender-gated to stateless modules; module succession via ownership root. Replacement/recovery: **MIGRATE** (freeze → chunked copy → committed identities/schema/counts → reject-if-changed → `configEpoch++`) and **RECOVER_FRESH** (longer timelock, under core emergency freeze; conservative empty config; abandons inaccessible policy state; preserves funds/commitments/attachments/owner/epochs; `configEpoch++`).
+
+## 7. Backpack modules
+
+*(As v8.1.)* Stateless ParamsModule + Sentinel in ModuleBook; state in config behind sender gates; later: payee/cheque policy, fee/points policy, accounting adapters; Migrator's successor = the replacement copier.
+
+## 8. Extenders
+
+*(As v8.1, plus:)* registration metadata includes the **tier checklist artifact** (§17) inside `bundleHash`; CLOSED is operational, never an on-chain proof; per-wallet closure locally provable; core commitment state canonical, extender storage supplemental/reconcilable; attaching v2 auto-DRAINs v1 locally; detach = HARD_REVOKE with evidence-checked cleanup.
+
+## 9. Flows
+
+*(As v8.1 — yield A+B with EXPECTING_CALLBACK if the protocol calls back; x402 EXTERNAL_EXACT with IDLE-only 1271 + preimage-verified policy terms at sync; owner transfer via DIRECT_EXECUTING.)*
+
+## 10. PoC scope
+
+*(As v8.1, plus:)* purpose-scoped general-1271 envelope (disabled path, validated shape); policySnapshot preimage flow; transition-nonce notification; lego EXPECTING_CALLBACK machine; owner-only risk-reducing route under freeze.
+
+## 11. PoC build order
+
+1. **Minimal direct transfer** + config/Sentinel — hot-path budget first.
+2. **YieldExtender + mock lego** — A+B: phase machine, manifest, budgets, semantic consumption, postconditions, epilogue; direct-vs-mediated cost comparison.
+3. **Mock debt lego (borrow / removeCollateral)** — **B-only, no-allowance liability actions**: semantic-hash enforcement where approval budgets protect nothing; the verbs that caused the central architecture correction get first-class coverage.
+4. **Tier-C templates** — **C+B**: WETH/native-value template, operator grant + emergency revoke, NFT template if retained; plus the fitting/unsupported mock-future-protocol pair.
+5. **PayExtender-x402 on forked Base USDC** — EXTERNAL_EXACT, sync + preimage policy terms, 1271 caller-binding decision, non-bubbling notification.
+6. **Mock MPP flow** — partial settle/refund with cumulative-settled tracking, authority matrix, transition-nonce retry/idempotency, onSettle bounds/failure.
+7. **Adversarial suite** — as v8.1, plus: general-1271 bypass attempts (owner-signed EIP-3009 through the general path must fail), terminal-digest fall-through, mid-session lego-callback abuse (EXPECTING_CALLBACK), settle-then-refund terminal states, notification replay/stale-transition attempts, frozen-state matrix (each risk-reducing path works; everything else blocked).
+8. Freeze provisional selectors/storage; audit-oriented build.
+
+## 12. Gas strategy
+
+*(v8.1 gates retained: <~190k must-have / 125–150k stretch hot path; router+empty session <~60k with contents defined; core bytecode ≤16KB; full ERC-4337 sponsored envelope.)* Additions:
+
+- **Transient storage mandated** for lock/session/capability state (deployment assumption, §1).
+- consumeCapability: warm **base** target + **per-budget-leaf marginal** target; first vs repeated use benchmarked.
+- One-item vs maximum-cardinality manifests; **realistic minimal session gets an acceptance ceiling, not just a report**.
+- Attachment storage budget (slots per attachment/selector/bundle-id); bundle metadata never copied per wallet.
+- Commitment cost includes the pending-commitment counter; **6-word hard ceiling / 5-word target** with demonstrated bit layout.
+- Fixed gas/returndata caps for extender hooks and policy notifications; benchmark disabled/success/revert/exhausted hooks.
+- 1271 benchmarks: rail hit, disabled-general miss, enabled-general validation, adversarial calldata.
+- Config runtime + combined core+config deployment ceilings; optimizer-mode comparison (`codesize` vs `gas`).
+- **A defined, measurable v2-vs-v3 sponsored-UserOperation improvement requirement** (not just L2 execution).
+- Standing disclaimer: amount-only PoC ≠ feature-equivalent to v2 pricing/points behavior.
+
+## 13. Accounting
+
+*(As v8.1 — no core asset registry; events + indexing canonical; read-only adapters per ExtenderBook metadata.)*
+
+## 14. Requirements inventory
+
+*(As v8.1 table — unchanged dispositions.)*
+
+## 15. Security invariants
+
+1. Every fund- or position-affecting action executes in a wallet-owned frame with the real caller authenticated.
+2. **Wallet-authorized outflow authority or new principal liability is initiated only via:** (1) config-authorized direct transfer; (2) capability-bound session execution (cumulative mechanisms per registered tuple); (3) rail-bound deferred pull against an ACTIVE commitment; (4) atomic reserved settlement/refund; (5) persistent operator grants (Tier-C templates, emergency-revocable); (6) enumerated emergency/cutover primitives. General-signature validation can never authorize value movement — if that ever changes, it is added here as an explicit seventh class first. Asynchronous protocol effects (interest, liquidations, rebases) are handled by accounting, not prevented.
+3. Every new top-level frame requires IDLE and takes its phase before any external call; internal effects only in designated phases; `isValidSignature` answers only in IDLE; lock/session state is transient.
+4. Committed value is reserved; `available` saturates; limits consumed at authorization, never twice; EXTERNAL_EXACT never partially releases under a valid digest; refunds don't restore limits; terminal states unambiguous (cumulative settled tracked); notifications idempotent per transition nonce.
+5. Approvals exact, manifest-budgeted, session-scoped, zeroed before settlement hooks.
+6. Parameter-sensitive effects require semantic consumption with typed beneficiary/resource fields; budgets per mechanical class; unknown classes/kinds/schemas revert.
+7. Trust boundaries per §5.3; legos audited at core seriousness; lego callbacks only through EXPECTING_CALLBACK contexts; dependency pinning per §5.4 with the third-party-risk qualification stated.
+8. Fail closed everywhere: unknown selectors, ids, capabilities, envelope versions, validator errors.
+9. Detach = HARD_REVOKE with evidence-checked cleanup; DRAIN_ONLY preserves exits via exact-version `executeAttached`; CLOSED is operational.
+10. No delegatecall; no arbitrary-target or unbounded wallet-originated calldata; Tier-C vocabulary and privileged-callback exclusion are permanent, stated limitations.
+11. Governance can never force or widen code on an existing wallet (append-only registries, narrow-only metadata, bundle re-attach for any widening); third-party proxy risk is disclosed and owner-accepted at attachment.
+12. Ownership root outranks config; freeze/unfreeze per §5.7 with the owner-only risk-reducing route; recovery paths exist for every config failure mode; commitment maintenance survives config/extender/policy failure.
+
+## 16. Pre-freeze vs post-freeze
+
+**Pre-freeze (PoC must prove):** phase machine incl. ANSWER_CALLBACK + transient mandate; capability/budget encodings (beneficiary fields, mechanical classes, semantic kinds, rejection rules) + canonical payload for Sentinel + manifest maxima; complete session/bundle commitment lists; lego adapter contract incl. EXPECTING_CALLBACK; dependency qualification; commitment bit layout (≤6 words) + policySnapshot preimage flow + cumulative-settled tracking + transition-nonce idempotency + adapter-root liveness fallback; purpose-scoped general-1271 envelope (disabled but validated); rail authority matrix; Tier-C frozen vocabulary + fitting/rejecting mock proofs; permanent callback exclusion; freeze/recovery matrix incl. owner-only risk-reducing route + commitment survival rules; both recovery modes; component gas/storage/bytecode gates incl. acceptance ceilings; lean two-step sign-off with the **checklist artifact committed into bundleHash** (max loss/liability, required caller, classes/kinds, beneficiaries, persistent authority, dependencies + admins, callback behavior, freeze/DRAIN behavior, adversarial tests, residual trust — the reviewer approves the artifact, not a tier label).
+
+**Post-freeze:** replacement copier; payee/cheque policy; pricing/USD Sentinel; fee/points policy; accounting adapters; agent-stack integration; cutover tooling; ERC-1155 receiver; benchmark expansion.
+
+## 17. Decisions & remaining open questions
+
+**Resolved:** general-1271 reserved path IN — **purpose-scoped per §5.5a** (initial enablement, if any: authentication only). Tier sign-off: lean two-step (builder proposes schema + mechanisms + adversarial tests → one independent technical reviewer approves the **checklist artifact**; timelocked registration + owner attach do the rest).
+
+**Open:**
+1. **Attach timelock minimum.**
+2. **Manager model for PoC** (flat allowlist + caps + classes + period counters) — confirm.
+3. **Contracts location** (`contracts/walletsV3/`), registry split — confirm.
