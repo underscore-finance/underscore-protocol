@@ -89,6 +89,7 @@ struct Operation:
 
 senders: public(HashMap[address, bool])             # AgentSenderPays that may register ops (switchboard-set)
 bridgeAddress: public(address)                      # Bridge (company) liquidation address — a plain USDC send off-ramps to Tempo (switchboard-set; the server cannot redirect)
+catchAll: public(address)                           # the single catch-all vendor: register() skips ITS per-dest allow-list (routes any sender-supplied dest). empty = no exemption; switchboard-set; MUST be the dedicated catch-all proxy, never a curated vendor
 operations: public(HashMap[bytes32, Operation])     # paymentId => Operation
 opDigest: public(HashMap[bytes32, bytes32])         # paymentId => bound x402 digest (0 for MPP)
 pendingTotal: public(uint256)                      # MPP escrow not yet settled / refunded (refundable)
@@ -128,6 +129,9 @@ event SenderSet:
 
 event BridgeSet:
     bridgeAddress: indexed(address)
+
+event CatchAllSet:
+    vendor: indexed(address)
 
 
 @deploy
@@ -176,10 +180,14 @@ def register(_protocolId: uint8, _agentWrapper: address, _vendor: address, _user
     assert _amount != 0  # dev: zero amount
     assert not self.operations[_paymentId].exists  # dev: paymentId reused
 
-    # common: vendor must be registered + dest allow-listed, then pull the pushed USDC out of the vendor
+    # common: vendor must be registered, then pull the pushed USDC out of the vendor. Every vendor
+    # enforces its own dest allow-list EXCEPT the single catch-all vendor, which routes any dest the
+    # (switchboard-authorized) sender supplies. catchAll is empty by default (the check runs for every
+    # registered, non-empty vendor) and is set only via the switchboard (setCatchAll).
     registry: address = self._vendorRegistry()
     assert staticcall VendorRegistry(registry).indexOfVendor(_vendor) != 0  # dev: not a vendor
-    assert staticcall VendorProxy(_vendor).isAllowed(_dest)  # dev: dest not allowed
+    if _vendor != self.catchAll:
+        assert staticcall VendorProxy(_vendor).isAllowed(_dest)  # dev: dest not allowed
     pulled: uint256 = extcall VendorProxy(_vendor).transferToProcessor(USDC, _amount)
     assert pulled >= _amount  # dev: vendor underfunded
 
@@ -347,3 +355,15 @@ def setBridge(_bridgeAddress: address):
     assert addys._isSwitchboardAddr(msg.sender)  # dev: no perms
     self.bridgeAddress = _bridgeAddress
     log BridgeSet(bridgeAddress=_bridgeAddress)
+
+
+@external
+def setCatchAll(_vendor: address):
+    # The single catch-all vendor. register() skips ITS per-dest allow-list, so it routes any dest a
+    # switchboard-authorized sender supplies — the safety for those payments lives entirely with the
+    # sender (it must pass a domain-bound dest). MUST be the dedicated catch-all VendorProxy, NEVER a
+    # curated vendor (that vendor would become allow-any). empty(address) disables the exemption
+    # (every vendor then enforces its own allow-list). Only the Switchboard sets it.
+    assert addys._isSwitchboardAddr(msg.sender)  # dev: no perms
+    self.catchAll = _vendor
+    log CatchAllSet(vendor=_vendor)

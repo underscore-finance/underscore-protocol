@@ -43,6 +43,7 @@ interface MissionControl:
 interface PayProcessor:
     def setSender(_account: address, _allowed: bool): nonpayable
     def setBridge(_bridgeAddress: address): nonpayable
+    def setCatchAll(_vendor: address): nonpayable
     def settle(_paymentId: bytes32): nonpayable
     def bridge(_amount: uint256): nonpayable
     def refund(_paymentId: bytes32, _amount: uint256): nonpayable
@@ -67,6 +68,7 @@ PAY_PROCESSOR_ID: constant(uint256) = 13
 flag ActionType:
     SET_SENDER
     SET_BRIDGE
+    SET_CATCH_ALL
     SET_VENDOR_TEMPLATE
     UNPAUSE
 
@@ -78,6 +80,7 @@ struct PendingSender:
 actionType: public(HashMap[uint256, ActionType])
 pendingSender: public(HashMap[uint256, PendingSender])
 pendingBridge: public(HashMap[uint256, address])
+pendingCatchAll: public(HashMap[uint256, address])
 pendingVendorTemplate: public(HashMap[uint256, address])
 
 event PendingSenderChange:
@@ -88,6 +91,11 @@ event PendingSenderChange:
 
 event PendingBridgeChange:
     bridgeAddress: indexed(address)
+    confirmationBlock: uint256
+    actionId: uint256
+
+event PendingCatchAllChange:
+    vendor: indexed(address)
     confirmationBlock: uint256
     actionId: uint256
 
@@ -102,6 +110,9 @@ event SenderSet:
 
 event BridgeSet:
     bridgeAddress: indexed(address)
+
+event CatchAllSet:
+    vendor: indexed(address)
 
 event VendorTemplateSet:
     template: indexed(address)
@@ -268,6 +279,20 @@ def setBridge(_bridgeAddress: address) -> uint256:
 
 
 @external
+def setCatchAll(_vendor: address) -> uint256:
+    # The single catch-all vendor (PayProcessor skips its per-dest allow-list). MUST be the dedicated
+    # catch-all VendorProxy, never a curated vendor — that vendor would go allow-any. Governance-only,
+    # behind the standard config timelock.
+    assert gov._canGovern(msg.sender)  # dev: no perms
+    assert _vendor != empty(address) and _vendor.is_contract  # dev: invalid catch-all vendor
+    aid: uint256 = timeLock._initiateAction()
+    self.actionType[aid] = ActionType.SET_CATCH_ALL
+    self.pendingCatchAll[aid] = _vendor
+    log PendingCatchAllChange(vendor=_vendor, confirmationBlock=timeLock._getActionConfirmationBlock(aid), actionId=aid)
+    return aid
+
+
+@external
 def setVendorTemplate(_template: address) -> uint256:
     assert gov._canGovern(msg.sender)  # dev: no perms
     assert _template != empty(address) and _template.is_contract  # dev: invalid template
@@ -297,6 +322,10 @@ def executePendingAction(_aid: uint256) -> bool:
         addr: address = self.pendingBridge[_aid]
         extcall PayProcessor(self._payProcessor()).setBridge(addr)
         log BridgeSet(bridgeAddress=addr)
+    elif at == ActionType.SET_CATCH_ALL:
+        catchAllVendor: address = self.pendingCatchAll[_aid]
+        extcall PayProcessor(self._payProcessor()).setCatchAll(catchAllVendor)
+        log CatchAllSet(vendor=catchAllVendor)
     elif at == ActionType.SET_VENDOR_TEMPLATE:
         template: address = self.pendingVendorTemplate[_aid]
         extcall VendorRegistry(self._vendorRegistry()).setVendorTemplate(template)
@@ -323,4 +352,5 @@ def _clearPending(_aid: uint256):
     self.actionType[_aid] = empty(ActionType)
     self.pendingSender[_aid] = empty(PendingSender)
     self.pendingBridge[_aid] = empty(address)
+    self.pendingCatchAll[_aid] = empty(address)
     self.pendingVendorTemplate[_aid] = empty(address)

@@ -405,6 +405,55 @@ def test_only_switchboard_sets_the_bridge_address(processor, admin, bob, alice, 
         processor.setBridge(alice, sender=alice)
 
 
+# --- catch-all vendor: PayProcessor.setCatchAll skips the per-dest allow-list ---
+
+def test_set_catch_all_switchboard_only(processor, joker, admin, bob, alice):
+    # catchAll is empty by default (no exemption); only the Switchboard may set it
+    assert _a(processor.catchAll()) == _a(ZERO_ADDRESS)
+    processor.setCatchAll(joker.address, sender=admin)   # switchboard OK
+    assert _a(processor.catchAll()) == _a(joker.address)
+    with boa.reverts("no perms"):
+        processor.setCatchAll(bob, sender=bob)           # non-switchboard can't
+    with boa.reverts("no perms"):
+        processor.setCatchAll(alice, sender=alice)
+
+
+def test_catch_all_skips_dest_allowlist(processor, joker, usdc, admin, deploy3r, alice, bob, agent_wrapper, env):
+    # a payment through the catch-all vendor routes ANY dest — its per-dest allow-list is skipped
+    dest = env.generate_address("merchant")              # deliberately NOT allow-listed on joker
+    processor.setSender(bob, True, sender=admin)
+    usdc.mint(joker.address, 100, sender=deploy3r)
+    processor.setCatchAll(joker.address, sender=admin)
+    processor.register(RAIL_MPP, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, b"", sender=bob)
+    assert processor.pendingTotal() == 100               # succeeded despite dest not allow-listed
+
+
+def test_non_catch_all_vendor_still_gated(processor, registry, joker, vendor_partial, usdc, admin, deploy3r, alice, bob, agent_wrapper, env):
+    # designating joker as the catch-all relaxes ONLY joker — every other vendor still enforces its list
+    service2 = vendor_partial.at(registry.createVendor("service2.com", sender=admin))
+    processor.setCatchAll(joker.address, sender=admin)
+    processor.setSender(bob, True, sender=admin)
+    dest = env.generate_address("merchant")
+    usdc.mint(service2.address, 100, sender=deploy3r)
+    with boa.reverts("dest not allowed"):
+        processor.register(RAIL_MPP, agent_wrapper, service2.address, alice, 100, dest, PAY1, REF, b"", sender=bob)
+    service2.addDestination(dest, sender=admin)
+    processor.register(RAIL_MPP, agent_wrapper, service2.address, alice, 100, dest, PAY1, REF, b"", sender=bob)
+    assert processor.pendingTotal() == 100
+
+
+def test_changing_catch_all_re_enforces_old(processor, registry, joker, vendor_partial, usdc, admin, deploy3r, alice, bob, agent_wrapper, env):
+    # moving the catch-all designation off joker makes joker enforce its allow-list again
+    service2 = vendor_partial.at(registry.createVendor("service2.com", sender=admin))
+    processor.setSender(bob, True, sender=admin)
+    usdc.mint(joker.address, 100, sender=deploy3r)
+    dest = env.generate_address("merchant")              # not allow-listed on joker
+    processor.setCatchAll(joker.address, sender=admin)
+    processor.setCatchAll(service2.address, sender=admin)  # catch-all is now service2, not joker
+    with boa.reverts("dest not allowed"):
+        processor.register(RAIL_MPP, agent_wrapper, joker.address, alice, 100, dest, PAY1, REF, b"", sender=bob)
+
+
 # ═══════════════════════════ AgentSenderPay: unified pay() orchestration ═══════════════════════════
 
 @pytest.fixture
@@ -644,6 +693,24 @@ def test_delta_config_setSender_timelocked(delta, processor, admin, alice, bob):
     boa.env.time_travel(blocks=delta.actionTimeLock())
     assert delta.executePendingAction(aid, sender=admin) is True
     assert processor.senders(bob) is True                 # Delta set it on PayProcessor
+
+
+def test_delta_config_setCatchAll_timelocked(delta, processor, joker, admin, alice, bob):
+    delta.setActionTimeLockAfterSetup(0, sender=admin)   # config timelock = minimum
+    # only governance may initiate; empty + non-contract are rejected up front
+    with boa.reverts("no perms"):
+        delta.setCatchAll(joker.address, sender=alice)
+    with boa.reverts("invalid catch-all vendor"):
+        delta.setCatchAll(ZERO_ADDRESS, sender=admin)
+    with boa.reverts("invalid catch-all vendor"):
+        delta.setCatchAll(bob, sender=admin)             # an EOA is not a VendorProxy
+    aid = delta.setCatchAll(joker.address, sender=admin)
+    # not applied before the timelock elapses
+    assert delta.executePendingAction(aid, sender=admin) is False
+    assert _a(processor.catchAll()) == _a(ZERO_ADDRESS)
+    boa.env.time_travel(blocks=delta.actionTimeLock())
+    assert delta.executePendingAction(aid, sender=admin) is True
+    assert _a(processor.catchAll()) == _a(joker.address)  # Delta set it on PayProcessor
 
 
 def test_delta_pause_immediate_unpause_timelocked(delta, registry, processor, mock_mc, admin, alice, bob):
