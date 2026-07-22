@@ -162,6 +162,25 @@ def __init__(
     CURVE_ID = _curveId
 
 
+# NOTE: a LegoBook entry can be disabled -- its address is wiped to
+# empty(address) while its regId still counts toward numAddrs. Every loop below
+# walks range(1, numAddrs), so it must skip those holes: calling isDexLego() /
+# isYieldLego() on empty(address) reverts, which would brick swap routing (and
+# yield lookups) for everyone the moment a single lego is disabled.
+@view
+@internal
+def _getLiveLegoAddr(_legoBook: address, _index: uint256, _isDex: bool) -> address:
+    legoAddr: address = staticcall Registry(_legoBook).getAddr(_index)
+    if legoAddr == empty(address):
+        return empty(address) # disabled / invalid registry entry
+    if _isDex:
+        if staticcall LegoPartner(legoAddr).isDexLego():
+            return legoAddr
+    elif staticcall LegoPartner(legoAddr).isYieldLego():
+        return legoAddr
+    return empty(address) # wrong lego kind for this loop
+
+
 ###############
 # Yield Legos #
 ###############
@@ -327,8 +346,8 @@ def getUnderlyingAsset(_vaultToken: address, _legoBook: address = empty(address)
         return empty(address)
 
     for i: uint256 in range(1, numLegos, bound=max_value(uint256)):
-        legoAddr: address = staticcall Registry(legoBook).getAddr(i)
-        if not staticcall LegoPartner(legoAddr).isYieldLego():
+        legoAddr: address = self._getLiveLegoAddr(legoBook, i, False)
+        if legoAddr == empty(address): # skip disabled / invalid / non-yield legos
             continue
 
         asset: address = staticcall YieldLego(legoAddr).getUnderlyingAsset(_vaultToken)
@@ -357,8 +376,8 @@ def getUnderlyingForUser(_user: address, _asset: address, _legoBook: address = e
 
     totalDeposited: uint256 = 0
     for i: uint256 in range(1, numLegos, bound=max_value(uint256)):
-        legoAddr: address = staticcall Registry(legoBook).getAddr(i)
-        if not staticcall LegoPartner(legoAddr).isYieldLego():
+        legoAddr: address = self._getLiveLegoAddr(legoBook, i, False)
+        if legoAddr == empty(address): # skip disabled / invalid / non-yield legos
             continue
 
         legoVaultTokens: DynArray[address, MAX_VAULTS] = staticcall YieldLego(legoAddr).getAssetOpportunities(_asset)
@@ -394,8 +413,8 @@ def getVaultTokensForUser(_user: address, _asset: address, _legoBook: address = 
 
     vaultTokens: DynArray[VaultTokenInfo, MAX_VAULTS_FOR_USER] = []
     for i: uint256 in range(1, numLegos, bound=max_value(uint256)):
-        legoAddr: address = staticcall Registry(legoBook).getAddr(i)
-        if not staticcall LegoPartner(legoAddr).isYieldLego():
+        legoAddr: address = self._getLiveLegoAddr(legoBook, i, False)
+        if legoAddr == empty(address): # skip disabled / invalid / non-yield legos
             continue
 
         legoVaultTokens: DynArray[address, MAX_VAULTS] = staticcall YieldLego(legoAddr).getAssetOpportunities(_asset)
@@ -432,8 +451,8 @@ def isVaultToken(_vaultToken: address, _legoBook: address = empty(address)) -> b
         return False
 
     for i: uint256 in range(1, numLegos, bound=max_value(uint256)):
-        legoAddr: address = staticcall Registry(legoBook).getAddr(i)
-        if not staticcall LegoPartner(legoAddr).isYieldLego():
+        legoAddr: address = self._getLiveLegoAddr(legoBook, i, False)
+        if legoAddr == empty(address): # skip disabled / invalid / non-yield legos
             continue
 
         if staticcall YieldLego(legoAddr).isLegoAsset(_vaultToken):
@@ -460,8 +479,8 @@ def getVaultTokenAmount(_asset: address, _assetAmount: uint256, _vaultToken: add
         return 0
 
     for i: uint256 in range(1, numLegos, bound=max_value(uint256)):
-        legoAddr: address = staticcall Registry(legoBook).getAddr(i)
-        if not staticcall LegoPartner(legoAddr).isYieldLego():
+        legoAddr: address = self._getLiveLegoAddr(legoBook, i, False)
+        if legoAddr == empty(address): # skip disabled / invalid / non-yield legos
             continue
 
         vaultTokenAmount: uint256 = staticcall YieldLego(legoAddr).getVaultTokenAmount(_asset, _assetAmount, _vaultToken)
@@ -490,6 +509,8 @@ def getLegoInfoFromVaultToken(_vaultToken: address, _legoBook: address = empty(a
 
     for i: uint256 in range(1, numLegos, bound=max_value(uint256)):
         legoInfo: AddressInfo = staticcall Registry(legoBook).getAddrInfo(i)
+        if legoInfo.addr == empty(address): # skip disabled / invalid legos
+            continue
         if not staticcall LegoPartner(legoInfo.addr).isYieldLego():
             continue
 
@@ -519,6 +540,8 @@ def getUnderlyingData(_asset: address, _amount: uint256, _legoBook: address = em
     appraiser: address = addys._getAppraiserAddr()
     for i: uint256 in range(1, numLegos, bound=max_value(uint256)):
         legoInfo: AddressInfo = staticcall Registry(legoBook).getAddrInfo(i)
+        if legoInfo.addr == empty(address): # skip disabled / invalid legos
+            continue
         if not staticcall LegoPartner(legoInfo.addr).isYieldLego():
             continue
 
@@ -870,8 +893,8 @@ def _getBestSwapAmountOutSinglePool(
             continue
 
         # get lego addr
-        legoAddr: address = staticcall Registry(_legoRegistry).getAddr(i)
-        if not staticcall LegoPartner(legoAddr).isDexLego():
+        legoAddr: address = self._getLiveLegoAddr(_legoRegistry, i, True)
+        if legoAddr == empty(address): # skip disabled / invalid / non-dex legos
             continue
 
         pool: address = empty(address)
@@ -937,8 +960,8 @@ def _getSwapAmountOutViaRouterPool(
             continue
 
         # get lego addr
-        legoAddr: address = staticcall Registry(_legoRegistry).getAddr(i)
-        if not staticcall LegoPartner(legoAddr).isDexLego():
+        legoAddr: address = self._getLiveLegoAddr(_legoRegistry, i, True)
+        if legoAddr == empty(address): # skip disabled / invalid / non-dex legos
             continue
 
         pool: address = staticcall DexLego(legoAddr).getCoreRouterPool()
@@ -1187,8 +1210,8 @@ def _getBestSwapAmountInSinglePool(
             continue
 
         # get lego addr
-        legoAddr: address = staticcall Registry(_legoRegistry).getAddr(i)
-        if not staticcall LegoPartner(legoAddr).isDexLego():
+        legoAddr: address = self._getLiveLegoAddr(_legoRegistry, i, True)
+        if legoAddr == empty(address): # skip disabled / invalid / non-dex legos
             continue
 
         pool: address = empty(address)
@@ -1254,8 +1277,8 @@ def _getSwapAmountInViaRouterPool(
             continue
 
         # get lego addr
-        legoAddr: address = staticcall Registry(_legoRegistry).getAddr(i)
-        if not staticcall LegoPartner(legoAddr).isDexLego():
+        legoAddr: address = self._getLiveLegoAddr(_legoRegistry, i, True)
+        if legoAddr == empty(address): # skip disabled / invalid / non-dex legos
             continue
 
         # get router pool
