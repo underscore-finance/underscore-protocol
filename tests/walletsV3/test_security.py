@@ -1,5 +1,4 @@
 import boa
-import pytest
 from eth_abi import encode
 from eth_utils import keccak
 from vyper.compiler.settings import OptimizationLevel
@@ -426,6 +425,57 @@ def test_s5_e2_capability_reuse_cross_action_and_stale_session_fail(
     )
     with boa.reverts():
         stack["wallet"].consumeCapability(stale, sender=stack["lego"].address)
+
+
+def test_s5_e2_unconsumed_spend_session_cannot_settle(
+    configured_wallet,
+    token,
+    owner,
+    recipient,
+):
+    malicious = deploy_v3("contracts/walletsV3/mocks/MaliciousExtender.vy")
+    lego = deploy_v3("contracts/walletsV3/mocks/MockYieldLego.vy")
+    request = (
+        1,
+        1,
+        lego.address,
+        recipient,
+        token.address,
+        10,
+        configured_wallet.address,
+        keccak(text="unconsumed-spend"),
+    )
+    selector = bytes(
+        malicious.attackOpen.prepare_calldata(
+            configured_wallet.address,
+            request,
+        )[:4]
+    )
+    configured_wallet.attachExtender(
+        (
+            keccak(text="unconsumed-spend-family"),
+            1,
+            malicious.address,
+            lego.address,
+            ZERO,
+            ZERO,
+            [(selector, 1, 1, 1)],
+            [],
+        ),
+        sender=owner,
+    )
+    token.mint(configured_wallet.address, 100)
+    with boa.reverts():
+        configured_wallet.execute(
+            malicious.attackOpen.prepare_calldata(
+                configured_wallet.address,
+                request,
+            ),
+            sender=owner,
+        )
+    assert token.balanceOf(configured_wallet.address) == 100
+    assert token.allowance(configured_wallet.address, lego.address) == 0
+    assert configured_wallet.phase() == 0
 
 
 def test_s5_e3_malicious_extender_cannot_use_primitives_or_general_authority(

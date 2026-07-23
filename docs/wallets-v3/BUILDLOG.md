@@ -62,6 +62,42 @@ Scope impact: None; this is Base overlay test compatibility and does not change 
 
 BL-011 · 2026-07-23 · Steps 1-5 gas review
 Decision or failed assumption: Accept direct-transfer gas and core runtime size; redesign the empty-session, routed-yield, and payment-authorization cost centers before production; retain the demonstrated payment lifecycle semantics without treating any PoC measurement as a production baseline.
-Reason: The Base gate is 52,257 tx-equivalent gas for v3 versus 511,975 for v2, and core runtime is 11,913 bytes. The local empty session is 115,155 versus the 60,000 review target; routed yield is 288,598 versus 123,126 for the direct control; external-exact and reserved-transfer creation cost 541,257 and 349,578 respectively.
+Reason: After post-review conformance hardening, the Base gate is 51,337 tx-equivalent gas for v3 versus 511,975 for v2, and core runtime is 12,055 bytes. The local empty session is 117,497 versus the 60,000 review target; routed yield is 292,025 versus 123,126 for the direct control; external-exact and reserved-transfer creation cost 543,981 and 352,399 respectively.
 Affected files/evidence: `tests/walletsV3/gas/test_poc_gas.py`, `docs/wallets-v3/POC_RESULTS.md`, S1-E6, S2-E7, S4-E2, S5-E9.
 Scope impact: None; these are required measurement dispositions.
+
+BL-012 · 2026-07-23 · post-review contract conformance / S1-E3, S4-E1, S5-E1
+Decision or failed assumption: A `NONE` route could reach the three named CORE primitives because those functions distinguished only zero versus nonzero consumer, and Config treated a zero beneficiary as exempt when the envelope consumer was also zero. Require `CORE` mode in each named primitive, require the route-appropriate consumption state at dispatch settlement, and exempt a beneficiary only when it equals a nonzero consumer.
+Reason: Both behaviors deviated from §§4.3 and 4.6 even though normal reviewed extenders did not construct the invalid combinations. The PoC is intended to enforce these invariants by construction.
+Affected files/evidence: `contracts/walletsV3/UserWalletV3.vy`, `contracts/walletsV3/UserWalletConfigV3.vy`, `tests/walletsV3/test_security.py::test_s5_e1_none_route_cannot_consume_named_core_primitives`, `tests/walletsV3/test_transfer_and_config.py::test_s1_e3_zero_beneficiary_is_not_a_zero_consumer_exemption`.
+Scope impact: None; this restores the written consumer-mode and Config contract.
+
+BL-013 · 2026-07-23 · post-review adversarial evidence / S1-E2, S1-E3, S2-E3, S3-E1, S4-E3..S4-E6, S5-E1..S5-E2
+Decision or failed assumption: Expand negative evidence inside ACTIVE sessions, across action ids and action-data hashes, across strict and terminal rail states, and across all thirteen pre-Config mutating paths. Replace the all-zero Config return shims with selector-aware candidates whose wallet response is correct and whose marker has only the intended 31- or 33-byte length defect.
+Reason: The original negative suite established most defenses by source review or failed earlier at the phase gate. The added nodes independently mutate every common and payment-specific field after a valid session opens, prove matching control calls succeed, and isolate exact-return-length behavior.
+Affected files/evidence: `contracts/walletsV3/mocks/MaliciousExtender.vy`, `contracts/walletsV3/mocks/MockDebtLego.vy`, `contracts/walletsV3/mocks/MockYieldLego.vy`, `tests/walletsV3/conftest.py`, `tests/walletsV3/test_transfer_and_config.py`, `tests/walletsV3/test_yield_session.py`, `tests/walletsV3/test_debt_and_operator.py`, `tests/walletsV3/test_mpp.py`, `tests/walletsV3/test_x402.py`, `tests/walletsV3/test_security.py`.
+Scope impact: None; all additions directly strengthen named evidence.
+
+BL-014 · 2026-07-23 · post-review gas guard strength / S1-E6, S2-E7, S4 gas, S5-E9
+Decision or failed assumption: Make the gas module itself front-load the complete Base constants/oracle preflight, assert the installed Prague VM and introspected package versions, assert exact calibration gross/refund values, machine-compare Base calibration with the preceding local JSON, refuse xdist, require scenario postconditions, and serialize deterministic nonzero full-width signature values.
+Reason: The original measurements were valid, but several required guards were recorded or checked in a separate functional test rather than enforced by the standalone gas run. The stronger signature model changes modeled L1 fees but not execution or tx-equivalent gas.
+Affected files/evidence: `tests/walletsV3/gas/test_poc_gas.py`, `/tmp/wallet-v3-poc-local.json`, `/tmp/wallet-v3-poc-base.json`.
+Scope impact: None; measurement formulas, thresholds, scenarios, and Base pin are unchanged.
+
+BL-015 · 2026-07-23 · post-review core surface and settlement cleanup / S2-E2, S5-E2
+Decision or failed assumption: Remove the uncontracted `attachmentRoute`, `attachmentCount`, and `sessionNonce` external views; expose the already-recorded calldata hash in `SessionOpened`; fully clear transient frame/capability fields; cache the direct-transfer balance read; require consumption before every LEGO/CORE session can settle; and assert reservation invariance for Lego SPEND settlement.
+Reason: These changes align the external surface and cleanup behavior with §§4.5 and 5, turn the calldata hash into observable evidence, remove duplicate work, and make “effect requires consumption” an explicit dispatch invariant.
+Affected files/evidence: `contracts/walletsV3/UserWalletV3.vy`, `tests/walletsV3/test_yield_session.py`, `tests/walletsV3/test_security.py::test_s5_e2_unconsumed_spend_session_cannot_settle`.
+Scope impact: None.
+
+BL-016 · 2026-07-23 · post-review S5-E8 provenance
+Decision or failed assumption: The original squashed commit cannot independently prove that the recorded Step-4 hashes predated the future-action files. Preserve that limitation and establish a new repository-verifiable post-review core checkpoint at commit `397a1cf`: source SHA-256 `d71ea665405494b0d9f4186e3a45e78104aaf0e97b7dcb0786c9dc1fb5f68039`, Cancun/gas runtime keccak `f8aba82adac1b070be7ab8df6f82e588fd319c09572c9d7f2383a7a72a9834b4`, size 12,055 bytes.
+Reason: Updating the S5-E8 constants in a later evidence commit proves the core remains unchanged after the hardened checkpoint without rewriting history or overstating the original temporal evidence.
+Affected files/evidence: commit `397a1cf`, `tests/walletsV3/test_future_action.py`, `tests/walletsV3/test_security.py::test_s5_e9_core_runtime_size_and_compiler_settings`, S5-E8, S5-E9.
+Scope impact: None; this corrects evidence provenance.
+
+BL-017 · 2026-07-23 · negative-test diagnostics
+Decision or failed assumption: Keep runtime assertions free of revert strings and discriminate high-value negative cases with isolated one-field mutations plus post-revert state invariants rather than adding runtime revert prose.
+Reason: BL-006 established that revert strings dominated bytecode size. Boa's bare `reverts()` cannot distinguish identical empty assertion data, while the new mutation matrices, successful controls, and unchanged commitment/balance/allowance/phase assertions identify the failed invariant without changing deployed bytecode.
+Affected files/evidence: `contracts/walletsV3/UserWalletV3.vy`, all negative tests under `tests/walletsV3/`, especially S1-E3, S4-E3..S4-E6, S5-E1..S5-E2.
+Scope impact: None; production diagnostic design remains deferred.

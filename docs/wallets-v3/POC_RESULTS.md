@@ -34,10 +34,11 @@ Test node ids:
 
 - `tests/walletsV3/test_transfer_and_config.py::test_s1_e3_rejects_invalid_config_candidates`
 - `tests/walletsV3/test_transfer_and_config.py::test_s1_e3_reviewed_config_has_no_initializer_or_rebinding`
+- `tests/walletsV3/test_transfer_and_config.py::test_s1_e3_zero_beneficiary_is_not_a_zero_consumer_exemption`
 - `tests/walletsV3/test_transfer_and_config.py::test_s1_e5_broken_config_can_be_replaced_without_moving_assets`
 - `tests/walletsV3/test_extender_lifecycle.py::test_s3_e6_and_e7_debt_position_survives_successor_and_old_exact_exits`
 
-Measurements: A Config whose operational authorizers always revert is replaced directly while wallet-owned economic state remains unchanged. Wrong marker, wrong wallet, no code, revert, malformed/oversized return, and probe-gas exhaustion are rejected.
+Measurements: A Config whose operational authorizers always revert is replaced directly while wallet-owned economic state remains unchanged. Wrong marker, wrong wallet, no code, revert, isolated 31-/33-byte marker return, and probe-gas exhaustion are rejected. Every reviewed Config function is view/pure, and a zero consumer does not exempt a zero beneficiary.
 
 Residual risks/limitations: Runtime probes cannot prove that arbitrary bytecode lacks a hidden rebinding path. Constructor immutability and absence of an initializer are properties of the reviewed PoC Config source.
 
@@ -56,12 +57,15 @@ Test node ids:
 - `tests/walletsV3/test_yield_session.py::test_s2_e4_nested_dispatch_during_approval_rolls_back`
 - `tests/walletsV3/test_yield_session.py::test_s2_e6_attachment_bounds_declarations_and_dependencies`
 - `tests/walletsV3/test_extender_lifecycle.py::test_s3_e6_and_e7_debt_position_survives_successor_and_old_exact_exits`
+- `tests/walletsV3/test_security.py::test_s5_e1_none_route_cannot_consume_named_core_primitives`
+- `tests/walletsV3/test_security.py::test_s5_e1_hostile_active_extender_cannot_mutate_core_effect_fields`
 - `tests/walletsV3/test_security.py::test_s5_e2_capability_reuse_cross_action_and_stale_session_fail`
+- `tests/walletsV3/test_security.py::test_s5_e2_unconsumed_spend_session_cannot_settle`
 - `tests/walletsV3/test_security.py::test_s5_e3_malicious_extender_cannot_use_primitives_or_general_authority`
 - `tests/walletsV3/test_security.py::test_s5_e4_config_reentrancy_and_approval_cleanup_failure_revert_cleanly`
 - `tests/walletsV3/test_security.py::test_s5_e4_malformed_erc20_return_fails_closed`
 
-Measurements: Attachment/route bounds, active-family collision rejection, dependency codehash checks, one transient capability, semantic binding, exact approval cleanup, nested-session rejection, stale/reuse rejection, and malicious-extender containment all pass.
+Measurements: Attachment/route bounds, active-family collision rejection, dependency codehash checks, one transient capability, semantic binding, exact approval cleanup, nested-session rejection, stale/reuse rejection, and attached-extender containment all pass. Inside an ACTIVE session, every common envelope field and every external-exact/reserved-transfer field is independently mutated and rejected; valid controls reach each named primitive. `NONE` cannot consume, and an unconsumed LEGO/CORE route cannot settle.
 
 Residual risks/limitations: A reviewed typed extender remains trusted to preserve caller intent among requests that policy would independently allow. Legos are trusted adapters and malicious Lego behavior is outside this PoC.
 
@@ -80,8 +84,10 @@ Test node ids:
 - `tests/walletsV3/test_debt_and_operator.py::test_s3_e2_borrowed_and_released_assets_go_to_wallet`
 - `tests/walletsV3/test_debt_and_operator.py::test_s3_e3_fixed_operator_target_and_lego_only`
 - `tests/walletsV3/test_debt_and_operator.py::test_s3_e4_operator_use_outside_active_session_fails`
+- `tests/walletsV3/test_security.py::test_s5_e1_hostile_active_extender_cannot_mutate_core_effect_fields`
+- `tests/walletsV3/test_security.py::test_s5_e2_unconsumed_spend_session_cannot_settle`
 
-Measurements: SPEND is bounded by exact approval plus final token loss; LIABILITY and ASSET_RELEASE are bounded by action-specific semantic hashes and direct wallet beneficiary state; AUTHORITY is bounded by a named core primitive.
+Measurements: SPEND is bounded by exact approval, required consumption, reservation invariance, and final token loss; LIABILITY and ASSET_RELEASE are bounded by action-specific semantic hashes and direct wallet beneficiary state; AUTHORITY is bounded by a named core primitive. Wrong action ids and wrong action-data hashes are directly tested.
 
 Residual risks/limitations: Representative mocks prove the containment mechanisms, not every protocol-specific semantic or postcondition.
 
@@ -97,6 +103,8 @@ Test node ids:
 - `tests/walletsV3/test_debt_and_operator.py::test_s3_e4_operator_use_outside_active_session_fails`
 - `tests/walletsV3/test_debt_and_operator.py::test_s3_e5_active_revoke_after_config_replacement`
 - `tests/walletsV3/test_extender_lifecycle.py::test_s3_e6_and_e7_debt_position_survives_successor_and_old_exact_exits`
+- `tests/walletsV3/test_security.py::test_s5_e1_none_route_cannot_consume_named_core_primitives`
+- `tests/walletsV3/test_security.py::test_s5_e1_hostile_active_extender_cannot_mutate_core_effect_fields`
 
 Measurements: Core constructs only grant/revoke for the attachment-pinned protocol and Debt Lego. Alternate caller, extender, attachment, target, operator, and authority-use paths fail.
 
@@ -121,9 +129,11 @@ Test node ids:
 - `tests/walletsV3/test_mpp.py::test_s4_e8_commitments_survive_config_and_payment_successor`
 - `tests/walletsV3/test_mpp.py::test_s4_e9_token_and_helper_failures_preserve_commitment_state`
 - `tests/walletsV3/test_security.py::test_s4_e3_and_s5_e4_non_idle_rail_answer_is_invalid`
+- `tests/walletsV3/test_security.py::test_s5_e1_none_route_cannot_consume_named_core_primitives`
+- `tests/walletsV3/test_security.py::test_s5_e1_hostile_active_extender_cannot_mutate_core_effect_fields`
 - `tests/walletsV3/test_extender_lifecycle.py::test_s5_e7_old_route_collision_nonexit_and_codehash_mutation_fail`
 
-Measurements: Real Base USDC exact external pull, permissionless sync, expiry boundaries, conservative reservation, representative reserved partial settlement/refund, terminal non-reuse, reentrancy rollback, dependency succession, and reserved-value exclusion pass.
+Measurements: Real Base USDC exact external pull, permissionless sync, equality and strictly-past expiry boundaries, used/expired rail-signature rejection, real EIP-3009 cancellation-digest rejection, conservative reservation, representative reserved partial settlement/refund, all terminal-state non-reuse, reentrancy rollback, dependency succession, and reserved-value exclusion pass. Payment field binding is also exercised from inside an ACTIVE routed session.
 
 Residual risks/limitations: The external branch proves only the Base USDC EIP-3009 onchain leg. The MPP branch is a reservation/settlement model, not MPP wire-protocol compliance. Payment helper and liveness remain trusted integration dependencies.
 
@@ -152,9 +162,9 @@ Test node ids:
 
 - `tests/walletsV3/gas/test_poc_gas.py::test_poc_gas`
 
-Measurements: On pinned Base block 34,642,981, initialized independent cross-block repeat transfer is 52,257 tx-equivalent gas for v3 versus 511,975 for v2: -459,718 gas, or -89.7931%. V3 is below the hard 190,000 threshold. The modeled v3 sponsored fee is 41,731,851,609 wei at the pinned 774,425 wei Base fee, including 1,262,724,384 wei modeled L1 fee and zero operator fee.
+Measurements: On pinned Base block 34,642,981, initialized independent cross-block repeat transfer is 51,337 tx-equivalent gas for v3 versus 511,975 for v2: -460,638 gas, or -89.9728%. V3 is below the hard 190,000 threshold. The modeled v3 sponsored fee is 41,660,008,930 wei at the pinned 774,425 wei Base fee, including 1,903,352,705 wei modeled L1 fee and zero operator fee.
 
-Residual risks/limitations: Lean v3 intentionally omits v2 production policy work; this demonstrates the architecture's direct-path cost, not feature parity with the complete v2 product. Fee evidence is a deterministic fork-time model, not a receipt.
+Residual risks/limitations: Lean v3 intentionally omits v2 production policy work. The paired Base-profile transfer uses the v2 fixture's mock ERC-20 for both wallets, exactly as prescribed; 51,337 is evidence for the architecture's direct path, not a claim that a real Base USDC proxy transfer costs 51,337. Fee evidence is a deterministic fork-time model, not a receipt.
 
 Disposition: **KEEP** the direct transfer path and its manually controlled hard threshold.
 
@@ -165,34 +175,46 @@ All gas values below are tx-equivalent. Local values are diagnostic; Base transf
 | Scenario | Profile | Gas | Comparison | Disposition |
 |---|---:|---:|---:|---|
 | `v2.transfer.repeat` | Base | 511,975 | paired comparator | Comparator only |
-| `v3.transfer.repeat` | Base | 52,257 | -89.7931% vs v2; <190,000 | **ACCEPT** |
+| `v3.transfer.repeat` | Base | 51,337 | -89.9728% vs v2; <190,000 | **ACCEPT** |
 | `v2.transfer.repeat` | local | 419,507 | paired diagnostic | Diagnostic only |
-| `v3.transfer.repeat` | local | 52,257 | -87.5432% vs v2 | Diagnostic support |
-| `v3.session.empty` | local | 115,155 | 55,155 above the <60,000 review target | **REDESIGN** router/session overhead |
+| `v3.transfer.repeat` | local | 51,337 | -87.7625% vs v2 | Diagnostic support |
+| `v3.session.empty` | local | 117,497 | 57,497 above the <60,000 review target | **REDESIGN** router/session overhead |
 | `control.yield.protocol_direct` | local | 123,126 | direct initialized mock-vault control | Control only |
-| `v3.session.yield_minimal` | local | 288,598 | +165,472, or +134.39%, vs direct | **REDESIGN** before production |
-| `v3.x402.authorize` | Base | 541,257 | no hard target | **REDESIGN** creation cost; keep semantics |
+| `v3.session.yield_minimal` | local | 292,025 | +168,899, or +137.18%, vs direct | **REDESIGN** before production |
+| `v3.x402.authorize` | Base | 543,981 | no hard target | **REDESIGN** creation cost; keep semantics |
 | `v3.x402.sync` | Base | 67,410 | no hard target | **ACCEPT for PoC**, not a baseline |
-| `v3.mpp.authorize` | local | 349,578 | no hard target | **REDESIGN** creation cost; keep semantics |
+| `v3.mpp.authorize` | local | 352,399 | no hard target | **REDESIGN** creation cost; keep semantics |
 | `v3.mpp.partial_settle` | local | 93,491 | no hard target | **ACCEPT for PoC**, not a baseline |
 | `v3.mpp.refund` | local | 51,787 | no hard target | **ACCEPT for PoC**, not a baseline |
 
-Transaction-boundary calibration matches local and Base: clearing an initialized slot costs 5,102 gross with a 4,800 raw refund; a later zero-to-nonzero clean write costs 22,217 gross with zero refund; only origin, target, and Prague precompiles begin warm; no storage slot begins warm.
+The harness asserts Prague, introspects all three pinned package versions, refuses xdist, front-loads the complete Base/USDC/oracle preflight, and requires explicit scenario postconditions. Transaction-boundary calibration is machine-compared across local and Base: clearing an initialized slot costs 5,102 gross with a 4,800 raw refund; a later zero-to-nonzero clean write costs 22,217 gross with zero refund; only origin, target, and Prague precompiles begin warm; no storage slot begins warm.
 
-Core runtime is 11,913 bytes under Cancun/gas, 4,471 bytes below the 16,384-byte review target: **ACCEPT for PoC**. The Step-4 source SHA-256 is `182126e57477419e5d1b87183ac4bfcc699d07cc7ed8356a6fd16ad134c65809`; runtime keccak is `f69ffc74692fd2ff6a08d94a4b1f5705b7d30fba4f97ba642c427d6ab95aa6b7`. The unchanged-core future action is proved by:
+The `v3.x402.sync` tx-equivalent is 67,410 after its 9,600 refund, but its serialized envelope is asserted and decoded with a 77,010 `minimum_executable_gas_limit`. Deterministic `yParity=1` and full-width nonzero `r`/`s` values are included in every modeled Base envelope.
+
+Core runtime is 12,055 bytes under Cancun/gas, 4,329 bytes below the 16,384-byte review target: **ACCEPT for PoC**. The post-review core checkpoint at commit `397a1cf` has source SHA-256 `d71ea665405494b0d9f4186e3a45e78104aaf0e97b7dcb0786c9dc1fb5f68039` and runtime keccak `f8aba82adac1b070be7ab8df6f82e588fd319c09572c9d7f2383a7a72a9834b4`. The later evidence commit proves both remain unchanged through:
 
 - `tests/walletsV3/test_future_action.py::test_s5_e8_future_asset_release_needs_no_core_change`
 - `tests/walletsV3/test_security.py::test_s5_e9_core_runtime_size_and_compiler_settings`
+
+Historical limitation: the original implementation arrived as one squashed commit, so git cannot independently date the original Step-4 hash record before the future-action files. BL-008 is therefore an implementation attestation, not repository-verifiable temporal proof. The post-review `397a1cf` checkpoint and later evidence commit provide that temporal proof from the hardening point forward.
 
 ## Evidence coverage
 
 The exact node ids above cover every required evidence record:
 
-- S1-E1 through S1-E5: all six nodes in `test_transfer_and_config.py`; S1-E6: standalone gas node.
+- S1-E1 through S1-E5: all seven nodes in `test_transfer_and_config.py`; S1-E6: `tests/walletsV3/gas/test_poc_gas.py::test_poc_gas`.
 - S2-E1 through S2-E6 and S2-E8: all six nodes in `test_yield_session.py`; S2-E7: standalone gas node.
 - S3-E1 through S3-E5: all five nodes in `test_debt_and_operator.py`; S3-E6 and S3-E7: both nodes in `test_extender_lifecycle.py`.
 - S4-E1 and S4-E5 through S4-E9: all six nodes in `test_mpp.py`; S4-E2 through S4-E5: all four Base nodes in `test_x402.py`; S4 gas review: standalone gas node.
-- S5-E1 through S5-E7: targeted yield, debt, lifecycle, MPP, x402, and security nodes cited in Q3-Q7; S5-E8: future-action node; S5-E9: runtime-size node.
+- S5-E1: `tests/walletsV3/test_security.py::test_s5_e1_none_route_cannot_consume_named_core_primitives` and `tests/walletsV3/test_security.py::test_s5_e1_hostile_active_extender_cannot_mutate_core_effect_fields`.
+- S5-E2: `tests/walletsV3/test_security.py::test_s5_e2_capability_reuse_cross_action_and_stale_session_fail` and `tests/walletsV3/test_security.py::test_s5_e2_unconsumed_spend_session_cannot_settle`.
+- S5-E3: `tests/walletsV3/test_security.py::test_s5_e3_malicious_extender_cannot_use_primitives_or_general_authority`.
+- S5-E4: `tests/walletsV3/test_security.py::test_s4_e3_and_s5_e4_non_idle_rail_answer_is_invalid`, `tests/walletsV3/test_security.py::test_s5_e4_config_reentrancy_and_approval_cleanup_failure_revert_cleanly`, and `tests/walletsV3/test_security.py::test_s5_e4_malformed_erc20_return_fails_closed`.
+- S5-E5: `tests/walletsV3/test_x402.py::test_s4_e3_rail_signature_exact_digest_caller_bounds_and_time`, `tests/walletsV3/test_x402.py::test_s4_e4_and_e5_used_unsynced_expiry_unused_expiry_and_replay`, and `tests/walletsV3/test_mpp.py::test_s4_e7_reserved_value_blocks_transfer_yield_debt_and_double_commit`.
+- S5-E6: `tests/walletsV3/test_mpp.py::test_s4_e5_and_e6_partial_settlement_refund_and_terminal_replay` and `tests/walletsV3/test_mpp.py::test_s4_e6_state_updates_before_transfer_and_reentrancy_rolls_back`.
+- S5-E7: `tests/walletsV3/test_extender_lifecycle.py::test_s5_e7_old_route_collision_nonexit_and_codehash_mutation_fail`.
+- S5-E8: `tests/walletsV3/test_future_action.py::test_s5_e8_future_asset_release_needs_no_core_change`.
+- S5-E9: `tests/walletsV3/test_security.py::test_s5_e9_core_runtime_size_and_compiler_settings`.
 
 ## Unresolved security and integration risks
 
@@ -205,7 +227,10 @@ The exact node ids above cover every required evidence record:
 - Narrow EIP-1271 ignores a bounded signature argument and authorizes only the stored rail digest. Wallet/tool compatibility outside the tested USDC path is not established.
 - Same-address dependency code mutation is rejected, but attachment approval, adapter governance, and emergency response are deferred.
 - Transient behavior is compiled for Cancun and exercised in Boa's Prague py-evm overlay. There is no live-network receipt or production deployment evidence.
-- The Base gas harness must restore exact existing v2 fixture blueprint bytecode after Boa fork prefetch exposes upstream empty accounts. The report asserts the bytecode match, but this compatibility shim should be revisited with future Boa versions.
+- The Base transfer comparison uses the v2 fixture's mock ERC-20 for both v2 and v3. It isolates direct-path architecture cost but does not measure a real USDC proxy transfer.
+- The Base gas harness must restore exact existing v2 fixture blueprint bytecode after Boa fork prefetch exposes upstream empty accounts. The report asserts byte equality; explicit BL-010 owner sign-off remains pending, and the shim should be revisited with future Boa versions.
+- The original squashed commit cannot independently prove the Step-4-before-future-action chronology. The post-review checkpoint does prove unchanged core from commit `397a1cf` forward.
+- Core assertions intentionally have no runtime reason strings to preserve the size result. High-value negative cases use isolated mutations and state invariants, but empty assertion data is less diagnostic than a production custom-error design.
 - Tests are targeted, not a formal proof, exhaustive fuzz campaign, or audit.
 
 ## Explicitly omitted
