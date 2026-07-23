@@ -1,0 +1,16 @@
+# @version 0.4.3
+
+
+@external
+def borrow(wallet: address, protocol: address, asset: address, amount: uint256):
+    ...
+
+
+@external
+def repayClose(wallet: address, protocol: address, asset: address, maxAmount: uint256):
+    ...
+
+
+@external
+def removeCollateral(wallet: address, protocol: address, asset: address, amount: uint256):
+    ...

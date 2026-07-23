@@ -1,0 +1,46 @@
+# @version 0.4.3
+
+from contracts.walletsV3.types import WalletV3Types as w3
+
+
+@view
+@external
+def owner() -> address:
+    ...
+
+
+@view
+@external
+def config() -> address:
+    ...
+
+
+@view
+@external
+def phase() -> uint8:
+    ...
+
+
+@external
+def openSession(request: w3.ActionEnvelope):
+    ...
+
+
+@external
+def consumeCapability(actualEnvelope: w3.ActionEnvelope):
+    ...
+
+
+@external
+def setDebtOperator(enabled: bool, actualEnvelope: w3.ActionEnvelope):
+    ...
+
+
+@external
+def createExternalExact(fields: w3.ExternalExactFields, actualEnvelope: w3.ActionEnvelope):
+    ...
+
+
+@external
+def createReservedTransfer(fields: w3.ReservedTransferFields, actualEnvelope: w3.ActionEnvelope):
+    ...

@@ -1,0 +1,26 @@
+# @version 0.4.3
+
+
+@view
+@external
+def token() -> address:
+    ...
+
+
+@view
+@external
+def digest(
+    wallet: address,
+    destination: address,
+    amount: uint256,
+    validAfter: uint256,
+    validBefore: uint256,
+    nonce: bytes32,
+) -> bytes32:
+    ...
+
+
+@view
+@external
+def authorizationUsed(wallet: address, nonce: bytes32) -> bool:
+    ...

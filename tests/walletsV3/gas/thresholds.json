@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "scenario": "v3.transfer.repeat",
+  "profile": "base",
+  "metric": "tx_equivalent",
+  "max": 190000
+}

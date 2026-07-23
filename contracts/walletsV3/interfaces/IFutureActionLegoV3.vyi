@@ -1,0 +1,6 @@
+# @version 0.4.3
+
+
+@external
+def releaseBond(wallet: address, protocol: address, asset: address, amount: uint256):
+    ...

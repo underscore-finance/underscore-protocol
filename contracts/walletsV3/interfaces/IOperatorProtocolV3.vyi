@@ -1,0 +1,12 @@
+# @version 0.4.3
+
+
+@external
+def setOperator(operator: address, enabled: bool):
+    ...
+
+
+@view
+@external
+def isOperator(owner: address, operator: address) -> bool:
+    ...
