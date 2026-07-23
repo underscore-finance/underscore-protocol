@@ -44,6 +44,10 @@ def deposit(wallet: address, vault: address, token: address, amount: uint256):
         request.target = token
     elif self.mode == 3:
         request.maxAmount = amount + 1
+    elif self.mode == 4:
+        request.actionId = 10
+    elif self.mode == 5:
+        request.actionDataHash = keccak256("wrong action data")
     extcall IUserWalletV3(wallet).consumeCapability(request)
     if self.mode == 1:
         extcall IUserWalletV3(wallet).consumeCapability(request)

@@ -45,6 +45,49 @@ def attackReserved(
 
 
 @external
+def openThenConsume(
+    wallet: address,
+    authorizedRequest: w3.ActionEnvelope,
+    actualRequest: w3.ActionEnvelope,
+):
+    extcall IUserWalletV3(wallet).openSession(authorizedRequest)
+    extcall IUserWalletV3(wallet).consumeCapability(actualRequest)
+
+
+@external
+def openThenOperator(
+    wallet: address,
+    authorizedRequest: w3.ActionEnvelope,
+    enabled: bool,
+    actualRequest: w3.ActionEnvelope,
+):
+    extcall IUserWalletV3(wallet).openSession(authorizedRequest)
+    extcall IUserWalletV3(wallet).setDebtOperator(enabled, actualRequest)
+
+
+@external
+def openThenExternal(
+    wallet: address,
+    authorizedRequest: w3.ActionEnvelope,
+    fields: w3.ExternalExactFields,
+    actualRequest: w3.ActionEnvelope,
+):
+    extcall IUserWalletV3(wallet).openSession(authorizedRequest)
+    extcall IUserWalletV3(wallet).createExternalExact(fields, actualRequest)
+
+
+@external
+def openThenReserved(
+    wallet: address,
+    authorizedRequest: w3.ActionEnvelope,
+    fields: w3.ReservedTransferFields,
+    actualRequest: w3.ActionEnvelope,
+):
+    extcall IUserWalletV3(wallet).openSession(authorizedRequest)
+    extcall IUserWalletV3(wallet).createReservedTransfer(fields, actualRequest)
+
+
+@external
 def attackTransfer(wallet: address, recipient: address, token: address, amount: uint256):
     raw_call(
         wallet,

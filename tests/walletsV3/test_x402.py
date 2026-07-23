@@ -26,6 +26,7 @@ DOMAIN_SEPARATOR = bytes.fromhex(
 TRANSFER_TYPEHASH = bytes.fromhex(
     "7c7c6cdb67a18743f49ec6fa9b35f50d52ed05cbed4cc592e13b44501c1a2267"
 )
+CANCEL_TYPEHASH = keccak(text="CancelAuthorization(address authorizer,bytes32 nonce)")
 MAGIC = bytes.fromhex("1626ba7e")
 INVALID = bytes.fromhex("ffffffff")
 
@@ -214,11 +215,23 @@ def test_s4_e3_rail_signature_exact_digest_caller_bounds_and_time(
 
     assert stack["wallet"].isValidSignature(digest, b"", sender=stack["operator"]) == INVALID
     assert stack["wallet"].isValidSignature(b"\xff" * 32, b"", sender=USDC_ADDRESS) == INVALID
-    assert stack["wallet"].isValidSignature(
-        keccak(text="cancellation-digest"),
-        b"",
-        sender=USDC_ADDRESS,
-    ) == INVALID
+    cancel_struct_hash = keccak(
+        encode(
+            ["bytes32", "address", "bytes32"],
+            [CANCEL_TYPEHASH, stack["wallet"].address, nonce],
+        )
+    )
+    cancellation_digest = keccak(
+        b"\x19\x01" + DOMAIN_SEPARATOR + cancel_struct_hash
+    )
+    assert (
+        stack["wallet"].isValidSignature(
+            cancellation_digest,
+            b"",
+            sender=USDC_ADDRESS,
+        )
+        == INVALID
+    )
 
     selector = keccak(text="isValidSignature(bytes32,bytes)")[:4]
     malformed = selector + digest
@@ -239,6 +252,8 @@ def test_s4_e3_rail_signature_exact_digest_caller_bounds_and_time(
     ) == INVALID
 
     boa.env.time_travel(seconds=100)
+    assert stack["wallet"].isValidSignature(digest, b"", sender=USDC_ADDRESS) == INVALID
+    boa.env.time_travel(seconds=1)
     assert stack["wallet"].isValidSignature(digest, b"", sender=USDC_ADDRESS) == INVALID
 
 
@@ -264,6 +279,33 @@ def test_s4_e4_and_e5_used_unsynced_expiry_unused_expiry_and_replay(
     with boa.reverts():
         stack["wallet"].expireExternalExact(used_id, sender=stack["operator"])
     stack["wallet"].syncExternalPull(used_id, sender=stack["operator"])
+    used_digest = stack["wallet"].commitment(used_id).digest
+    assert (
+        stack["wallet"].isValidSignature(
+            used_digest,
+            b"",
+            sender=USDC_ADDRESS,
+        )
+        == INVALID
+    )
+    with boa.reverts():
+        authorize(
+            stack,
+            used_id,
+            1,
+            keccak(text="used-id-new-nonce"),
+            now - 1,
+            now + 100,
+        )
+    with boa.reverts():
+        authorize(
+            stack,
+            keccak(text="used-nonce-new-id"),
+            1,
+            used_nonce,
+            now - 1,
+            now + 100,
+        )
 
     unused_id = keccak(text="unused-expiry")
     unused_nonce = keccak(text="unused-expiry-nonce")
@@ -274,6 +316,15 @@ def test_s4_e4_and_e5_used_unsynced_expiry_unused_expiry_and_replay(
     boa.env.time_travel(seconds=10)
     stack["wallet"].expireExternalExact(unused_id, sender=stack["operator"])
     assert stack["wallet"].commitment(unused_id).state == 3
+    unused_digest = stack["wallet"].commitment(unused_id).digest
+    assert (
+        stack["wallet"].isValidSignature(
+            unused_digest,
+            b"",
+            sender=USDC_ADDRESS,
+        )
+        == INVALID
+    )
 
     with boa.reverts():
         authorize(stack, unused_id, 1, keccak(text="new-nonce"), now - 1, now + 100)

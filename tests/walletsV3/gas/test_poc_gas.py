@@ -10,18 +10,31 @@ import json
 import os
 import rlp
 import subprocess
+from importlib.metadata import version as package_version
 from pathlib import Path
 
 import boa
 import pytest
+from eth.vm.forks.prague import PragueVM
 from eth_utils import keccak
 from vyper import __version__ as vyper_version
+from web3 import Web3
 
 from config.BluePrint import TOKENS, WHALES
+from conf_env import FORKS
 from conftest import V3_COMPILER_REPORT, deploy_v3
 from constants import EIGHTEEN_DECIMALS
 from test_mpp import attach_payment
-from test_x402 import USDC_ABI
+from test_x402 import (
+    DOMAIN_SEPARATOR,
+    PINNED_BASE_FEE,
+    PINNED_BLOCK,
+    PINNED_BLOCK_HASH,
+    PINNED_TIMESTAMP,
+    TRANSFER_TYPEHASH,
+    USDC_ABI,
+    USDC_ADDRESS,
+)
 
 
 pytestmark = [
@@ -38,6 +51,17 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 THRESHOLD_PATH = Path(__file__).with_name("thresholds.json")
 GAS_ORACLE = "0x420000000000000000000000000000000000000F"
 ZERO = "0x0000000000000000000000000000000000000000"
+EXPECTED_CALIBRATION = {
+    "clear_initialized_slot_gross": 5_102,
+    "clear_initialized_slot_raw_refund": 4_800,
+    "zero_to_nonzero_clean_write_gross": 22_217,
+    "zero_to_nonzero_clean_write_raw_refund": 0,
+    "initialWarmSet": "tx.origin, tx.to, fork-valid Prague precompiles only",
+    "initialStorageWarm": False,
+}
+SERIALIZED_Y_PARITY = 1
+SERIALIZED_R = int.from_bytes(keccak(text="wallet-v3-gas-signature-r"), "big")
+SERIALIZED_S = int.from_bytes(keccak(text="wallet-v3-gas-signature-s"), "big")
 
 ORACLE_ABI = json.dumps(
     [
@@ -116,17 +140,23 @@ def _measure(
     token=ZERO,
     amount=0,
     state_description,
+    semantic_check,
 ):
     _tx_boundary([sender, contract.address])
     result = call()
     computation = contract._computation
+    execution_success = bool(computation.is_success)
     gross = int(computation.get_gas_used())
     refund = int(computation.get_gas_refund())
     calldata = bytes(computation.msg.data)
+    semantic_success = bool(semantic_check())
+    assert execution_success
+    assert semantic_success
     entry = {
         "scenario": scenario,
         "role": role,
-        "semantic_success": True,
+        "execution_success": execution_success,
+        "semantic_success": semantic_success,
         "caller": str(sender),
         "entry_contract": str(contract.address),
         "token": str(token),
@@ -154,11 +184,17 @@ def _serialize_type2(entry, base_fee):
         0,
         calldata,
         [],
-        0,
-        1,
-        1,
+        SERIALIZED_Y_PARITY,
+        SERIALIZED_R,
+        SERIALIZED_S,
     ]
-    return b"\x02" + rlp.encode(payload)
+    serialized = b"\x02" + rlp.encode(payload)
+    decoded = rlp.decode(serialized[1:])
+    assert int.from_bytes(decoded[4], "big") == entry["minimum_executable_gas_limit"]
+    assert decoded[9] == b"\x01"
+    assert len(decoded[10]) == 32 and int.from_bytes(decoded[10], "big") != 0
+    assert len(decoded[11]) == 32 and int.from_bytes(decoded[11], "big") != 0
+    return serialized
 
 
 def _add_base_fee_evidence(report, base_fee):
@@ -181,8 +217,58 @@ def _add_base_fee_evidence(report, base_fee):
                 "modeled_l1_fee": modeled_l1_fee,
                 "operator_fee": operator_fee,
                 "modeled_sponsored_fee": l2_fee + modeled_l1_fee + operator_fee,
+                "serialized_signature": {
+                    "yParity": SERIALIZED_Y_PARITY,
+                    "r": hex(SERIALIZED_R),
+                    "s": hex(SERIALIZED_S),
+                },
             }
         )
+
+
+def _base_preflight():
+    assert boa.env.evm.patch.chain_id == 8453
+    assert FORKS["base"]["block"] == PINNED_BLOCK
+    assert Web3.to_checksum_address(TOKENS["base"]["USDC"]) == Web3.to_checksum_address(
+        USDC_ADDRESS
+    )
+    upstream = Web3(Web3.HTTPProvider(FORKS["base"]["rpc_url"]))
+    block = upstream.eth.get_block(PINNED_BLOCK)
+    assert bytes(block.hash) == bytes.fromhex(PINNED_BLOCK_HASH[2:])
+    assert block.timestamp == PINNED_TIMESTAMP
+    assert block.baseFeePerGas == PINNED_BASE_FEE
+
+    usdc = boa.loads_abi(USDC_ABI, name="GasPreflightBaseUSDC").at(USDC_ADDRESS)
+    assert usdc.name() == "USD Coin"
+    assert usdc.version() == "2"
+    assert usdc.DOMAIN_SEPARATOR() == DOMAIN_SEPARATOR
+    assert usdc.TRANSFER_WITH_AUTHORIZATION_TYPEHASH() == TRANSFER_TYPEHASH
+    assert boa.env.get_code(GAS_ORACLE) != b""
+    oracle = boa.loads_abi(ORACLE_ABI, name="BasePreflightGasPriceOracle").at(
+        GAS_ORACLE
+    )
+    assert oracle.getOperatorFee(190_000) == 0
+    probe_entry = {
+        "entry_contract": USDC_ADDRESS,
+        "raw_calldata": "0x",
+        "minimum_executable_gas_limit": 21_000,
+    }
+    assert oracle.getL1Fee(_serialize_type2(probe_entry, PINNED_BASE_FEE)) >= 0
+    return {
+        "chainId": 8453,
+        "block": PINNED_BLOCK,
+        "blockHash": PINNED_BLOCK_HASH,
+        "timestamp": PINNED_TIMESTAMP,
+        "upstreamBaseFeePerGas": PINNED_BASE_FEE,
+        "canonicalUSDC": USDC_ADDRESS,
+        "usdcName": "USD Coin",
+        "usdcVersion": "2",
+        "usdcDomainSeparator": "0x" + DOMAIN_SEPARATOR.hex(),
+        "usdcTransferWithAuthorizationTypehash": "0x" + TRANSFER_TYPEHASH.hex(),
+        "gasPriceOracle": GAS_ORACLE,
+        "operatorFeeAt190000": 0,
+        "preflightPosition": "first Base-profile action in gas test body",
+    }
 
 
 def _git_metadata():
@@ -225,11 +311,29 @@ def test_poc_gas(
     switchboard_alpha,
     migrator,
 ):
+    if os.environ.get("PYTEST_XDIST_WORKER") or getattr(
+        request.config.option,
+        "numprocesses",
+        None,
+    ) not in (None, 0, "0"):
+        pytest.fail("wallet-v3 gas evidence must not run under xdist")
     if len(request.session.items) != 1:
         pytest.fail("wallet-v3 gas module must be the only collected test")
     output = os.environ.get("WALLET_V3_GAS_OUTPUT")
     assert output and os.path.isabs(output) and output.startswith("/tmp/")
 
+    assert isinstance(boa.env.evm.vm, PragueVM)
+    observed_versions = {
+        "vyper": vyper_version,
+        "titanoboa": package_version("titanoboa"),
+        "py-evm": package_version("py-evm"),
+    }
+    assert observed_versions == {
+        "vyper": "0.4.3",
+        "titanoboa": "0.2.7",
+        "py-evm": "0.12.1b1",
+    }
+    base_preflight = _base_preflight() if fork == "base" else None
     commit, dirty = _git_metadata()
     report = {
         "schemaVersion": 1,
@@ -238,14 +342,14 @@ def test_poc_gas(
         "dirty": dirty,
         "evidenceClassification": "diagnostic-dirty-tree" if dirty else "final-clean-commit",
         "versions": {
-            "vyper": vyper_version,
-            "titanoboa": "0.2.7",
-            "py-evm": "0.12.1b1",
+            **observed_versions,
             "v3Compiler": V3_COMPILER_REPORT,
             "executionVM": type(boa.env.evm.vm).__name__,
         },
         "results": {},
     }
+    if base_preflight is not None:
+        report["fork"] = base_preflight
 
     try:
         # Boa's Base account prefetch can replace locally deployed blueprint
@@ -284,7 +388,7 @@ def test_poc_gas(
         clean_write_gross = int(boundary._computation.get_gas_used())
         clean_write_refund = int(boundary._computation.get_gas_refund())
         assert clean_write_refund == 0
-        report["transactionBoundaryCalibration"] = {
+        calibration = {
             "clear_initialized_slot_gross": clear_gross,
             "clear_initialized_slot_raw_refund": clear_refund,
             "zero_to_nonzero_clean_write_gross": clean_write_gross,
@@ -292,6 +396,22 @@ def test_poc_gas(
             "initialWarmSet": "tx.origin, tx.to, fork-valid Prague precompiles only",
             "initialStorageWarm": False,
         }
+        assert calibration == EXPECTED_CALIBRATION
+        report["transactionBoundaryCalibration"] = calibration
+        if fork == "base":
+            local_report_path = Path("/tmp/wallet-v3-poc-local.json")
+            assert local_report_path.is_file()
+            local_report = json.loads(local_report_path.read_text())
+            assert local_report["profile"] == "local"
+            assert local_report["sourceCommit"] == commit
+            assert local_report["dirty"] == dirty
+            assert local_report["transactionBoundaryCalibration"] == calibration
+            report["localBaseCalibrationMatch"] = {
+                "matched": True,
+                "localEvidence": str(local_report_path),
+                "sourceCommit": commit,
+                "dirty": dirty,
+            }
 
         # Paired v2/v3 initialized, independent, cross-block transfer.
         amount = 10 * EIGHTEEN_DECIMALS
@@ -342,6 +462,7 @@ def test_poc_gas(
         )
 
         boa.env.time_travel(blocks=1)
+        v2_recipient_before = alpha_token.balanceOf(transfer_recipient)
         _measure(
             "v2.transfer.repeat",
             "gate-comparator" if fork == "base" else "diagnostic-comparator",
@@ -357,8 +478,11 @@ def test_poc_gas(
             token=alpha_token.address,
             amount=amount,
             state_description="v2 initialized owner-to-whitelist repeat; independent transaction; next block",
+            semantic_check=lambda: alpha_token.balanceOf(transfer_recipient)
+            == v2_recipient_before + amount,
         )
         boa.env.time_travel(blocks=1)
+        v3_recipient_before = alpha_token.balanceOf(transfer_recipient)
         _measure(
             "v3.transfer.repeat",
             "gate" if fork == "base" else "diagnostic",
@@ -374,6 +498,8 @@ def test_poc_gas(
             token=alpha_token.address,
             amount=amount,
             state_description="v3 initialized owner-to-allowed-recipient repeat; independent transaction; next block",
+            semantic_check=lambda: alpha_token.balanceOf(transfer_recipient)
+            == v3_recipient_before + amount,
         )
         report["versions"]["v2Compiler"] = _settings(user_wallet)
         report["versions"]["v3ObservedCompiler"] = _settings(wallet_v3)
@@ -455,6 +581,11 @@ def test_poc_gas(
                 ),
                 report,
                 state_description="measurement-only NONE-consumer empty routed session",
+                semantic_check=lambda: (
+                    yield_wallet.phase() == 0
+                    and token.balanceOf(yield_wallet.address) == 1_000
+                    and token.allowance(yield_wallet.address, benchmark.address) == 0
+                ),
             )
             token.approve(vault.address, 10, sender=bob)
             _measure(
@@ -467,6 +598,7 @@ def test_poc_gas(
                 token=token.address,
                 amount=10,
                 state_description="direct initialized mock-vault deposit with prior exact approval",
+                semantic_check=lambda: vault.balanceOf(bob) == 10,
             )
             _measure(
                 "v3.session.yield_minimal",
@@ -486,6 +618,11 @@ def test_poc_gas(
                 token=token.address,
                 amount=10,
                 state_description="minimal routed yield deposit; exact wallet and protocol approvals",
+                semantic_check=lambda: (
+                    vault.balanceOf(yield_wallet.address) == 10
+                    and token.allowance(yield_wallet.address, lego.address) == 0
+                    and yield_wallet.phase() == 0
+                ),
             )
 
             # Representative MPP lifecycle.
@@ -528,6 +665,11 @@ def test_poc_gas(
                 token=token.address,
                 amount=100,
                 state_description="new representative reserved-transfer commitment",
+                semantic_check=lambda: (
+                    mpp_wallet.commitment(commitment_id).state == 1
+                    and mpp_wallet.commitment(commitment_id).remainingAmount == 100
+                    and mpp_wallet.reserved(token.address) == 100
+                ),
             )
             _measure(
                 "v3.mpp.partial_settle",
@@ -543,6 +685,12 @@ def test_poc_gas(
                 token=token.address,
                 amount=30,
                 state_description="live commitment with 100 reserved; first partial settlement",
+                semantic_check=lambda: (
+                    mpp_wallet.commitment(commitment_id).state == 1
+                    and mpp_wallet.commitment(commitment_id).remainingAmount == 70
+                    and mpp_wallet.reserved(token.address) == 70
+                    and token.balanceOf(transfer_recipient) == 30
+                ),
             )
             _measure(
                 "v3.mpp.refund",
@@ -557,6 +705,11 @@ def test_poc_gas(
                 token=token.address,
                 amount=70,
                 state_description="live commitment with 70 remaining after partial settlement",
+                semantic_check=lambda: (
+                    mpp_wallet.commitment(commitment_id).state == 5
+                    and mpp_wallet.commitment(commitment_id).remainingAmount == 0
+                    and mpp_wallet.reserved(token.address) == 0
+                ),
             )
         else:
             # Base-USDC external exact authorization and permissionless sync.
@@ -612,6 +765,11 @@ def test_poc_gas(
                 token=TOKENS["base"]["USDC"],
                 amount=100_000,
                 state_description="new exact Base-USDC EIP-3009 commitment",
+                semantic_check=lambda: (
+                    x_wallet.commitment(commitment_id).state == 1
+                    and x_wallet.commitment(commitment_id).remainingAmount == 100_000
+                    and x_wallet.reserved(TOKENS["base"]["USDC"]) == 100_000
+                ),
             )
             usdc.transferWithAuthorization(
                 x_wallet.address,
@@ -636,26 +794,13 @@ def test_poc_gas(
                 token=TOKENS["base"]["USDC"],
                 amount=100_000,
                 state_description="used external authorization with conservative reservation pending sync",
+                semantic_check=lambda: (
+                    x_wallet.commitment(commitment_id).state == 2
+                    and x_wallet.commitment(commitment_id).remainingAmount == 0
+                    and x_wallet.reserved(TOKENS["base"]["USDC"]) == 0
+                ),
             )
-
-            from web3 import Web3
-            from conf_env import FORKS
-
-            upstream = Web3(Web3.HTTPProvider(FORKS["base"]["rpc_url"]))
-            block = upstream.eth.get_block(FORKS["base"]["block"])
-            assert bytes(block.hash).hex() == "cf93c5606c59a6e58a0524e0c46fd79c9cb94c8e876ac4dc5657e5f6af52d662"
-            assert block.timestamp == 1_756_075_309
-            assert block.baseFeePerGas == 774_425
-            report["fork"] = {
-                "chainId": 8453,
-                "block": 34_642_981,
-                "blockHash": "0x" + bytes(block.hash).hex(),
-                "timestamp": block.timestamp,
-                "upstreamBaseFeePerGas": block.baseFeePerGas,
-                "canonicalUSDC": TOKENS["base"]["USDC"],
-                "gasPriceOracle": GAS_ORACLE,
-            }
-            _add_base_fee_evidence(report, block.baseFeePerGas)
+            _add_base_fee_evidence(report, PINNED_BASE_FEE)
 
         v2 = report["results"]["v2.transfer.repeat"]["tx_equivalent"]
         v3 = report["results"]["v3.transfer.repeat"]["tx_equivalent"]

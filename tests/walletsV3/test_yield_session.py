@@ -118,12 +118,15 @@ def test_s2_e2_empty_session_has_no_effect_or_approval(
         sender=owner,
     )
     token.mint(configured_wallet.address, 100)
-    before_nonce = configured_wallet.sessionNonce()
-    configured_wallet.execute(
-        benchmark.emptySession.prepare_calldata(configured_wallet.address),
-        sender=owner,
+    calldata = benchmark.emptySession.prepare_calldata(configured_wallet.address)
+    configured_wallet.execute(calldata, sender=owner)
+    opened = next(
+        event
+        for event in configured_wallet.get_logs()
+        if type(event).__name__ == "SessionOpened"
     )
-    assert configured_wallet.sessionNonce() == before_nonce + 1
+    assert opened.nonce == 1
+    assert opened.calldataHash == keccak(calldata)
     assert token.balanceOf(configured_wallet.address) == 100
     assert configured_wallet.reserved(token.address) == 0
     assert configured_wallet.phase() == 0
@@ -190,7 +193,7 @@ def test_s2_e3_and_e8_semantic_hash_binds_full_yield_action(
     assert opened.semanticHash == expected
     assert stack["lego"].lastActionDataHash() == action_data_hash
 
-    for mode in [1, 2, 3]:
+    for mode in [1, 2, 3, 4, 5]:
         stack["lego"].setMode(mode)
         with boa.reverts():
             execute_deposit(stack, 1, owner)
@@ -289,7 +292,7 @@ def test_s2_e6_attachment_bounds_declarations_and_dependencies(
     for request in invalid_requests:
         with boa.reverts():
             configured_wallet.attachExtender(request, sender=owner)
-    assert configured_wallet.attachmentCount() == 0
+    assert configured_wallet.currentRoute(sel).attachmentId == 0
 
     valid = (
         family,

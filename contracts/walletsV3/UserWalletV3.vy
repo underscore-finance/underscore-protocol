@@ -15,8 +15,8 @@ _routes: HashMap[uint256, HashMap[bytes4, w3.RouteView]]
 _routeSelectors: HashMap[uint256, HashMap[uint256, bytes4]]
 _currentRouteIds: HashMap[bytes4, uint256]
 _currentFamilyAttachment: HashMap[bytes32, uint256]
-attachmentCount: public(uint256)
-sessionNonce: public(uint256)
+attachmentCount: uint256
+sessionNonce: uint256
 _commitments: HashMap[bytes32, w3.CommitmentView]
 _digestCommitmentId: HashMap[bytes32, bytes32]
 _usedCommitmentId: HashMap[bytes32, bool]
@@ -94,6 +94,7 @@ event AttachmentAdded:
 event SessionOpened:
     attachmentId: indexed(uint256)
     selector: indexed(bytes4)
+    calldataHash: bytes32
     semanticHash: bytes32
     nonce: uint256
 
@@ -259,6 +260,29 @@ def _requireDependencyCodehashes(attachmentId: uint256):
         assert record.x402Helper.codehash == record.x402HelperCodehash
 
 
+@internal
+def _clearSession():
+    self._frameCaller = empty(address)
+    self._frameConfig = empty(address)
+    self._frameAttachmentId = 0
+    self._frameSelector = empty(bytes4)
+    self._frameCalldataHash = empty(bytes32)
+    self._frameActionId = 0
+    self._frameNonce = 0
+    self._frameOpened = False
+    self._capActionId = 0
+    self._capEffectClass = 0
+    self._capConsumer = empty(address)
+    self._capTarget = empty(address)
+    self._capSemanticHash = empty(bytes32)
+    self._capResource = empty(address)
+    self._capMaxAmount = 0
+    self._capBeneficiary = empty(address)
+    self._capConsumed = False
+    self._capStartBalance = 0
+    self._capStartReserved = 0
+
+
 @view
 @external
 def availableBalance(token: address) -> uint256:
@@ -279,12 +303,6 @@ def attachment(attachmentId: uint256) -> w3.AttachmentView:
 @external
 def currentRoute(selector: bytes4) -> w3.RouteView:
     attachmentId: uint256 = self._currentRouteIds[selector]
-    return self._routes[attachmentId][selector]
-
-
-@view
-@external
-def attachmentRoute(attachmentId: uint256, selector: bytes4) -> w3.RouteView:
     return self._routes[attachmentId][selector]
 
 
@@ -338,7 +356,8 @@ def transferFunds(recipient: address, token: address, amount: uint256):
     assert candidate != empty(address)
     self._phase = PHASE_DIRECT
     assert self._authorizedTransfer(candidate, msg.sender, recipient, token, amount)
-    assert amount <= self._balanceOf(token) - min(self._balanceOf(token), self.reserved[token])
+    balance: uint256 = self._balanceOf(token)
+    assert amount <= balance - min(balance, self.reserved[token])
     self._exactBoolCall(
         token,
         concat(method_id("transfer(address,uint256)"), abi_encode(recipient, amount)),
@@ -490,6 +509,10 @@ def _dispatch(
 
     raw_call(record.extender, typedExtenderCalldata, max_outsize=0)
     assert self._frameOpened and self._phase == PHASE_ACTIVE
+    if route.consumerMode == CONSUMER_NONE:
+        assert not self._capConsumed
+    else:
+        assert self._capConsumed
     self._phase = PHASE_SETTLING
 
     if self._capEffectClass == EFFECT_SPEND and self._capConsumer != empty(address):
@@ -505,14 +528,12 @@ def _dispatch(
             assert (
                 self._capStartBalance - finalBalance <= self._capMaxAmount
             )
+        assert self.reserved[self._capResource] == self._capStartReserved
         assert (
             self._allowance(self._capResource, self, self._capConsumer) == 0
         )
 
-    self._frameOpened = False
-    self._capConsumed = False
-    self._capConsumer = empty(address)
-    self._capResource = empty(address)
+    self._clearSession()
     self._phase = PHASE_IDLE
 
 
@@ -538,7 +559,8 @@ def openSession(request: w3.ActionEnvelope):
     record: w3.AttachmentView = self._attachments[attachmentId]
     route: w3.RouteView = self._routes[attachmentId][self._frameSelector]
     assert msg.sender == record.extender
-    assert request.actionId == route.actionId
+    assert request.actionId == self._frameActionId
+    assert self._frameActionId == route.actionId
     assert request.effectClass == route.effectClass
     if route.consumerMode == CONSUMER_LEGO:
         assert request.consumer == record.lego
@@ -590,6 +612,7 @@ def openSession(request: w3.ActionEnvelope):
     log SessionOpened(
         attachmentId=attachmentId,
         selector=self._frameSelector,
+        calldataHash=self._frameCalldataHash,
         semanticHash=semanticHash,
         nonce=self._frameNonce,
     )
@@ -599,6 +622,10 @@ def openSession(request: w3.ActionEnvelope):
 def consumeCapability(actualEnvelope: w3.ActionEnvelope):
     assert self._phase == PHASE_ACTIVE
     assert self._frameOpened
+    assert (
+        self._routes[self._frameAttachmentId][self._frameSelector].consumerMode
+        == CONSUMER_LEGO
+    )
     assert self._capConsumer != empty(address)
     assert msg.sender == self._capConsumer
     assert not self._capConsumed
@@ -618,6 +645,10 @@ def setDebtOperator(enabled: bool, actualEnvelope: w3.ActionEnvelope):
     assert self._phase == PHASE_ACTIVE
     assert self._frameOpened and msg.sender == self._attachments[self._frameAttachmentId].extender
     assert not self._capConsumed
+    assert (
+        self._routes[self._frameAttachmentId][self._frameSelector].consumerMode
+        == CONSUMER_CORE
+    )
     expectedAction: uint16 = 13 if enabled else 14
     record: w3.AttachmentView = self._attachments[self._frameAttachmentId]
     assert self._capActionId == expectedAction
@@ -651,6 +682,10 @@ def createExternalExact(fields: w3.ExternalExactFields, actualEnvelope: w3.Actio
     record: w3.AttachmentView = self._attachments[attachmentId]
     assert self._frameOpened and msg.sender == record.extender
     assert not self._capConsumed
+    assert (
+        self._routes[attachmentId][self._frameSelector].consumerMode
+        == CONSUMER_CORE
+    )
     assert self._capActionId == 20 and actualEnvelope.actionId == 20
     assert self._capEffectClass == EFFECT_SPEND and actualEnvelope.effectClass == EFFECT_SPEND
     assert self._capConsumer == empty(address) and actualEnvelope.consumer == empty(address)
@@ -729,6 +764,10 @@ def createReservedTransfer(fields: w3.ReservedTransferFields, actualEnvelope: w3
     record: w3.AttachmentView = self._attachments[self._frameAttachmentId]
     assert self._frameOpened and msg.sender == record.extender
     assert not self._capConsumed
+    assert (
+        self._routes[self._frameAttachmentId][self._frameSelector].consumerMode
+        == CONSUMER_CORE
+    )
     assert self._capActionId == 21 and actualEnvelope.actionId == 21
     assert self._capEffectClass == EFFECT_SPEND and actualEnvelope.effectClass == EFFECT_SPEND
     assert self._capConsumer == empty(address) and actualEnvelope.consumer == empty(address)

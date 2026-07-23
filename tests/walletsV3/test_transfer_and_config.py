@@ -1,5 +1,6 @@
 import boa
 import pytest
+from eth_utils import keccak
 
 from conftest import deploy_v3
 
@@ -16,6 +17,18 @@ EMPTY_REQUEST = (
     [],
 )
 EMPTY_ENVELOPE = (0, 0, ZERO, ZERO, ZERO, 0, ZERO, b"\x00" * 32)
+EMPTY_EXTERNAL_FIELDS = (
+    b"\x00" * 32,
+    ZERO,
+    0,
+    ZERO,
+    0,
+    0,
+    b"\x00" * 32,
+    ZERO,
+    b"\x00" * 32,
+)
+EMPTY_RESERVED_FIELDS = (b"\x00" * 32, ZERO, 0, ZERO, ZERO)
 
 
 def test_s1_e1_owner_manager_and_unauthorized_transfer(
@@ -40,7 +53,13 @@ def test_s1_e1_owner_manager_and_unauthorized_transfer(
     assert configured_wallet.phase() == 0
 
 
-def test_s1_e2_boot_is_fail_closed(wallet, token, owner):
+def test_s1_e2_boot_is_fail_closed(
+    wallet,
+    token,
+    owner,
+    recipient,
+    config_factory,
+):
     assert wallet.owner() == owner
     assert wallet.config() == ZERO
     assert wallet.phase() == 0
@@ -54,14 +73,36 @@ def test_s1_e2_boot_is_fail_closed(wallet, token, owner):
         lambda: wallet.executeAttached(1, b"\x00\x00\x00\x00", sender=owner),
         lambda: wallet.openSession(EMPTY_ENVELOPE, sender=owner),
         lambda: wallet.consumeCapability(EMPTY_ENVELOPE, sender=owner),
+        lambda: wallet.setDebtOperator(True, EMPTY_ENVELOPE, sender=owner),
+        lambda: wallet.createExternalExact(
+            EMPTY_EXTERNAL_FIELDS,
+            EMPTY_ENVELOPE,
+            sender=owner,
+        ),
+        lambda: wallet.createReservedTransfer(
+            EMPTY_RESERVED_FIELDS,
+            EMPTY_ENVELOPE,
+            sender=owner,
+        ),
         lambda: wallet.syncExternalPull(b"\x01" * 32, sender=owner),
+        lambda: wallet.expireExternalExact(b"\x01" * 32, sender=owner),
         lambda: wallet.settleReservedTransfer(b"\x01" * 32, 1, sender=owner),
+        lambda: wallet.refundReservedTransfer(b"\x01" * 32, sender=owner),
     ]
     for call in calls:
         with boa.reverts():
             call()
 
     assert wallet.phase() == 0
+    replacement = config_factory(
+        wallet,
+        managers=[],
+        recipients=[recipient],
+        tokens=[(token.address, 10, 10)],
+        actions=[],
+    )
+    wallet.replaceConfig(replacement.address, sender=owner)
+    assert wallet.config() == replacement.address
 
 
 def test_s1_e3_rejects_invalid_config_candidates(
@@ -95,6 +136,24 @@ def test_s1_e3_rejects_invalid_config_candidates(
         wallet.address,
         3,
     )
+    marker_selector = keccak(text="configInterfaceMarker()")[:4]
+    wallet_selector = keccak(text="wallet()")[:4]
+    marker = keccak(text="underscore.user-wallet-config-v3-poc-v1")
+    malformed_marker = boa.env.raw_call(
+        malformed_word_candidate,
+        data=marker_selector,
+    ).output
+    oversized_marker = boa.env.raw_call(
+        oversized_word_candidate,
+        data=marker_selector,
+    ).output
+    assert malformed_marker == marker[:31]
+    assert oversized_marker[:32] == marker
+    assert len(oversized_marker) == 33
+    for candidate in [malformed_word_candidate, oversized_word_candidate]:
+        wallet_word = boa.env.raw_call(candidate, data=wallet_selector).output
+        assert len(wallet_word) == 32
+        assert wallet_word[-20:] == bytes.fromhex(wallet.address[2:])
 
     candidates = [
         stranger,
@@ -113,10 +172,42 @@ def test_s1_e3_rejects_invalid_config_candidates(
 
 
 def test_s1_e3_reviewed_config_has_no_initializer_or_rebinding(config):
-    method_names = {entry.get("name") for entry in config.abi if entry["type"] == "function"}
+    functions = [entry for entry in config.abi if entry["type"] == "function"]
+    method_names = {entry.get("name") for entry in functions}
     assert "initialize" not in method_names
     assert "setWallet" not in method_names
     assert "rebind" not in method_names
+    assert all(entry["stateMutability"] in {"view", "pure"} for entry in functions)
+
+
+def test_s1_e3_zero_beneficiary_is_not_a_zero_consumer_exemption(
+    config,
+    owner,
+    stranger,
+):
+    zero_consumer = (
+        13,
+        4,
+        ZERO,
+        ZERO,
+        ZERO,
+        0,
+        ZERO,
+        keccak(text="zero-beneficiary"),
+    )
+    nonzero_consumer = (
+        13,
+        4,
+        stranger,
+        ZERO,
+        ZERO,
+        0,
+        stranger,
+        keccak(text="nonzero-consumer-beneficiary"),
+    )
+    selector = b"\x01\x00\x00\x00"
+    assert not config.authorizeSession(owner, 1, selector, zero_consumer)
+    assert config.authorizeSession(owner, 1, selector, nonzero_consumer)
 
 
 def test_s1_e4_config_token_and_reentrancy_failures_rollback(

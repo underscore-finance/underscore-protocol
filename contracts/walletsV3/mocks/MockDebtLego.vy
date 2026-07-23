@@ -39,6 +39,10 @@ def _consume(wallet: address, request: w3.ActionEnvelope):
         request.effectClass = 4
     elif self.mode == 3:
         request.resource = request.target
+    elif self.mode == 4:
+        request.actionId = 30
+    elif self.mode == 5:
+        request.actionDataHash = keccak256("wrong action data")
     extcall IUserWalletV3(wallet).consumeCapability(request)
     self.consumeCount += 1
 

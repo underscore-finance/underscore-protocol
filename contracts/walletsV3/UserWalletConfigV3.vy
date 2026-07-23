@@ -115,7 +115,10 @@ def authorizeSession(
             return False
     if (
         actionEnvelope.beneficiary != WALLET
-        and actionEnvelope.beneficiary != actionEnvelope.consumer
+        and (
+            actionEnvelope.consumer == empty(address)
+            or actionEnvelope.beneficiary != actionEnvelope.consumer
+        )
         and not self.isRecipient[actionEnvelope.beneficiary]
     ):
         return False

@@ -83,7 +83,7 @@ def test_s3_e1_non_allowance_effects_are_semantically_bounded(debt_stack, owner)
     stack = debt_stack
     stack["protocol"].seedCollateral(stack["wallet"].address, stack["token"].address, 10)
 
-    for mode in [1, 2, 3]:
+    for mode in [1, 2, 3, 4, 5]:
         stack["lego"].setMode(mode)
         with boa.reverts():
             execute(

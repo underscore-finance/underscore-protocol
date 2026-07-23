@@ -197,6 +197,30 @@ def test_s4_e5_and_e6_partial_settlement_refund_and_terminal_replay(
     with boa.reverts():
         authorize_reserved(stack, commitment_id, 1)
 
+    settled_id = keccak(text="mpp-fully-settled")
+    authorize_reserved(stack, settled_id, 10)
+    stack["wallet"].settleReservedTransfer(
+        settled_id,
+        10,
+        sender=stack["operator"],
+    )
+    settled = stack["wallet"].commitment(settled_id)
+    assert settled.state == 4
+    assert settled.remainingAmount == 0
+    with boa.reverts():
+        authorize_reserved(stack, settled_id, 1)
+    with boa.reverts():
+        stack["wallet"].settleReservedTransfer(
+            settled_id,
+            1,
+            sender=stack["operator"],
+        )
+    with boa.reverts():
+        stack["wallet"].refundReservedTransfer(
+            settled_id,
+            sender=stack["owner"],
+        )
+
 
 def test_s4_e6_state_updates_before_transfer_and_reentrancy_rolls_back(payment_stack):
     stack = payment_stack
