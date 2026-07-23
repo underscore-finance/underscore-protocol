@@ -228,7 +228,7 @@ The exact node ids above cover every required evidence record:
 - Same-address dependency code mutation is rejected, but attachment approval, adapter governance, and emergency response are deferred.
 - Transient behavior is compiled for Cancun and exercised in Boa's Prague py-evm overlay. There is no live-network receipt or production deployment evidence.
 - The Base transfer comparison uses the v2 fixture's mock ERC-20 for both v2 and v3. It isolates direct-path architecture cost but does not measure a real USDC proxy transfer.
-- The Base gas harness must restore exact existing v2 fixture blueprint bytecode after Boa fork prefetch exposes upstream empty accounts. The report asserts byte equality; explicit BL-010 owner sign-off remains pending, and the shim should be revisited with future Boa versions.
+- The Base gas harness must restore exact existing v2 fixture blueprint bytecode after Boa fork prefetch exposes upstream empty accounts. The report asserts byte equality; the owner explicitly approved BL-010 on 2026-07-23 after independent review. The shim should still be revisited with future Boa versions.
 - The original squashed commit cannot independently prove the Step-4-before-future-action chronology. The post-review checkpoint does prove unchanged core from commit `397a1cf` forward.
 - Core assertions intentionally have no runtime reason strings to preserve the size result. High-value negative cases use isolated mutations and state invariants, but empty assertion data is less diagnostic than a production custom-error design.
 - Tests are targeted, not a formal proof, exhaustive fuzz campaign, or audit.

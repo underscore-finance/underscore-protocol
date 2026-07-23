@@ -54,8 +54,8 @@ Reason: These files complete containment, stale/reuse, reentrancy, malformed-ret
 Affected files/evidence: `contracts/walletsV3/extenders/FutureActionExtender.vy`, `contracts/walletsV3/mocks/MockFutureAction*.vy`, `contracts/walletsV3/mocks/MaliciousExtender.vy`, `tests/walletsV3/test_security.py`, `tests/walletsV3/test_future_action.py`.
 Scope impact: None.
 
-BL-010 · 2026-07-23 · S1-E6 Base fixture compatibility
-Decision or failed assumption: The existing v2 blueprint fixtures compile and deploy correctly on Base, but Boa's fork account prefetch later replaces their locally deployed code with the upstream empty accounts at the configured addresses. Before requesting the existing v2 wallet session fixture, the standalone gas harness restores those exact fixture blueprint bytecodes to the configured addresses in the py-evm overlay and asserts the bytecode match.
+BL-010 · 2026-07-23 · S1-E6 Base fixture compatibility · owner approved
+Decision or failed assumption: The existing v2 blueprint fixtures compile and deploy correctly on Base, but Boa's fork account prefetch later replaces their locally deployed code with the upstream empty accounts at the configured addresses. Before requesting the existing v2 wallet session fixture, the standalone gas harness restores those exact fixture blueprint bytecodes to the configured addresses in the py-evm overlay and asserts the bytecode match. The owner explicitly approved this narrow evidence shim on 2026-07-23 after independent review.
 Reason: Hatchery otherwise reaches `create_from_blueprint` with zero-length template code. Restoring the already-compiled fixture bytecode is the narrowest correction that preserves the existing v2 source, fixture policy, compiler settings, Base state, and Boa transaction-isolation method.
 Affected files/evidence: `tests/walletsV3/gas/test_poc_gas.py`, S1-E6, `tests/walletsV3/gas/test_poc_gas.py::test_poc_gas`.
 Scope impact: None; this is Base overlay test compatibility and does not change v2, v3, benchmark semantics, or architecture.
