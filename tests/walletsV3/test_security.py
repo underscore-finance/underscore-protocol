@@ -742,5 +742,5 @@ def test_s5_e9_core_runtime_size_and_compiler_settings():
     runtime_size = len(deployer.compiler_data.bytecode_runtime)
     assert settings.optimize == OptimizationLevel.GAS
     assert settings.evm_version == "cancun"
-    assert runtime_size == 12_055
+    assert runtime_size == 11_985
     assert runtime_size < 16_384
