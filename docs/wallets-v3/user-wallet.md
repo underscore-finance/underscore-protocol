@@ -139,7 +139,7 @@ IDLE → ADMIN → IDLE
 - Only the routed extender may open that exact session.
 - Only the session's pinned Lego may call the general `consumeCapability` primitive. Named CORE primitives consume internally after verifying the active routed extender.
 - SETTLING clears the session approval before checking balances and beneficiaries.
-- A routed extender may return without consuming the capability. This is a safe no-effect session used to measure framework overhead; it leaves no approval or persistent economic state. Any successful effect still requires consumption before that effect.
+- Only a `NONE` route may return without consuming the capability. This is a safe no-effect session used to measure framework overhead; it leaves no approval or persistent economic state. A `LEGO` or `CORE` route must consume before the extender returns or the entire execution reverts.
 - No nested sessions, generic receiver callbacks, after-session hooks, or answer-handler framework exists.
 - Rail-only `isValidSignature` is a bounded static answer and requires the wallet to be IDLE.
 

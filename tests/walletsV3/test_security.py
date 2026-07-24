@@ -465,6 +465,15 @@ def test_s5_e2_unconsumed_spend_session_cannot_settle(
         sender=owner,
     )
     token.mint(configured_wallet.address, 100)
+    wrong_consumer = _mutate(request, 2, malicious.address)
+    with boa.reverts():
+        configured_wallet.execute(
+            malicious.attackOpen.prepare_calldata(
+                configured_wallet.address,
+                wrong_consumer,
+            ),
+            sender=owner,
+        )
     with boa.reverts():
         configured_wallet.execute(
             malicious.attackOpen.prepare_calldata(

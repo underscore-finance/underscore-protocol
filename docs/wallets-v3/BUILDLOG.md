@@ -62,7 +62,7 @@ Scope impact: None; this is Base overlay test compatibility and does not change 
 
 BL-011 · 2026-07-23 · Steps 1-5 gas review
 Decision or failed assumption: Accept direct-transfer gas and core runtime size; redesign the empty-session, routed-yield, and payment-authorization cost centers before production; retain the demonstrated payment lifecycle semantics without treating any PoC measurement as a production baseline.
-Reason: After post-review conformance hardening, the Base gate is 51,337 tx-equivalent gas for v3 versus 511,975 for v2, and core runtime is 12,055 bytes. The local empty session is 117,497 versus the 60,000 review target; routed yield is 292,025 versus 123,126 for the direct control; external-exact and reserved-transfer creation cost 543,981 and 352,399 respectively.
+Reason: The Base gate is 52,257 tx-equivalent gas for v3 versus 511,975 for v2, and core runtime is 11,913 bytes. The local empty session is 115,155 versus the 60,000 review target; routed yield is 288,598 versus 123,126 for the direct control; external-exact and reserved-transfer creation cost 541,257 and 349,578 respectively.
 Affected files/evidence: `tests/walletsV3/gas/test_poc_gas.py`, `docs/wallets-v3/POC_RESULTS.md`, S1-E6, S2-E7, S4-E2, S5-E9.
 Scope impact: None; these are required measurement dispositions.
 
@@ -101,3 +101,33 @@ Decision or failed assumption: Keep runtime assertions free of revert strings an
 Reason: BL-006 established that revert strings dominated bytecode size. Boa's bare `reverts()` cannot distinguish identical empty assertion data, while the new mutation matrices, successful controls, and unchanged commitment/balance/allowance/phase assertions identify the failed invariant without changing deployed bytecode.
 Affected files/evidence: `contracts/walletsV3/UserWalletV3.vy`, all negative tests under `tests/walletsV3/`, especially S1-E3, S4-E3..S4-E6, S5-E1..S5-E2.
 Scope impact: None; production diagnostic design remains deferred.
+
+BL-018 · 2026-07-23 · evidence-log chronology correction
+Decision or failed assumption: Restore BL-011's original Step-5 measurements verbatim and supersede them here with the post-review values: Base v3 transfer 51,337 versus v2 511,975; core runtime 12,055 bytes; local empty session 117,497; routed yield 292,025 versus direct control 123,126; external-exact creation 543,981; reserved-transfer creation 352,399.
+Reason: BL-011 had been rewritten in place during hardening. An evidence log should preserve the historical observation and append its successor even when both runs occurred on the same day.
+Affected files/evidence: BL-011, `docs/wallets-v3/POC_RESULTS.md`, `/tmp/wallet-v3-poc-local.json`, `/tmp/wallet-v3-poc-base.json`.
+Scope impact: None; this restores append-only evidence chronology.
+
+BL-019 · 2026-07-23 · remaining routed-consumer regression / S2-E1, S5-E2
+Decision or failed assumption: Add the carried-forward negative case that executes a valid LEGO route while mutating only the session envelope consumer away from the attachment-pinned Lego.
+Reason: Happy-path routing exercised the equality check, but no prior negative test would fail if the `consumer == record.lego` assertion at `openSession` regressed.
+Affected files/evidence: `tests/walletsV3/test_security.py::test_s5_e2_unconsumed_spend_session_cannot_settle`.
+Scope impact: None; this is a five-line mutation of an existing adversarial evidence node.
+
+BL-020 · 2026-07-23 · gas-artifact linkage and observed preflight / S1-E6, S2-E7, S4 gas
+Decision or failed assumption: Derive the required local-evidence path from the requested Base output path; reject missing, non-absolute, outside-`/tmp`, wrong-suffix, and colliding paths with explicit messages; bind the paired runs by commit, dirty flag, a digest of the complete tracked diff/status and untracked-file contents, and the exact local artifact SHA-256. Require the exact Prague VM class, pinned overlay timestamp, and exact deterministic oracle probe fee; report observed fork, USDC, oracle, execution-mode, and yield-comparison values.
+Reason: Commit and dirty-state equality did not distinguish two dirty trees at one commit, a fixed local path could collide with a custom Base output, and several guard values were asserted weakly or echoed from constants rather than recorded from observation.
+Affected files/evidence: `tests/walletsV3/gas/test_poc_gas.py`, `/tmp/wallet-v3-poc-local.json`, `/tmp/wallet-v3-poc-base.json`.
+Scope impact: None; scenarios, gas formula, Base pin, thresholds, and state-boundary method remain unchanged.
+
+BL-021 · 2026-07-23 · evidence interpretation
+Decision or failed assumption: Describe the cross-profile calibration check as artifact/workflow linkage plus equality of values that each profile independently pins, not as an independent discovery of calibration parity. Retain the per-primitive `consumerMode == CORE` checks as redundant defense-in-depth while crediting the public regression to the composed dispatch invariant rather than claiming it isolates each internal assertion.
+Reason: The prior BL-014 phrasing overstated what comparing two already-pinned calibration dictionaries proves, and the public NONE-route regression cannot reach past the stronger dispatch invariant to falsify each redundant primitive guard independently.
+Affected files/evidence: `tests/walletsV3/gas/test_poc_gas.py`, `docs/wallets-v3/POC_RESULTS.md`, BL-014, S5-E1.
+Scope impact: None; this narrows evidence claims and records why redundant fail-closed checks remain.
+
+BL-022 · 2026-07-23 · explicitly reviewed scope correction / §§1, 4.5
+Decision or failed assumption: Clarify in both contract documents that only a `NONE` route may settle without consumption; a `LEGO` or `CORE` route must consume before its extender returns or the entire execution reverts. The owner explicitly approved this wording correction on 2026-07-23 after reviewing its runtime meaning and compatibility tradeoff.
+Reason: The existing implementation and §1 already reserve successful no-effect sessions for framework-overhead evidence, but the broader prose in implementation-guide §4.5 and architecture §4.4 could be read as allowing any route mode to return unconsumed.
+Affected files/evidence: `docs/wallets-v3/implementation-guide.md`, `docs/wallets-v3/user-wallet.md`, `contracts/walletsV3/UserWalletV3.vy`, `tests/walletsV3/test_security.py::test_s5_e2_unconsumed_spend_session_cannot_settle`.
+Scope impact: Explicitly reviewed documentation correction only; runtime behavior, ABI, storage, scenarios, and architecture are unchanged.

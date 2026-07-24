@@ -334,7 +334,7 @@ The extender's typed function decodes its calldata and calls `openSession(Action
 
 When the extender returns, core requires that a session was opened, enters SETTLING, clears any Wallet→Lego approval, applies the token-loss bound, clears transient session data, and returns to IDLE.
 
-An extender may return with `consumed == false`. That is a successful no-effect session only: no core primitive/effect ran, any approval is cleared, and no persistent economic state changed. The `v3.session.empty` benchmark measures this path through a dedicated `MockBenchmarkExtender` and measurement-only `BENCHMARK_EMPTY` route; adversarial behavior remains isolated in `MaliciousExtender`.
+Only a `NONE` route may return with `consumed == false` as a successful no-effect session: no core primitive/effect ran, any approval is cleared, and no persistent economic state changed. A `LEGO` or `CORE` route must consume its capability before the extender returns or the entire execution reverts. The `v3.session.empty` benchmark measures the `NONE` path through a dedicated `MockBenchmarkExtender` and measurement-only `BENCHMARK_EMPTY` route; adversarial behavior remains isolated in `MaliciousExtender`.
 
 Every stateful top-level path acquires its phase before its first external call:
 

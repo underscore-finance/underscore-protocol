@@ -6,6 +6,7 @@ locked as previous-transaction state, access journals and transient storage are
 cleared, and only tx.origin, tx.to, and Prague precompiles are prewarmed.
 """
 
+import hashlib
 import json
 import os
 import rlp
@@ -62,6 +63,7 @@ EXPECTED_CALIBRATION = {
 SERIALIZED_Y_PARITY = 1
 SERIALIZED_R = int.from_bytes(keccak(text="wallet-v3-gas-signature-r"), "big")
 SERIALIZED_S = int.from_bytes(keccak(text="wallet-v3-gas-signature-s"), "big")
+PINNED_PREFLIGHT_L1_FEE = 1_233_604_915
 
 ORACLE_ABI = json.dumps(
     [
@@ -155,6 +157,12 @@ def _measure(
     entry = {
         "scenario": scenario,
         "role": role,
+        "executionMode": (
+            "boa-pyevm-overlay"
+            if report["profile"] == "base"
+            else "boa-pyevm-local"
+        ),
+        "receipt": "not-applicable",
         "execution_success": execution_success,
         "semantic_success": semantic_success,
         "caller": str(sender),
@@ -227,46 +235,76 @@ def _add_base_fee_evidence(report, base_fee):
 
 
 def _base_preflight():
-    assert boa.env.evm.patch.chain_id == 8453
+    overlay_chain_id = int(boa.env.evm.patch.chain_id)
+    overlay_timestamp = int(boa.env.evm.patch.timestamp)
+    assert overlay_chain_id == 8453
+    assert overlay_timestamp == PINNED_TIMESTAMP
     assert FORKS["base"]["block"] == PINNED_BLOCK
-    assert Web3.to_checksum_address(TOKENS["base"]["USDC"]) == Web3.to_checksum_address(
-        USDC_ADDRESS
-    )
+    configured_usdc = Web3.to_checksum_address(TOKENS["base"]["USDC"])
+    canonical_usdc = Web3.to_checksum_address(USDC_ADDRESS)
+    assert configured_usdc == canonical_usdc
     upstream = Web3(Web3.HTTPProvider(FORKS["base"]["rpc_url"]))
     block = upstream.eth.get_block(PINNED_BLOCK)
-    assert bytes(block.hash) == bytes.fromhex(PINNED_BLOCK_HASH[2:])
-    assert block.timestamp == PINNED_TIMESTAMP
-    assert block.baseFeePerGas == PINNED_BASE_FEE
+    observed_block_hash = "0x" + bytes(block.hash).hex()
+    observed_timestamp = int(block.timestamp)
+    observed_base_fee = int(block.baseFeePerGas)
+    assert observed_block_hash == PINNED_BLOCK_HASH
+    assert observed_timestamp == PINNED_TIMESTAMP
+    assert observed_base_fee == PINNED_BASE_FEE
 
     usdc = boa.loads_abi(USDC_ABI, name="GasPreflightBaseUSDC").at(USDC_ADDRESS)
-    assert usdc.name() == "USD Coin"
-    assert usdc.version() == "2"
-    assert usdc.DOMAIN_SEPARATOR() == DOMAIN_SEPARATOR
-    assert usdc.TRANSFER_WITH_AUTHORIZATION_TYPEHASH() == TRANSFER_TYPEHASH
-    assert boa.env.get_code(GAS_ORACLE) != b""
+    observed_usdc_address = Web3.to_checksum_address(str(usdc.address))
+    observed_usdc_name = usdc.name()
+    observed_usdc_version = usdc.version()
+    observed_domain_separator = bytes(usdc.DOMAIN_SEPARATOR())
+    observed_transfer_typehash = bytes(
+        usdc.TRANSFER_WITH_AUTHORIZATION_TYPEHASH()
+    )
+    assert observed_usdc_address == canonical_usdc
+    assert observed_usdc_name == "USD Coin"
+    assert observed_usdc_version == "2"
+    assert observed_domain_separator == DOMAIN_SEPARATOR
+    assert observed_transfer_typehash == TRANSFER_TYPEHASH
+    oracle_code = boa.env.get_code(GAS_ORACLE)
+    assert oracle_code != b""
     oracle = boa.loads_abi(ORACLE_ABI, name="BasePreflightGasPriceOracle").at(
         GAS_ORACLE
     )
-    assert oracle.getOperatorFee(190_000) == 0
+    observed_oracle_address = Web3.to_checksum_address(str(oracle.address))
+    assert observed_oracle_address == Web3.to_checksum_address(GAS_ORACLE)
+    operator_fee = int(oracle.getOperatorFee(190_000))
+    assert operator_fee == 0
     probe_entry = {
         "entry_contract": USDC_ADDRESS,
         "raw_calldata": "0x",
         "minimum_executable_gas_limit": 21_000,
     }
-    assert oracle.getL1Fee(_serialize_type2(probe_entry, PINNED_BASE_FEE)) >= 0
+    probe_transaction = _serialize_type2(probe_entry, PINNED_BASE_FEE)
+    probe_l1_fee = int(oracle.getL1Fee(probe_transaction))
+    assert probe_l1_fee == PINNED_PREFLIGHT_L1_FEE, (
+        "unexpected pinned Base oracle probe fee: "
+        f"{probe_l1_fee} != {PINNED_PREFLIGHT_L1_FEE}"
+    )
     return {
-        "chainId": 8453,
-        "block": PINNED_BLOCK,
-        "blockHash": PINNED_BLOCK_HASH,
-        "timestamp": PINNED_TIMESTAMP,
-        "upstreamBaseFeePerGas": PINNED_BASE_FEE,
-        "canonicalUSDC": USDC_ADDRESS,
-        "usdcName": "USD Coin",
-        "usdcVersion": "2",
-        "usdcDomainSeparator": "0x" + DOMAIN_SEPARATOR.hex(),
-        "usdcTransferWithAuthorizationTypehash": "0x" + TRANSFER_TYPEHASH.hex(),
-        "gasPriceOracle": GAS_ORACLE,
-        "operatorFeeAt190000": 0,
+        "chainId": overlay_chain_id,
+        "block": int(block.number),
+        "blockHash": observed_block_hash,
+        "timestamp": observed_timestamp,
+        "overlayTimestamp": overlay_timestamp,
+        "upstreamBaseFeePerGas": observed_base_fee,
+        "canonicalUSDC": observed_usdc_address,
+        "configuredUSDC": configured_usdc,
+        "usdcName": observed_usdc_name,
+        "usdcVersion": observed_usdc_version,
+        "usdcDomainSeparator": "0x" + observed_domain_separator.hex(),
+        "usdcTransferWithAuthorizationTypehash": (
+            "0x" + observed_transfer_typehash.hex()
+        ),
+        "gasPriceOracle": observed_oracle_address,
+        "gasPriceOracleCodeHash": "0x" + keccak(oracle_code).hex(),
+        "operatorFeeAt190000": operator_fee,
+        "l1FeeProbeAt21000": probe_l1_fee,
+        "l1FeeProbeTransactionHash": "0x" + keccak(probe_transaction).hex(),
         "preflightPosition": "first Base-profile action in gas test body",
     }
 
@@ -277,14 +315,55 @@ def _git_metadata():
         cwd=REPO_ROOT,
         text=True,
     ).strip()
-    dirty = bool(
-        subprocess.check_output(
-            ["git", "status", "--porcelain"],
-            cwd=REPO_ROOT,
-            text=True,
-        ).strip()
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        cwd=REPO_ROOT,
     )
-    return commit, dirty
+    tracked_diff = subprocess.check_output(
+        ["git", "diff", "--binary", "HEAD", "--"],
+        cwd=REPO_ROOT,
+    )
+    state_digest = hashlib.sha256()
+    state_digest.update(b"git-status\0")
+    state_digest.update(status)
+    state_digest.update(b"git-diff-head\0")
+    state_digest.update(tracked_diff)
+    for record in status.split(b"\0"):
+        if not record.startswith(b"?? "):
+            continue
+        relative = record[3:].decode()
+        candidate = REPO_ROOT / relative
+        if candidate.is_file():
+            state_digest.update(b"untracked-file\0")
+            state_digest.update(relative.encode())
+            state_digest.update(b"\0")
+            state_digest.update(candidate.read_bytes())
+    return commit, bool(status), state_digest.hexdigest()
+
+
+def _evidence_paths(fork):
+    configured = os.environ.get("WALLET_V3_GAS_OUTPUT")
+    if not configured:
+        pytest.fail("WALLET_V3_GAS_OUTPUT must name an absolute /tmp evidence path")
+    configured_path = Path(configured)
+    if not configured_path.is_absolute():
+        pytest.fail("WALLET_V3_GAS_OUTPUT must be absolute")
+    output_path = configured_path.resolve()
+    tmp_root = Path("/tmp").resolve()
+    if tmp_root != output_path.parent and tmp_root not in output_path.parents:
+        pytest.fail("WALLET_V3_GAS_OUTPUT must resolve beneath /tmp")
+    expected_suffix = f"-{fork}.json"
+    if not output_path.name.endswith(expected_suffix):
+        pytest.fail(
+            f"{fork} evidence path must end with {expected_suffix}: {output_path}"
+        )
+    local_path = None
+    if fork == "base":
+        local_name = output_path.name[: -len(expected_suffix)] + "-local.json"
+        local_path = output_path.with_name(local_name)
+        if local_path == output_path:
+            pytest.fail("Base and local gas evidence paths must be distinct")
+    return output_path, local_path
 
 
 def _settings(contract):
@@ -319,10 +398,9 @@ def test_poc_gas(
         pytest.fail("wallet-v3 gas evidence must not run under xdist")
     if len(request.session.items) != 1:
         pytest.fail("wallet-v3 gas module must be the only collected test")
-    output = os.environ.get("WALLET_V3_GAS_OUTPUT")
-    assert output and os.path.isabs(output) and output.startswith("/tmp/")
+    output_path, local_report_path = _evidence_paths(fork)
 
-    assert isinstance(boa.env.evm.vm, PragueVM)
+    assert type(boa.env.evm.vm) is PragueVM
     observed_versions = {
         "vyper": vyper_version,
         "titanoboa": package_version("titanoboa"),
@@ -334,12 +412,13 @@ def test_poc_gas(
         "py-evm": "0.12.1b1",
     }
     base_preflight = _base_preflight() if fork == "base" else None
-    commit, dirty = _git_metadata()
+    commit, dirty, worktree_state = _git_metadata()
     report = {
         "schemaVersion": 1,
         "profile": fork,
         "sourceCommit": commit,
         "dirty": dirty,
+        "worktreeStateSha256": worktree_state,
         "evidenceClassification": "diagnostic-dirty-tree" if dirty else "final-clean-commit",
         "versions": {
             **observed_versions,
@@ -399,18 +478,40 @@ def test_poc_gas(
         assert calibration == EXPECTED_CALIBRATION
         report["transactionBoundaryCalibration"] = calibration
         if fork == "base":
-            local_report_path = Path("/tmp/wallet-v3-poc-local.json")
-            assert local_report_path.is_file()
-            local_report = json.loads(local_report_path.read_text())
-            assert local_report["profile"] == "local"
-            assert local_report["sourceCommit"] == commit
-            assert local_report["dirty"] == dirty
-            assert local_report["transactionBoundaryCalibration"] == calibration
+            if not local_report_path.is_file():
+                pytest.fail(
+                    "run the matching local gas profile first; expected evidence at "
+                    f"{local_report_path}"
+                )
+            local_report_bytes = local_report_path.read_bytes()
+            local_report_sha256 = hashlib.sha256(local_report_bytes).hexdigest()
+            local_report = json.loads(local_report_bytes)
+            assert local_report["profile"] == "local", (
+                f"expected local profile in {local_report_path}"
+            )
+            assert local_report["sourceCommit"] == commit, (
+                "local and Base evidence source commits differ"
+            )
+            assert local_report["dirty"] == dirty, (
+                "local and Base evidence dirty states differ"
+            )
+            assert local_report["worktreeStateSha256"] == worktree_state, (
+                "local and Base evidence worktree states differ"
+            )
+            assert local_report["transactionBoundaryCalibration"] == calibration, (
+                "local and Base independently pinned calibration values differ"
+            )
             report["localBaseCalibrationMatch"] = {
                 "matched": True,
                 "localEvidence": str(local_report_path),
+                "localEvidenceContentSha256": local_report_sha256,
                 "sourceCommit": commit,
                 "dirty": dirty,
+                "worktreeStateSha256": worktree_state,
+                "comparisonScope": (
+                    "exact local artifact identity and workflow linkage; each "
+                    "profile independently asserts the pinned calibration values"
+                ),
             }
 
         # Paired v2/v3 initialized, independent, cross-block transfer.
@@ -813,6 +914,21 @@ def test_poc_gas(
                 "lean v3 intentionally omits v2 production policy work."
             ),
         }
+        if fork == "local":
+            direct_yield = report["results"][
+                "control.yield.protocol_direct"
+            ]["tx_equivalent"]
+            routed_yield = report["results"][
+                "v3.session.yield_minimal"
+            ]["tx_equivalent"]
+            report["yieldComparison"] = {
+                "absoluteDelta": routed_yield - direct_yield,
+                "percentageDelta": (
+                    (routed_yield - direct_yield) / direct_yield * 100
+                ),
+                "control": "control.yield.protocol_direct",
+                "candidate": "v3.session.yield_minimal",
+            }
         report["coreRuntimeBytes"] = len(wallet_v3.compiler_data.bytecode_runtime)
 
         if fork == "base":
@@ -827,7 +943,7 @@ def test_poc_gas(
             assert v3 < threshold["max"]
             assert v3 < v2
 
-        Path(output).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+        output_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
         print("WALLET_V3_POC_GAS_JSON_START")
         print(json.dumps(report, indent=2, sort_keys=True))
         print("WALLET_V3_POC_GAS_JSON_END")
