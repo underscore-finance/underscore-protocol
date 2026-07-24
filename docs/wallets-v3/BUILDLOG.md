@@ -137,3 +137,9 @@ Decision or failed assumption: BL-019's first wrong-consumer probe was shadowed 
 Reason: With the real core the hostile path reverts before any approval or pull. In a temporary mutation that removed only the `openSession` consumer-binding assertion, the same test failed with `Did not revert` because the hostile path consumed and pulled successfully. Restoring the assertion restored the passing test, and the core source hash remained `d71ea665405494b0d9f4186e3a45e78104aaf0e97b7dcb0786c9dc1fb5f68039`.
 Affected files/evidence: `contracts/walletsV3/mocks/MaliciousExtender.vy`, `tests/walletsV3/test_security.py::test_s5_e2_unconsumed_spend_session_cannot_settle`, `docs/wallets-v3/POC_RESULTS.md`, BL-019.
 Scope impact: None; this corrects overstated test evidence with a mutation-sensitive planned malicious mock. Production core, ABI, storage, and architecture are unchanged.
+
+BL-024 · 2026-07-23 · round-three gas-report polish / S1-E6, S2-E7, S4 gas
+Decision or failed assumption: Record both requested and resolved output/local-evidence paths so macOS's `/tmp` → `/private/tmp` symlink resolution is explicit, and remove the prose `preflightPosition` field rather than presenting code-order self-attestation as observed evidence.
+Reason: Both points were cosmetic and did not weaken the guards or measurements, but the report can express path resolution directly and rely on executable source order instead of a constant claim about that order.
+Affected files/evidence: `tests/walletsV3/gas/test_poc_gas.py`, `docs/wallets-v3/POC_RESULTS.md`, `/tmp/wallet-v3-poc-local.json`, `/tmp/wallet-v3-poc-base.json`.
+Scope impact: None; report observability only. Preconditions, scenarios, formulas, thresholds, and Base pin are unchanged.

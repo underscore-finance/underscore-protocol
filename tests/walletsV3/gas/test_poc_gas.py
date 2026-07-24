@@ -305,7 +305,6 @@ def _base_preflight():
         "operatorFeeAt190000": operator_fee,
         "l1FeeProbeAt21000": probe_l1_fee,
         "l1FeeProbeTransactionHash": "0x" + keccak(probe_transaction).hex(),
-        "preflightPosition": "first Base-profile action in gas test body",
     }
 
 
@@ -358,12 +357,23 @@ def _evidence_paths(fork):
             f"{fork} evidence path must end with {expected_suffix}: {output_path}"
         )
     local_path = None
+    path_evidence = {
+        "requestedOutput": str(configured_path),
+        "resolvedOutput": str(output_path),
+    }
     if fork == "base":
-        local_name = output_path.name[: -len(expected_suffix)] + "-local.json"
-        local_path = output_path.with_name(local_name)
+        local_name = configured_path.name[: -len(expected_suffix)] + "-local.json"
+        requested_local_path = configured_path.with_name(local_name)
+        local_path = requested_local_path.resolve()
         if local_path == output_path:
             pytest.fail("Base and local gas evidence paths must be distinct")
-    return output_path, local_path
+        path_evidence.update(
+            {
+                "requestedLocalEvidence": str(requested_local_path),
+                "resolvedLocalEvidence": str(local_path),
+            }
+        )
+    return output_path, local_path, path_evidence
 
 
 def _settings(contract):
@@ -398,7 +408,7 @@ def test_poc_gas(
         pytest.fail("wallet-v3 gas evidence must not run under xdist")
     if len(request.session.items) != 1:
         pytest.fail("wallet-v3 gas module must be the only collected test")
-    output_path, local_report_path = _evidence_paths(fork)
+    output_path, local_report_path, path_evidence = _evidence_paths(fork)
 
     assert type(boa.env.evm.vm) is PragueVM
     observed_versions = {
@@ -420,6 +430,7 @@ def test_poc_gas(
         "dirty": dirty,
         "worktreeStateSha256": worktree_state,
         "evidenceClassification": "diagnostic-dirty-tree" if dirty else "final-clean-commit",
+        "evidencePaths": path_evidence,
         "versions": {
             **observed_versions,
             "v3Compiler": V3_COMPILER_REPORT,
