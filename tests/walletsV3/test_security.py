@@ -431,24 +431,40 @@ def test_s5_e2_unconsumed_spend_session_cannot_settle(
     configured_wallet,
     token,
     owner,
-    recipient,
 ):
     malicious = deploy_v3("contracts/walletsV3/mocks/MaliciousExtender.vy")
     lego = deploy_v3("contracts/walletsV3/mocks/MockYieldLego.vy")
+    vault = deploy_v3("contracts/walletsV3/mocks/MockVault.vy", token.address)
+    amount = 10
     request = (
         1,
         1,
         lego.address,
-        recipient,
+        vault.address,
         token.address,
-        10,
+        amount,
         configured_wallet.address,
-        keccak(text="unconsumed-spend"),
+        keccak(
+            encode(
+                ["address", "address", "uint256", "address"],
+                [
+                    vault.address,
+                    token.address,
+                    amount,
+                    configured_wallet.address,
+                ],
+            )
+        ),
     )
     selector = bytes(
-        malicious.attackOpen.prepare_calldata(
+        malicious.openThenConsumerSpend.prepare_calldata(
             configured_wallet.address,
             request,
+            lego.address,
+            vault.address,
+            token.address,
+            amount,
+            True,
         )[:4]
     )
     configured_wallet.attachExtender(
@@ -468,21 +484,63 @@ def test_s5_e2_unconsumed_spend_session_cannot_settle(
     wrong_consumer = _mutate(request, 2, malicious.address)
     with boa.reverts():
         configured_wallet.execute(
-            malicious.attackOpen.prepare_calldata(
+            malicious.openThenConsumerSpend.prepare_calldata(
                 configured_wallet.address,
                 wrong_consumer,
-            ),
-            sender=owner,
-        )
-    with boa.reverts():
-        configured_wallet.execute(
-            malicious.attackOpen.prepare_calldata(
-                configured_wallet.address,
-                request,
+                lego.address,
+                vault.address,
+                token.address,
+                amount,
+                True,
             ),
             sender=owner,
         )
     assert token.balanceOf(configured_wallet.address) == 100
+    assert token.balanceOf(malicious.address) == 0
+    assert token.balanceOf(vault.address) == 0
+    assert vault.balanceOf(configured_wallet.address) == 0
+    assert token.allowance(configured_wallet.address, malicious.address) == 0
+    assert configured_wallet.phase() == 0
+
+    configured_wallet.execute(
+        malicious.openThenConsumerSpend.prepare_calldata(
+            configured_wallet.address,
+            request,
+            lego.address,
+            vault.address,
+            token.address,
+            amount,
+            True,
+        ),
+        sender=owner,
+    )
+    assert token.balanceOf(configured_wallet.address) == 90
+    assert token.balanceOf(malicious.address) == 0
+    assert token.balanceOf(vault.address) == amount
+    assert vault.balanceOf(configured_wallet.address) == amount
+    assert lego.consumeCount() == 1
+    assert token.allowance(configured_wallet.address, lego.address) == 0
+    assert configured_wallet.phase() == 0
+
+    with boa.reverts():
+        configured_wallet.execute(
+            malicious.openThenConsumerSpend.prepare_calldata(
+                configured_wallet.address,
+                request,
+                lego.address,
+                vault.address,
+                token.address,
+                amount,
+                False,
+            ),
+            sender=owner,
+        )
+    assert token.balanceOf(configured_wallet.address) == 90
+    assert token.balanceOf(malicious.address) == 0
+    assert token.balanceOf(vault.address) == amount
+    assert vault.balanceOf(configured_wallet.address) == amount
+    assert lego.consumeCount() == 1
+    assert token.allowance(configured_wallet.address, malicious.address) == 0
     assert token.allowance(configured_wallet.address, lego.address) == 0
     assert configured_wallet.phase() == 0
 

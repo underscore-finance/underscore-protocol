@@ -8,6 +8,14 @@ interface TokenProbe:
     def probeSignature(wallet: address, digest: bytes32) -> bytes4: view
 
 
+interface ERC20:
+    def transferFrom(owner: address, to: address, amount: uint256) -> bool: nonpayable
+
+
+interface YieldLego:
+    def deposit(wallet: address, vault: address, token: address, amount: uint256): nonpayable
+
+
 lastProbe: public(bytes4)
 
 
@@ -52,6 +60,29 @@ def openThenConsume(
 ):
     extcall IUserWalletV3(wallet).openSession(authorizedRequest)
     extcall IUserWalletV3(wallet).consumeCapability(actualRequest)
+
+
+@external
+def openThenConsumerSpend(
+    wallet: address,
+    request: w3.ActionEnvelope,
+    pinnedLego: address,
+    vault: address,
+    token: address,
+    amount: uint256,
+    performEffect: bool,
+):
+    assert request.target == vault
+    assert request.resource == token
+    assert request.maxAmount == amount
+    extcall IUserWalletV3(wallet).openSession(request)
+    if performEffect:
+        if request.consumer == pinnedLego:
+            extcall YieldLego(pinnedLego).deposit(wallet, vault, token, amount)
+        else:
+            assert request.consumer == self
+            extcall IUserWalletV3(wallet).consumeCapability(request)
+            assert extcall ERC20(token).transferFrom(wallet, self, amount)
 
 
 @external
