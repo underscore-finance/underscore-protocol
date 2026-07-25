@@ -30,6 +30,11 @@ This directory contains the new Wallet v3 architecture work.
   is a separate Codex synthesis of the same four responses. It is supporting
   analysis and owner-decision input only; it does not replace the governing
   architecture or authorize implementation.
+- [`permission-research-incorporation-proposal-codex.md`](permission-research-incorporation-proposal-codex.md)
+  compares both syntheses and proposes which conclusions, taxonomy, storage
+  model, and phase changes should enter the governing plan. It is a decision
+  record for independent review, not governing architecture or implementation
+  authorization.
 
 ## Separate proof of concept
 
