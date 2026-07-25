@@ -2149,7 +2149,7 @@ should not be infinitely extensible.
 | `simplified-user-wallet-action-architecture-codex.md` | Governing architecture for this track | **Governing; implementation still requires separate owner authorization** |
 | `ideal-wallet-action-architecture-codex.md` | Legacy filename pointer to the governing document | Pointer only; not independently authoritative |
 | `incremental-extenders-proposal-claude.md` | Preserved independent analysis and provenance | **SUPERSEDED as a plan; useful sequencing and measurement constraints folded into sections 17–18** |
-| `docs/user-wallet-incremental-extender-proposal-codex.md` | Preserved earlier Codex incremental proposal | **SUPERSEDED as a plan** |
+| `user-wallet-incremental-extender-proposal-codex.md` | Preserved earlier Codex incremental proposal | **SUPERSEDED as a plan** |
 | `permission-action-taxonomy-research-prompt-codex.md` | Research instrument | Not an architecture proposal |
 | `docs/poc/user-wallet/` | Archived PoC contracts, results, visual explanations, and superseded PoC-derived production track | Evidence and background only; PoC is on hold |
 
@@ -2169,6 +2169,7 @@ contract edits, deployment, migration, or live transactions.
 | 2026-07-24 | Binding, grant-delta, and composite-settlement revision (2,159 lines) | Bound routed LegoBook and ActionRegistry per wallet; defined Config addition-only lifecycle checks; added `YIELD_REBALANCE`; made Appraiser trust explicit; removed routed `txUsdValue`; required an active session before acknowledgement; reused LegoBook's add/confirm delay; and separated ActionRegistry and LegoBook tests |
 | 2026-07-24 | Owner authority selection and preservation revision (2,174 lines) | Owner selected this file as the governing architecture; superseded the two incremental proposals as independent plans; recorded their folded sequencing and measurement contributions; and authorized a docs-only preservation commit without authorizing implementation |
 | 2026-07-24 | PoC namespace separation | Moved the paused experiment into `docs/poc/user-wallet/`, `contracts/poc/userWallet/`, and `tests/poc/userWallet/`; reserved the Wallet v3 contract and test paths for the new architecture; and preserved historical PoC names and evidence identities |
+| 2026-07-24 | Separation review correction | Moved the earlier Codex proposal into this directory; corrected stale archived runtime evidence; disclosed archive path, node-ID, and source-hash rewrites; and documented fork/gas reproduction and path-history constraints |
 
 Future material revisions append a row here. A future replacement uses a new
 file and marks this document `SUPERSEDED` in its header rather than rewriting

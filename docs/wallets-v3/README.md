@@ -11,6 +11,9 @@ This directory contains the new Wallet v3 architecture work.
   is a legacy filename pointer.
 - [`incremental-extenders-proposal-claude.md`](incremental-extenders-proposal-claude.md)
   is preserved independent analysis, superseded as a standalone plan.
+- [`user-wallet-incremental-extender-proposal-codex.md`](user-wallet-incremental-extender-proposal-codex.md)
+  is the earlier Codex incremental proposal, also superseded as a standalone
+  plan.
 - [`permission-action-taxonomy-research-prompt-codex.md`](permission-action-taxonomy-research-prompt-codex.md)
   is a research instrument, not an architecture proposal.
 
@@ -22,3 +25,15 @@ tests under `contracts/poc/userWallet/` and `tests/poc/userWallet/`.
 
 The PoC is evidence and background. It is not “Wallet v3,” and nothing in its
 archive is implicitly approved for the new implementation.
+
+## Path-history warning
+
+Before commit `e0616f4`, `contracts/walletsV3/` and `tests/walletsV3/` contained
+the PoC. They now mean the opposite: they are reserved for the new
+implementation. In-flight branches and open pull requests based on the older
+tree should treat this as a semantic rename conflict and must not merge the
+archived PoC back into the reserved paths.
+
+The other documents directly under `docs/` describe the existing production
+system or cross-cutting repository concerns. They intentionally remain outside
+both the PoC archive and this new Wallet v3 architecture directory.

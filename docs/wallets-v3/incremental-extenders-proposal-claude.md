@@ -25,7 +25,7 @@ more extensible change.
 current `UserWallet.vy` / `UserWalletConfig.vy` / walletBackpack contracts.
 
 **Revision 2** — after cross-review against the independent Codex proposal
-([user-wallet-incremental-extender-proposal-codex.md](../user-wallet-incremental-extender-proposal-codex.md)).
+([user-wallet-incremental-extender-proposal-codex.md](user-wallet-incremental-extender-proposal-codex.md)).
 Incorporated: the lego caller-identity constraint (verified in code — it
 invalidates this document's earlier "legos change one line" claim and its
 `CORE_CONSUMED` transitional mode), typed-facade entry points, the

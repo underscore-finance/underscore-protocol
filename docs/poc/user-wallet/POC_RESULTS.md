@@ -4,14 +4,30 @@
 > user-wallet proof of concept. They describe that experiment only and are not
 > acceptance evidence for the new Wallet v3 architecture. See the
 > [archive index](README.md) and the [current Wallet v3 documents](../../wallets-v3/README.md).
+> On 2026-07-24, repository paths and test node IDs were rewritten for the
+> archive move. The core import-namespace rewrite changed its source SHA-256,
+> while its compiled runtime size and keccak remained unchanged and pinned.
 
 **Contract:** Implementation Guide v2.4 and Architecture v11.4
 
-**Evidence classification:** Final acceptance runs are from this file's clean containing commit. Raw JSON remains under `/tmp` and is not committed.
+**Evidence classification:** The original acceptance runs and gas measurements
+were produced from then-clean pre-archive evidence commits. The repository
+contains no recorded Base/gas regeneration after the later `5b0a635` source
+restyle or the 2026-07-24 archive move. The archive move also changed repository
+paths and source imports; the local suite was rerun afterward, but the
+Base-fork tests and gas profiles were not. Existing gas measurements are
+therefore preserved historical evidence, not measurements freshly bound to the
+final archived source. Raw JSON remains under `/tmp` and is not committed.
 
 **Environment:** Vyper 0.4.3; titanoboa 0.2.7; py-evm 0.12.1b1; v3 `optimizer=gas`, `evm_version=cancun`; v2 source setting `optimizer=codesize`, implicit EVM target; Prague execution VM.
 
 **Scope deviations:** None.
+
+**Archive revalidation:** The complete local selection passes at the archived
+paths. The opt-in gas test is skipped without `GAS_PROFILE=1`, and the four
+Base-only x402 tests are deselected under `--fork=local`. The archive
+[README](README.md#revalidating-the-archived-evidence) explains the required
+local-then-Base artifact sequence.
 
 ## Architecture questions
 
@@ -198,12 +214,27 @@ Every scenario records `executionMode` and the absence of a receipt. Each artifa
 
 The `v3.x402.sync` tx-equivalent is 67,410 after its 9,600 refund, but its serialized envelope is asserted and decoded with a 77,010 `minimum_executable_gas_limit`. Deterministic `yParity=1` and full-width nonzero `r`/`s` values are included in every modeled Base envelope.
 
-Core runtime is 12,055 bytes under Cancun/gas, 4,329 bytes below the 16,384-byte review target: **ACCEPT for PoC**. The post-review core checkpoint at commit `397a1cf` has source SHA-256 `d71ea665405494b0d9f4186e3a45e78104aaf0e97b7dcb0786c9dc1fb5f68039` and runtime keccak `f8aba82adac1b070be7ab8df6f82e588fd319c09572c9d7f2383a7a72a9834b4`. The later evidence commit proves both remain unchanged through:
+The final archived core runtime is 11,985 bytes under Cancun/gas, 4,399
+bytes below the 16,384-byte review target: **ACCEPT for PoC**. Its runtime
+keccak is
+`682824564c5a39465190151c30c9b73cb4e4e2aa2a466fc1ded0c2b467394a4b`.
+Immediately before relocation, commit `5b0a635` had source SHA-256
+`6c3194c434536268e03475aa5553c9f80f64653728cd9c0294ce5631ab5f6168`.
+The archive move changed only the core's import namespace and therefore changed
+its source SHA-256 to
+`122e07cd9d4ea054ee75399ca7c8f7c0a36726473e61499d3130549d40224d56`;
+the compiled runtime size and keccak remained unchanged under the pinned
+compiler settings. The archived source and runtime checkpoints are enforced by:
 
 - `tests/poc/userWallet/test_future_action.py::test_s5_e8_future_asset_release_needs_no_core_change`
 - `tests/poc/userWallet/test_security.py::test_s5_e9_core_runtime_size_and_compiler_settings`
 
-Historical limitation: the original implementation arrived as one squashed commit, so git cannot independently date the original Step-4 hash record before the future-action files. BL-008 is therefore an implementation attestation, not repository-verifiable temporal proof. The post-review `397a1cf` checkpoint and later evidence commit provide that temporal proof from the hardening point forward.
+Historical limitation: the original implementation arrived as one squashed
+commit, so git cannot independently date the original Step-4 hash record before
+the future-action files. BL-008 is therefore an implementation attestation, not
+repository-verifiable temporal proof. Commit `397a1cf` is an intermediate
+hardening checkpoint, not the final archived identity; the later `5b0a635`
+source restyle changed the source and runtime pins before archival.
 
 ## Evidence coverage
 
@@ -238,7 +269,11 @@ The exact node ids above cover every required evidence record:
 - The Base gas harness must restore exact existing v2 fixture blueprint bytecode after Boa fork prefetch exposes upstream empty accounts. The report asserts byte equality; the owner explicitly approved BL-010 on 2026-07-23 after independent review. The shim should still be revisited with future Boa versions.
 - Gas evidence files remain unauthenticated local files in world-writable `/tmp`. The Base run derives its paired local path and binds the exact bytes plus worktree state, preventing accidental stale/colliding evidence, but a hostile local process able to rewrite both artifacts or the running repository is outside this PoC's evidence model.
 - The NONE-route regression proves the composed dispatch invariant. The additional `consumerMode == CORE` checks inside named primitives are intentionally redundant defense-in-depth and cannot be isolated through a successful public path while the stronger dispatch invariant is present.
-- The original squashed commit cannot independently prove the Step-4-before-future-action chronology. The post-review checkpoint does prove unchanged core from commit `397a1cf` forward.
+- The original squashed commit cannot independently prove the
+  Step-4-before-future-action chronology. Commit `397a1cf` is an intermediate
+  checkpoint rather than proof that the core remained unchanged through the
+  later `5b0a635` source restyle. The archived tests pin the final archived
+  source and runtime identity instead.
 - Core assertions intentionally have no runtime reason strings to preserve the size result. High-value negative cases use isolated mutations and state invariants, but empty assertion data is less diagnostic than a production custom-error design.
 - Tests are targeted, not a formal proof, exhaustive fuzz campaign, or audit.
 

@@ -4,6 +4,9 @@
 > user-wallet proof of concept. It is retained as evidence, not as current
 > Wallet v3 authority or implementation authorization. See the
 > [archive index](README.md) and the [current Wallet v3 documents](../../wallets-v3/README.md).
+> On 2026-07-24, repository paths and test node IDs were rewritten for the
+> archive move. The core source hash changed with its import namespace, while
+> the compiled runtime identity remained unchanged and pinned.
 
 BL-001 · 2026-07-23 · contract review / Step 1
 Decision or failed assumption: Treat Implementation Guide v2.4 and Architecture v11.4 as the complete implementation contract; no earlier v3 implementation or repository-local agent instruction exists.
@@ -148,3 +151,28 @@ Decision or failed assumption: Record both requested and resolved output/local-e
 Reason: Both points were cosmetic and did not weaken the guards or measurements, but the report can express path resolution directly and rely on executable source order instead of a constant claim about that order.
 Affected files/evidence: `tests/poc/userWallet/gas/test_poc_gas.py`, `docs/poc/user-wallet/POC_RESULTS.md`, `/tmp/wallet-v3-poc-local.json`, `/tmp/wallet-v3-poc-base.json`.
 Scope impact: None; report observability only. Preconditions, scenarios, formulas, thresholds, and Base pin are unchanged.
+
+BL-025 · 2026-07-24 · PoC archive relocation and evidence correction
+Decision or failed assumption: Move the paused experiment from the Wallet v3
+namespace into `contracts/poc/userWallet/`, `tests/poc/userWallet/`, and
+`docs/poc/user-wallet/`; rewrite repository paths and node IDs; retain
+historical internal `V3` source names; and update the core source checkpoint
+from pre-archive
+`6c3194c434536268e03475aa5553c9f80f64653728cd9c0294ce5631ab5f6168`
+to archive
+`122e07cd9d4ea054ee75399ca7c8f7c0a36726473e61499d3130549d40224d56`.
+Correct the stale results prose to the already-pinned 11,985-byte runtime and
+runtime keccak
+`682824564c5a39465190151c30c9b73cb4e4e2aa2a466fc1ded0c2b467394a4b`.
+Reason: The folder boundary reserves “Wallet v3” for the new architecture.
+Import-path edits necessarily changed source bytes, but the pinned compiler
+produced the same runtime. The previous results paragraph had not been updated
+after the later `5b0a635` source restyle and contradicted its cited tests.
+Affected files/evidence: `contracts/poc/userWallet/**`,
+`tests/poc/userWallet/**`, `docs/poc/user-wallet/**`, commit `e0616f4`,
+`test_s5_e8_future_asset_release_needs_no_core_change`, and
+`test_s5_e9_core_runtime_size_and_compiler_settings`.
+Scope impact: Repository organization and evidence wording only. Local tests
+were rerun at the archived paths. Base-fork tests and gas profiles were not
+regenerated, so their recorded measurements remain historical pre-archive
+evidence.

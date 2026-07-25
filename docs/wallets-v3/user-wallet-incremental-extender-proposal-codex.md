@@ -3,7 +3,7 @@
 **Status:** **SUPERSEDED as an independent architecture plan**
 
 **Authority notice:** On 2026-07-24, the owner selected
-[`docs/wallets-v3/simplified-user-wallet-action-architecture-codex.md`](wallets-v3/simplified-user-wallet-action-architecture-codex.md)
+[`docs/wallets-v3/simplified-user-wallet-action-architecture-codex.md`](simplified-user-wallet-action-architecture-codex.md)
 as the governing architecture for this track. This file is preserved for
 reasoning history and provenance. Where it conflicts with the governing
 document, the governing document controls.
@@ -104,9 +104,9 @@ caller → UserWallet → YieldExtender → existing Yield Lego → protocol
 
 But current Legos commonly pull assets from `msg.sender`. For example:
 
-- Aave V3 yield deposit calls `transferFrom(msg.sender, self, amount)` in [`AaveV3.vy`](../contracts/legos/yield/AaveV3.vy#L494).
-- Ripe yield deposit does the same in [`RipeLego.vy`](../contracts/legos/RipeLego.vy#L560).
-- Ripe collateral, borrow, and repay additionally require `msg.sender == _recipient` in [`RipeLego.vy`](../contracts/legos/RipeLego.vy#L785), [`RipeLego.vy`](../contracts/legos/RipeLego.vy#L880), and [`RipeLego.vy`](../contracts/legos/RipeLego.vy#L920).
+- Aave V3 yield deposit calls `transferFrom(msg.sender, self, amount)` in [`AaveV3.vy`](../../contracts/legos/yield/AaveV3.vy#L494).
+- Ripe yield deposit does the same in [`RipeLego.vy`](../../contracts/legos/RipeLego.vy#L560).
+- Ripe collateral, borrow, and repay additionally require `msg.sender == _recipient` in [`RipeLego.vy`](../../contracts/legos/RipeLego.vy#L785), [`RipeLego.vy`](../../contracts/legos/RipeLego.vy#L880), and [`RipeLego.vy`](../../contracts/legos/RipeLego.vy#L920).
 
 If an extender calls one of those Legos:
 
@@ -177,7 +177,7 @@ The wallet currently stores:
 - the transient `checkedYield` flags;
 - immutable WETH and native-asset identifiers.
 
-See [`UserWallet.vy`](../contracts/core/userWallet/UserWallet.vy#L82).
+See [`UserWallet.vy`](../../contracts/core/userWallet/UserWallet.vy#L82).
 
 The existing wallet does **not** store manager, payee, whitelist, or cheque policy. Those remain in `UserWalletConfig`.
 
@@ -195,7 +195,7 @@ For a normal action, the wallet calls `_performPreActionTasks`:
 6. For selected debt actions, the wallet may establish protocol-specific Lego access.
 7. The wallet realizes yield on each touched asset before the action.
 
-The source of that pipeline is [`UserWallet.vy`](../contracts/core/userWallet/UserWallet.vy#L978), [`UserWalletConfig.vy`](../contracts/core/userWallet/UserWalletConfig.vy#L400), and [`ActionDataProvider.vy`](../contracts/core/userWallet/ActionDataProvider.vy#L139).
+The source of that pipeline is [`UserWallet.vy`](../../contracts/core/userWallet/UserWallet.vy#L978), [`UserWalletConfig.vy`](../../contracts/core/userWallet/UserWalletConfig.vy#L400), and [`ActionDataProvider.vy`](../../contracts/core/userWallet/ActionDataProvider.vy#L139).
 
 After the action, `_performPostActionTasks`:
 
@@ -205,7 +205,7 @@ After the action, `_performPostActionTasks`:
 4. registers or deregisters assets as needed; and
 5. updates deposit points.
 
-See [`UserWallet.vy`](../contracts/core/userWallet/UserWallet.vy#L1019) and [`UserWalletConfig.vy`](../contracts/core/userWallet/UserWalletConfig.vy#L426).
+See [`UserWallet.vy`](../../contracts/core/userWallet/UserWallet.vy#L1019) and [`UserWalletConfig.vy`](../../contracts/core/userWallet/UserWalletConfig.vy#L426).
 
 This pre/post pipeline is not incidental overhead that an extender can casually replace. It is the current policy and accounting contract.
 
@@ -238,7 +238,7 @@ sequenceDiagram
     W->>W: update asset data, points, event
 ```
 
-The wallet-side implementation is [`UserWallet.vy`](../contracts/core/userWallet/UserWallet.vy#L227). The important fund property is that vault shares are delivered to the wallet, not to an intermediary.
+The wallet-side implementation is [`UserWallet.vy`](../../contracts/core/userWallet/UserWallet.vy#L227). The important fund property is that vault shares are delivered to the wallet, not to an intermediary.
 
 ### 4.2 Current yield withdrawal
 
@@ -250,7 +250,7 @@ The wallet:
 4. resets the approval;
 5. updates both the underlying asset and vault-token accounting.
 
-The normal and special branches are in [`UserWallet.vy`](../contracts/core/userWallet/UserWallet.vy#L272). The special branch is used by `UserWalletConfig.preparePayment` in [`UserWalletConfig.vy`](../contracts/core/userWallet/UserWalletConfig.vy#L882).
+The normal and special branches are in [`UserWallet.vy`](../../contracts/core/userWallet/UserWallet.vy#L272). The special branch is used by `UserWalletConfig.preparePayment` in [`UserWalletConfig.vy`](../../contracts/core/userWallet/UserWalletConfig.vy#L882).
 
 That special path is a compatibility requirement. An extender design that handles only owner/manager entry points but breaks Config-initiated yield withdrawal is incomplete.
 
@@ -286,7 +286,7 @@ There is no token allowance that can bound a liability. The current safety model
 - `removeCollateral` and `borrow` are non-spend effects: the important risk is the meaning of the protocol call, not an input-token allowance.
 - `deleverage` is a specialized multi-asset Ripe path with subset checks, returned touched assets, and different event modes. It should not be treated as a trivial fifth debt function.
 
-See [`UserWallet.vy`](../contracts/core/userWallet/UserWallet.vy#L530) through [`UserWallet.vy`](../contracts/core/userWallet/UserWallet.vy#L684).
+See [`UserWallet.vy`](../../contracts/core/userWallet/UserWallet.vy#L530) through [`UserWallet.vy`](../../contracts/core/userWallet/UserWallet.vy#L684).
 
 ## 5. What to retain from the PoC
 
@@ -331,7 +331,7 @@ envelope, one pinned `LEGO` or `CORE` consumer consumes it once, and the wallet
 settles it. The rejected item above is the broader generalized framework, not
 the open/consume/settle pattern.
 
-The PoC measured an empty routed session at `117,497` tx-equivalent gas and a minimal routed yield deposit at `292,025`, versus a `123,126` direct control. Its own disposition was to redesign routed-session cost. See [`POC_RESULTS.md`](poc/user-wallet/POC_RESULTS.md#L171).
+The PoC measured an empty routed session at `117,497` tx-equivalent gas and a minimal routed yield deposit at `292,025`, versus a `123,126` direct control. Its own disposition was to redesign routed-session cost. See [`POC_RESULTS.md`](../poc/user-wallet/POC_RESULTS.md#L202).
 
 The incremental architecture should not knowingly reintroduce the whole measured framework around every existing action.
 
@@ -485,7 +485,7 @@ Reasons:
 - every wallet Config would need synchronization when an extender succeeds another version; and
 - `UserWalletConfig` is already extremely close to its deployment bytecode limit.
 
-The repository's byte-budget document reports only hundreds of bytes of Config deployment headroom and explicitly treats the budget as exhausted. See [`user-wallet-config-byte-budget.md`](user-wallet-config-byte-budget.md#L1).
+The repository's byte-budget document reports only hundreds of bytes of Config deployment headroom and explicitly treats the budget as exhausted. See [`user-wallet-config-byte-budget.md`](../user-wallet-config-byte-budget.md#L1).
 
 The new wallet template should instead receive `EXTENDER_BOOK` as an immutable constructor argument. Hatchery wiring changes, but Config storage and Sentinel semantics do not.
 
@@ -1251,13 +1251,13 @@ The EIP-170 runtime limit is `24,576`, leaving:
 1,544 bytes
 ```
 
-That matches the existing gas-profiling report in [`codex-2026-07-11.md`](gas-profiling/codex-2026-07-11.md#L1191).
+That matches the existing gas-profiling report in [`codex-2026-07-11.md`](../gas-profiling/codex-2026-07-11.md#L1191).
 
 The new frame/router cannot simply be added alongside every current action body. The spike must delete or relocate enough yield orchestration to pay for the new boundary.
 
 ### 12.2 Config size
 
-Do not add extender policy to `UserWalletConfig` without a separate extraction plan. Its deployment/blueprint budget is already treated as exhausted in [`user-wallet-config-byte-budget.md`](user-wallet-config-byte-budget.md#L44).
+Do not add extender policy to `UserWalletConfig` without a separate extraction plan. Its deployment/blueprint budget is already treated as exhausted in [`user-wallet-config-byte-budget.md`](../user-wallet-config-byte-budget.md#L44).
 
 ### 12.3 Gas posture
 
@@ -1631,7 +1631,7 @@ second execution architecture and it is not raw arbitrary wallet execution.
 
 ### 19.1 Overall verdict
 
-The [alternative proposal](wallets-v3/incremental-extenders-proposal-claude.md)
+The [alternative proposal](incremental-extenders-proposal-claude.md)
 is materially useful. Its “custody core plus action catalog” framing is a good
 way to reason about the long-term destination, and it found an authority-grant
 hardening opportunity that this proposal had not emphasized enough.
@@ -1702,7 +1702,7 @@ ABI dispatch, and internal call graph make family contributions non-additive.
 
 The alternative's best security suggestion is to retire the Lego-supplied ABI
 string mechanism in
-[`_setLegoAccessForAction`](../contracts/core/userWallet/UserWallet.vy#L1361).
+[`_setLegoAccessForAction`](../../contracts/core/userWallet/UserWallet.vy#L1361).
 Section 7.10 incorporates that as a separate hardening lane.
 
 The risk should be described precisely: this is not arbitrary end-user
@@ -1755,12 +1755,12 @@ and suggested adding one `consumeCapability` call per Lego action.
 
 That was insufficient. Existing yield Legos commonly call
 `transferFrom(msg.sender, ...)`, including
-[`AaveV3.vy`](../contracts/legos/yield/AaveV3.vy#L494) and
-[`RipeLego.vy`](../contracts/legos/RipeLego.vy#L560). If the extender calls the
+[`AaveV3.vy`](../../contracts/legos/yield/AaveV3.vy#L494) and
+[`RipeLego.vy`](../../contracts/legos/RipeLego.vy#L560). If the extender calls the
 Lego, `msg.sender` is the extender, even when the wallet approved the Lego.
 Ripe debt actions also explicitly require
 `msg.sender == _recipient` for collateral, borrow, and repayment paths in
-[`RipeLego.vy`](../contracts/legos/RipeLego.vy#L785).
+[`RipeLego.vy`](../../contracts/legos/RipeLego.vy#L785).
 
 Revision 2 now correctly removes `CORE_CONSUMED` as a solution and requires
 session-aware successor Legos that pull from an explicitly authenticated
@@ -1785,7 +1785,7 @@ callback remains only a protocol-specific fallback.
 #### B. The typed facade fixes intent binding; Config still is not a 1:1 envelope authorizer
 
 Today's
-[`checkSignerPermissionsAndGetBundle`](../contracts/core/userWallet/UserWalletConfig.vy#L402)
+[`checkSignerPermissionsAndGetBundle`](../../contracts/core/userWallet/UserWalletConfig.vy#L402)
 passes only signer, `ActionType`, asset list, Lego ID list, and transfer
 recipient into the policy check. It does not authorize the exact amount, vault,
 protocol target, beneficiary, effect class, `extraData`, or action-data hash.
@@ -1861,9 +1861,9 @@ incremental delta. But the proposed engine does not make its own dispatch,
 codehash checks, transient frame, capability hashes, calls, and settlement free.
 
 The PoC measured
-[`117,497`](poc/user-wallet/POC_RESULTS.md#L181) tx-equivalent gas for the empty
+[`117,497`](../poc/user-wallet/POC_RESULTS.md#L202) tx-equivalent gas for the empty
 session and
-[`292,025`](poc/user-wallet/POC_RESULTS.md#L183) for minimal routed yield versus a
+[`292,025`](../poc/user-wallet/POC_RESULTS.md#L204) for minimal routed yield versus a
 `123,126` direct control. Those numbers do not predict the existing-wallet
 candidate, but they do require measurement before calling the overhead low
 single digits. Section 12.3 therefore retains a decomposed profile rather
@@ -1872,7 +1872,7 @@ than a forecast.
 #### F. Sentinel should fail closed, but not through a blind two-line edit
 
 The fallback in
-[`Sentinel.vy`](../contracts/core/walletBackpack/Sentinel.vy#L188) returns true
+[`Sentinel.vy`](../../contracts/core/walletBackpack/Sentinel.vy#L188) returns true
 for action values not handled by its permission families. That becomes more
 dangerous if registry route metadata can introduce the action value.
 

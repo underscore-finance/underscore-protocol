@@ -442,7 +442,7 @@
     <div class="rrow"><div class="rname">yield deposit via session</div><div class="rval">292,025</div><div class="rdisp redesign">REDESIGN · +137% vs direct 123,126</div></div>
     <div class="rrow"><div class="rname">x402 authorize / sync (Base)</div><div class="rval">543,981 / 67,410</div><div class="rdisp redesign">REDESIGN creation · keep semantics</div></div>
     <div class="rrow"><div class="rname">MPP authorize / settle / refund</div><div class="rval">352,399 / 93,491 / 51,787</div><div class="rdisp keep">ACCEPT for PoC</div></div>
-    <div class="rrow"><div class="rname">core runtime size</div><div class="rval">12,055 B</div><div class="rdisp keep">ACCEPT · under 16,384 B target</div></div>
+    <div class="rrow"><div class="rname">core runtime size</div><div class="rval">11,985 B</div><div class="rdisp keep">ACCEPT · under 16,384 B target</div></div>
   </div>
 
   <div class="caveat">⚠ PoC, not production. Fixed owner, no freeze/emergency path, trusted Legos and helper, mock protocols (only the Base-USDC EIP-3009 leg is real), and interfaces that may all change. The point was to test the architecture — it passed, with session overhead flagged for redesign.</div>
@@ -757,7 +757,7 @@ const FLOWS = [
 
 /* ---------------- function map data ---------------- */
 const FNGROUPS = [
- {nm:"UserWalletV3", tag:"custody core · 12,055 B", fns:[
+ {nm:"UserWalletV3", tag:"custody core · 11,985 B", fns:[
   ["transferFunds(recipient, token, amount)","anyone — Config decides","IDLE → DIRECT"],
   ["execute(typedCalldata)","anyone — Config decides","IDLE → DISPATCHING…"],
   ["executeAttached(id, typedCalldata)","anyone — drain-only exits","IDLE → DISPATCHING…"],
