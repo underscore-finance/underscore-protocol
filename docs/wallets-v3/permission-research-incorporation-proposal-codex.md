@@ -138,6 +138,12 @@ the same way as an ordinary payee. A future relayer/paymaster package should
 revisit that concrete constraint rather than treating this Phase 1 deferral as
 a permanent rejection.
 
+For fairness, the Claude synthesis's later and more deliberate reconciliation
+in section 10.3 and Appendix A favors a separate `PAY_NETWORK_FEES` permission
+despite the section 4.5 reversal. This proposal's deferral is therefore a
+substantive disagreement with that synthesis's considered position, not a
+tie-break caused only by ambiguity.
+
 ### 2.2 What the Codex synthesis does especially well
 
 The Codex synthesis is more internally conservative and closer to the governing
@@ -252,10 +258,10 @@ reinterpreted as these bits.
 | 1 | `PAYMENT_COMMITMENT` | INITIAL | Existing direct `canCreateCheque`; future payment package | Create a typed, bounded future payment claim through a direct wallet rail |
 | 2 | `TRADE` | INITIAL | Later routed trade/composite package | Convert approved assets through approved integrations within price and slippage limits |
 | 3 | `YIELD` | INITIAL | Phase 1C first routed action | Open or increase an approved non-debt strategy position; no exit authority |
-| 4 | `DEBT` | INITIAL | Later risk-increasing debt package | Open or increase debt, leverage, or collateral-withdrawal risk |
+| 4 | `DEBT` | INITIAL | Later debt package, after AUTH when the selected integration/action requires operator authority | Open or increase debt, leverage, or collateral-withdrawal risk |
 | 5 | `LIQUIDITY` | INITIAL | Later liquidity package | Open or increase an approved liquidity position |
 | 6 | `REWARDS` | INITIAL | Rewards package, after AUTH when an integration requires operator authority | Claim accrued rewards to the wallet without selling, transferring, or redeploying them |
-| 7 | `POSITION_REDUCE` | INITIAL | First withdrawal/defensive-debt package | Close or reduce an existing wallet position or obligation under wallet-verified non-expansion rules |
+| 7 | `POSITION_REDUCE` | INITIAL | First withdrawal/defensive-debt package; AUTH first for any selected integration/action that requires operator authority | Close or reduce an existing wallet position or obligation under wallet-verified non-expansion rules |
 | 8 | `REVOKE_CLAIMS` | LATER | Separate revocation package | Cancel or reduce tracked persistent rights without creating or enlarging them |
 | 9 | `CROSS_CHAIN` | LATER | Separate cross-chain package | Create a typed, bounded cross-chain transfer or message |
 | 10 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create a tracked, bounded value-moving signature that may be used later |
@@ -591,12 +597,33 @@ Both shapes also require:
 
 - an existing wallet-owned position or obligation;
 - no increase in debt, liquidation risk, or required collateral burden;
-- no new position, obligation, signature, approval, recipient right, operator
-  right, or other persistent authority;
+- no new position, obligation, signature, recipient right, surviving approval,
+  operator right, or other persistent authority is created by
+  `POSITION_REDUCE` authority alone;
+- the ordinary exact transaction-scoped ERC20 capability is cleaned during
+  settlement, and any required external operator access uses an exact named
+  AUTH shape that is either created and removed transactionally under its
+  separately approved lifecycle or already established, inventoried, and
+  approved for continued use;
 - a separate `TRADE` permission and independently enforced slippage/value
   controls for any conversion leg; and
 - frequency and fee/value-destruction bounds that prevent defensive churn from
   becoming a griefing path.
+
+If neither an approved transaction-scoped AUTH shape nor the required tracked
+pre-established state is available, the reduction action rejects. It cannot
+invoke the legacy generic target-and-ABI helper or silently create a new
+persistent right. Any future manager operation that creates persistent operator
+authority needs a distinct action ID and the separately ratified persistent-
+authority boundary; `POSITION_REDUCE` alone is insufficient.
+
+This dependency is integration/action specific. A withdrawal that requires no
+operator access does not wait for AUTH. In contrast, the current
+[`RipeLego.vy`](../../contracts/legos/RipeLego.vy) returns its one-argument
+`setUndyLegoAccess(address)` request whenever access is absent without branching
+on the action. Its repay and collateral-top-up actions therefore cannot become
+routed `POSITION_REDUCE` actions until that Ripe authority shape and lifecycle
+have passed AUTH.
 
 If the wallet cannot prove the applicable shape for an integration, the action:
 
@@ -668,15 +695,26 @@ fixed yield settlement and entry/exit metadata. It does not create:
 The named operator-authority package remains separate and adds only confirmed,
 fixed call shapes.
 
-`REWARDS` does not bypass that boundary. Some integrations require an operator
-relationship before rewards can be claimed; the current
-[`Euler.vy`](../../contracts/legos/yield/Euler.vy) integration, for example,
-exposes a `toggleOperator` setup call. A manager's `REWARDS` bit alone must
-never create that authority. The concrete rewards action is enabled only after
-the named AUTH package has classified and safely established the required
-operator state. If the authority survives the transaction, its inventory,
-attribution, suspension, and cleanup semantics require the reserved
-persistent-authority boundary or an equally explicit owner-approved design.
+No categorical action permission bypasses that boundary. This applies to
+`DEBT`, `POSITION_REDUCE`, and `REWARDS`, not only to risk-increasing actions.
+The current Ripe integration requests `setUndyLegoAccess(address)` without
+branching on the debt action, while
+[`Euler.vy`](../../contracts/legos/yield/Euler.vy) exposes a
+`toggleOperator` setup call for rewards. A manager's action-permission bit alone
+must never create either authority.
+
+A concrete action becomes enabled only after the named AUTH package has
+classified the integration/action pair and supplied its required operator
+lifecycle. A permission may then use a transaction-scoped named AUTH shape or
+an approved, tracked existing right as §7.2 defines. If authority survives the
+transaction, its inventory, attribution, suspension, and cleanup semantics
+require the reserved persistent-authority boundary or an equally explicit
+owner-approved design.
+
+AUTH is an implementation and authority-lifecycle package, not another
+owner-facing action permission. Completing AUTH never grants a manager the
+dependent financial action: the exact `actionId`, every required categorical
+bit, existing policy, and limits still apply independently.
 
 ### 8.2 Direct payment semantics
 
@@ -743,16 +781,21 @@ unknown-action fallback. Open a separately authorized, narrowly scoped legacy
 hardening package:
 
 1. enumerate every current `ActionType` and its intended direct permission;
-2. decide whether the existing ETH/WETH transform behavior remains explicitly
-   allowed or begins consuming `canBuyAndSell`;
-3. if preserving behavior, add explicit transform branches that return `True`
-   and change only the unknown default to `False`;
+2. use the recommended fast path: preserve current ETH/WETH transform behavior
+   with explicit branches that return `True`, then change the unknown default
+   to `False`;
+3. treat any later proposal to make those transforms consume `canBuyAndSell`
+   as a separate policy-semantics change that cannot block the fail-closed
+   fallback;
 4. add positive and negative regression tests for every current action type,
    including an unknown or future value; and
-5. ship only after owner approval of the chosen transform semantics.
+5. ship the behavior-preserving hardening after its own owner approval.
 
 This workstream is independent of the Wallet v3 routed implementation and does
-not authorize a contract edit in this documentation task.
+not authorize a contract edit in this documentation task. Choosing “preserve
+current ETH/WETH behavior” is the narrow owner decision that unblocks the
+critical default-deny change immediately; the broader `canBuyAndSell` product
+question can take longer without extending the fail-open period.
 
 ### 9.1 Phase 0A — add evidence, not contract behavior
 
@@ -854,11 +897,16 @@ It proves:
 
 ### 9.7 Later action-family packages
 
+- Inventory required operator access per integration/action pair before enabling
+  any later family action. A nonempty requirement must pass AUTH first; an
+  action that needs no external operator access does not wait for unrelated
+  AUTH work.
 - Yield withdrawal uses `POSITION_REDUCE`.
 - Yield rebalance uses `POSITION_REDUCE | YIELD`, plus `TRADE` when applicable.
 - Debt repayment and collateral top-up use `POSITION_REDUCE` only when they
   bind an existing wallet obligation and the action-specific postcondition
   proof passes; a fresh or expanding collateral position requires `DEBT`.
+  Ripe variants also wait for the approved one-argument Ripe AUTH shape.
 - Borrow and collateral removal use `DEBT`.
 - Liquidity removal uses `POSITION_REDUCE`.
 - Claim-only uses `REWARDS`, but any integration-required operator setup must
@@ -880,8 +928,9 @@ focused revision:
    boundary.
 3. State that `ActionSpec.requiredPermissionMask` is exact and solely
    registry-defined.
-4. Add `POSITION_REDUCE`'s two permitted fund-flow shapes and required
-   wallet-verifiable conditions.
+4. Add `POSITION_REDUCE`'s two permitted fund-flow shapes, required
+   wallet-verifiable conditions, and integration/action-specific AUTH
+   prerequisite.
 5. Strengthen composite policy from permission union to permission union plus
    cumulative limits.
 6. Add the price-independent exit boundary.
@@ -899,7 +948,8 @@ Update the implementation roadmap in the same revision:
 2. add Phase 0A permission and price baselines;
 3. add mask measurements and fields to Packages 0B, 1B1, and 1B2;
 4. set the first yield action's exact mask;
-5. add the `POSITION_REDUCE` proof gate before withdrawals or defensive debt;
+5. add the `POSITION_REDUCE` proof and integration-specific AUTH gates before
+   withdrawals or defensive debt;
 6. add composite charge-basis evidence;
 7. keep payment/persistence and dual control in separate future packages; and
 8. extend invariant traceability and drift tests.
@@ -917,9 +967,9 @@ The research narrows the permission problem to these decisions.
 |---:|---|---|
 | P1 | Durable taxonomy | Approve eight initial-vocabulary, four later, and one reserved boundary; activate them only through reviewed enforcement packages |
 | P2 | Representation | Use parallel `uint256` manager/global routed masks in the new Config; do not expand existing manager structs |
-| P3 | Defensive authority | Use one cross-family `POSITION_REDUCE`, gated by exact action IDs, argument binding, and wallet-verifiable non-expansion |
+| P3 | Defensive authority | Use one cross-family `POSITION_REDUCE`, gated by exact action IDs, argument binding, wallet-verifiable non-expansion, and any separately approved integration/action-specific AUTH prerequisite |
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
-| P5 | Direct-path fallback | Authorize an immediate independent hardening package; choose explicit current transform allowance versus `canBuyAndSell`, and make the unknown default fail closed |
+| P5 | Direct-path fallback | Authorize the behavior-preserving fast path now: explicitly allow the current ETH/WETH transforms, make the unknown default fail closed, and evaluate `canBuyAndSell` semantics separately |
 | P6 | Existing empty policy sets | Preserve current semantics for the first slice, make wildcard meaning explicit, and measure an explicit scope representation |
 | P7 | Price-independent exits | Permit only pure, non-converting, native-bounded exits with wallet-proven non-extraction and non-expansion |
 | P8 | First persistent additions | Keep payee enrollment, delegated revocation, standing authority, signatures, bridges, and new commitment types out of Phase 1 |
@@ -959,11 +1009,14 @@ The independent reviewer should answer:
     later family gate?
 13. Does every Config create/update path reject manager and global masks outside
     the current `SUPPORTED_PERMISSION_MASK`, preventing dormant future grants?
-14. Does each proposed rewards integration require an AUTH action or persistent
-    operator right, and is that prerequisite sequenced before `REWARDS` becomes
-    grantable?
+14. Does each proposed rewards integration/action pair require a named AUTH
+    shape or tracked persistent operator right, and is that prerequisite
+    complete before `REWARDS` becomes grantable?
 15. Does owner-facing `YIELD` consent make clear that exit requires the separate
     `POSITION_REDUCE` authority?
+16. Does each proposed `POSITION_REDUCE` integration/action pair require a
+    named AUTH shape, and if so is that prerequisite complete before the action
+    becomes grantable?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -976,3 +1029,4 @@ architecture, not treat either research synthesis as authority.
 |---|---|---|
 | 2026-07-25 | Initial proposal | Synthesized the two permission-research reports into a smaller, non-governing recommendation |
 | 2026-07-25 | Reviewer-feedback revision | Renamed `POSITION_EXIT` to `POSITION_REDUCE`; separated recovery and obligation-reduction fund flows; added grant-time supported-mask checks, reward/AUTH sequencing, explicit one-way `YIELD` consent, an immediate independent Sentinel hardening workstream, clearer vocabulary-versus-enforcement status, and document provenance |
+| 2026-07-25 | Re-review AUTH and fast-path clarification | Added integration/action-specific AUTH prerequisites for `DEBT` and `POSITION_REDUCE`; distinguished transaction-scoped versus pre-established named operator authority; documented Ripe's dependency; made the behavior-preserving Sentinel fix the recommended independent fast path; and stated the Claude synthesis's considered network-fee position fairly |
