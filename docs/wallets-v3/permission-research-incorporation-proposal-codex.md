@@ -1,7 +1,8 @@
 # Wallet v3 Permission Research Incorporation Proposal — Codex
 
-**Status:** Proposed decision record for review; not governing architecture,
-implementation authorization, or deployment authorization
+**Status:** Owner-dispositioned decision record awaiting independent re-review
+and propagation; not yet governing architecture, implementation authorization,
+or deployment authorization
 
 **Date:** 2026-07-25
 
@@ -18,8 +19,9 @@ implementation authorization, or deployment authorization
 
 This document decides what I recommend incorporating from those two syntheses,
 what I recommend adapting, what should be deferred, and what should be rejected.
-It deliberately does not change the governing architecture yet. The permission
-decisions below should receive independent review and owner disposition first.
+It deliberately does not change the governing architecture yet. Owner
+disposition of the permission decisions is complete; independent re-review and
+faithful propagation into the governing artifacts remain separate next steps.
 
 ---
 
@@ -1116,11 +1118,12 @@ Extend the current-state baseline to record:
 
 This evidence does not change production authorization.
 
-### 9.2 Phase 0B — ratify and compile the permission substrate
+### 9.2 Phase 0B — propagate and compile the permission substrate
 
 Before the first implementation disposition:
 
-- owner approves or amends this taxonomy;
+- verify the governing artifacts reproduce this owner-approved taxonomy
+  exactly; any amendment returns for a new owner decision;
 - compile the parallel manager/global `uint256` routed masks;
 - compile the bounded manager action-ID set;
 - compile and measure manager/global asset, Lego, and payee scope-code storage;
@@ -1247,10 +1250,10 @@ It proves:
 
 ---
 
-## 10. Proposed governing-document changes after approval
+## 10. Required governing-document changes after owner approval
 
-If this decision record is approved, update the governing architecture in one
-focused revision:
+Owner approval is complete. The next documentation package should update the
+governing architecture in one focused revision:
 
 1. Replace section 5.1's provisional list with the approved bit table.
 2. Add the parallel routed-mask and explicit asset/Lego/payee scope-code
@@ -1269,9 +1272,11 @@ focused revision:
    reused.
 8. Add mask and manager/global scope-code fields to the `PolicyContextV1`
    definition.
-9. Record the rejected initial categories, the additive
-   `PAY_NETWORK_FEES` boundary, the non-paying `ENROLL_PAYEE` boundary, and
-   the reduction-only `REVOKE_CLAIMS` boundary, plus future package boundaries.
+9. Record the additive `PAY_NETWORK_FEES`, non-paying `ENROLL_PAYEE`,
+   reduction-only `REVOKE_CLAIMS`, cumulative `CROSS_CHAIN`, cumulative
+   `OFFCHAIN_SIGNATURE`, and separate `GOVERNANCE` boundaries; remove the
+   generic persistence permission; leave bits 16–255 unassigned; and preserve
+   the individual future-package gates.
 10. Add governing invariants and map each new invariant to implementation
     packages and tests.
 
@@ -1288,7 +1293,9 @@ Update the implementation roadmap in the same revision:
    defensive debt;
 6. add price-code, native-recovery-limit, and no-zero-USD-accounting evidence;
 7. add composite charge-basis evidence;
-8. keep payment/persistence and dual control in separate future packages; and
+8. keep deferred payment, fee, enrollment, revocation, cross-chain, signature,
+   governance, concrete persistent-authority, and dual-control work in separate
+   future packages; and
 9. extend invariant traceability and drift tests.
 
 The website should be updated only after the governing Markdown changes. Until
@@ -1302,7 +1309,7 @@ The research narrows the permission problem to these decisions.
 
 | # | Decision | Recommendation |
 |---:|---|---|
-| P1 | Durable taxonomy | Approve twelve initial-vocabulary and four later categories; leave bits 16–255 unassigned; activate assigned categories only through reviewed enforcement packages |
+| P1 | Durable taxonomy | **OWNER SELECTED 2026-07-25:** use twelve initial-vocabulary and four later categories; leave bits 16–255 unassigned; activate assigned categories only through reviewed enforcement packages |
 | P2 | Representation | **OWNER SELECTED 2026-07-25:** use parallel `uint256` manager/global routed masks and explicit scope-code fields in the new Config; keep existing direct-wallet structs unchanged; any later consolidation is a separate compatibility decision |
 | P3 | Family-specific reduction authority | **OWNER SELECTED 2026-07-25:** use separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; reuse proof/AUTH machinery without generalizing the grants |
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
@@ -1319,9 +1326,10 @@ The research narrows the permission problem to these decisions.
 | P15 | Governance authority | **OWNER SELECTED 2026-07-25:** keep `GOVERNANCE` distinct from wallet administration and cumulative with every category required by signatures, delegation, or other effects; keep it ungrantable until a bounded governance package exists |
 | P16 | Generic persistent authority | **OWNER SELECTED 2026-07-25:** remove `PERSISTENT_EXTERNAL_AUTHORITY`; leave bits 16–255 unassigned until concrete standing-authority families justify their own narrow categories and lifecycle packages |
 
-P2–P3 and P5–P16 are owner-selected. P4 preserves an already governing
-action-identity rule. P1 remains the open decision this research most directly
-informs.
+P1–P3 and P5–P16 are owner-selected. P4 preserves an already governing
+action-identity rule. The owner-decision interview is closed. Independent
+re-review, governing-document propagation, implementation authorization, and
+deployment authorization remain separate gates.
 
 ---
 
@@ -1351,8 +1359,8 @@ The independent reviewer should answer:
     persistence, signature, bridge, and dual-control package absent from the
     Phase 1 supported mask and separated behind its own evidence gate?
 11. Do any recommendations accidentally change current direct-wallet behavior?
-12. Which owner decisions must be settled before Phase 0B rather than at a
-    later family gate?
+12. Does any unresolved owner decision remain before governing-document
+    propagation or Phase 0B? If so, does the package stop rather than infer it?
 13. Does every value-moving, converting, or wallet-fee-paying cross-chain action
     require `CROSS_CHAIN` cumulatively with its underlying categories, while a
     bounded message-only action avoids permissions for effects it cannot cause?
@@ -1421,3 +1429,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P14 | Kept `OFFCHAIN_SIGNATURE` as a distinct cumulative permission; prohibited arbitrary signing and deferred activation to a typed, inventoried, exposure-accounted signature package |
 | 2026-07-25 | Owner disposition P15 | Kept `GOVERNANCE` distinct from wallet administration and cumulative with signature, delegation, and other effects; deferred activation to a typed and bounded governance package |
 | 2026-07-25 | Owner disposition P16 | Removed the generic `PERSISTENT_EXTERNAL_AUTHORITY` permission; left bits 16–255 unassigned and required each future standing-authority family to receive its own narrow category and lifecycle package |
+| 2026-07-25 | Owner disposition P1 | Approved the durable 16-category taxonomy: twelve initial-vocabulary categories, four later categories, bits 16–255 unassigned, and grantability only through reviewed enforcement packages |
