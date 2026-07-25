@@ -7,6 +7,10 @@ This directory contains the new Wallet v3 architecture work.
 - [`simplified-user-wallet-action-architecture-codex.md`](simplified-user-wallet-action-architecture-codex.md)
   is the owner-selected governing architecture. Implementation still requires
   separate owner authorization.
+- [`user-wallet-v3-implementation-plan-codex.md`](user-wallet-v3-implementation-plan-codex.md)
+  translates the governing architecture into measured, independently reviewable
+  work packages. It is a draft roadmap and does not authorize contract changes
+  or deployment.
 - [`ideal-wallet-action-architecture-codex.md`](ideal-wallet-action-architecture-codex.md)
   is a legacy filename pointer.
 - [`incremental-extenders-proposal-claude.md`](incremental-extenders-proposal-claude.md)

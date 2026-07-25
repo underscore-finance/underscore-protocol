@@ -283,6 +283,26 @@ This is a real interface and bytecode change to `UserWalletConfig`,
 `ActionDataProvider`, and Sentinel/backpack—not merely a new wallet wrapper—and
 must be measured as such.
 
+`ACTION_DATA_PROVIDER` is immutable in each current `UserWalletConfig`, while
+the Config's `sentinel` address is replaceable through the existing backpack
+validation path. Version one should use that asymmetry deliberately:
+
+- the immutable ActionDataProvider is a thin, mechanically stable adapter that
+  gathers the existing Config data and forwards exact routed-policy inputs;
+- the replaceable Sentinel owns the substantive stage-one and stage-two policy
+  interpretation;
+- direct and routed Sentinel entry points remain separate enough that replacing
+  a routed-policy implementation cannot silently reinterpret the untouched
+  direct path; and
+- bytecode and regression tests cover the Config, ActionDataProvider, and
+  Sentinel changes as three distinct risk surfaces.
+
+This does not make routed actions retrofittable into an already-deployed wallet.
+Existing wallet bytecode has no routed entry point, session kernel, or bound
+ActionRegistry/routed-LegoBook getters, and its Config cannot replace the
+ActionDataProvider. Routed execution therefore exists only in the new wallet and
+Config generation. Migration remains out of scope.
+
 ### 4.4 Existing wallet settlement
 
 The wallet keeps:
@@ -963,6 +983,65 @@ adds settlement-side Appraiser work and may produce a different result from a
 legacy Lego calculation. Each moved action must declare its exact valuation
 recipe and expected difference before differential tests are written.
 
+### 8.5 External protocol operator authority is a separate closed vocabulary
+
+ERC20 allowance is not the only authority used by current integrations. The
+legacy wallet asks a Lego for a target, ABI string, and one of three calldata
+shapes, then uses an arbitrary `raw_call` to grant that Lego operator access on
+an external protocol. Confirmed production examples include:
+
+```text
+Ripe:
+    setUndyLegoAccess(operator)
+
+Euler rewards:
+    toggleOperator(user, operator)
+```
+
+The routed system must not preserve the Lego-supplied target-and-ABI mechanism.
+It also must not pretend that `EXACT_ERC20_ALLOWANCE` describes persistent
+external protocol authority.
+
+Before the first routed action that needs operator access, Phase 0 must inventory
+every production Lego/action pair that currently returns a nonempty access
+request and define the smallest named authority vocabulary actually required.
+Each supported shape must:
+
+- use a wallet-recognized authority kind rather than an arbitrary ABI string;
+- bind the exact external target, wallet/user argument shape, operator, and
+  enable/disable semantics through reviewed configuration or immutable code;
+- bind the operator to a capability-aware, immutable-by-ID Lego;
+- fail when the external call reverts;
+- validate exact return semantics when the named interface returns data;
+- verify resulting operator state when the external protocol exposes a reliable
+  view;
+- define whether the grant is per-session, immediately revoked, or intentionally
+  persistent;
+- define the owner and manager rules for creating and removing it;
+- emit an auditable grant or revocation event; and
+- preserve a usable revocation or exit path during Lego succession.
+
+The current helper's final `assert success` already rejects a reverted call, but
+it ignores returned data and does not verify resulting external state. A
+non-reverting false return or semantically ineffective call may therefore look
+successful. The named replacement must close that gap.
+
+Operator authority complicates succession. If a predecessor Lego remains
+necessary for an `EXIT_ONLY` path while a successor uses a new Lego ID, both may
+need external protocol access simultaneously. The authority design must support
+that reviewed overlap without repointing either Lego ID and must state when the
+predecessor's authority can be revoked.
+
+This is an accepted boundary on forward compatibility:
+
+> A new action that needs an unsupported form of external protocol authority
+> requires a reviewed wallet-core authority addition. Registration alone cannot
+> invent it.
+
+The initial yield-deposit slice requires no such authority. The named authority
+package is designed in Phase 0 but implemented only before the first action that
+needs it.
+
 ---
 
 ## 9. Session lifecycle
@@ -1050,6 +1129,23 @@ Every stateful top-level wallet action requires `IDLE`.
 
 `executeAction` changes phase before its first call to an untrusted external
 contract. A revert rolls the phase change back with the transaction.
+
+The existing `UserWallet.vy` already uses transient storage and its current
+Vyper 0.4.3 runtime emits `TLOAD`/`TSTORE`. A transient phase variable is
+therefore the provisional version-one choice rather than a new EVM-family
+dependency. Phase 0 must still:
+
+- pin the Wallet v3 EVM target explicitly instead of inheriting a Vyper default;
+- reproduce the current runtime under both the implicit and explicit target and
+  require byte-for-byte agreement before adopting the pin;
+- compare the transient phase machine with any proposed persistent-storage
+  alternative for bytecode and gas;
+- verify the selected deployment chain supports the pinned opcodes; and
+- record optimizer and target settings with every size and gas result.
+
+Changing optimizer settings for unrelated shared contracts is not implied.
+Wallet v3 and every shared contract it changes use an explicit reproducible
+release build configuration.
 
 ### 9.3 Phase-to-entry-point table
 
@@ -1639,6 +1735,12 @@ S49  Repointing UndyHq's LegoBook slot cannot change an existing wallet's routed
 S50  acknowledgeSession requires a committed active-session record; DISPATCHING phase alone is insufficient.
 S51  Config validates only action-ID set additions against ENABLED: retained EXIT_ONLY grants survive unrelated edits, but removed grants cannot be restored.
 S52  The routed Lego ABI does not return txUsdValue; legacy direct Lego returns cannot enter routed policy.
+S53  No routed operator grant accepts a Lego-supplied target, ABI string, or arbitrary calldata.
+S54  Every supported external operator grant uses a named wallet-recognized shape and a reviewed target/operator binding.
+S55  Operator-grant return semantics and resulting external state are verified whenever the named protocol interface permits it.
+S56  A predecessor required for EXIT_ONLY may retain reviewed operator authority until its last dependent position can exit; succession never repoints its Lego ID.
+S57  The immutable ActionDataProvider remains a thin adapter; replaceable Sentinel entry points own routed policy interpretation.
+S58  Wallet v3 compilation pins compiler version, optimizer, and EVM target for every release measurement.
 ```
 
 ---
@@ -1824,6 +1926,28 @@ wallet-derived `policyChargeUsd`, explain every expected difference, and assert
 that the capability-aware routed ABI returns no `txUsdValue` and routed manager
 counters and emitted policy values use only the wallet-derived result.
 
+### 16.9 External operator-authority tests
+
+Before activating any routed action that needs external protocol operator
+access:
+
+- inventory every current production Lego/action pair that requests access and
+  map it to a named supported authority shape or explicitly unsupported case;
+- reject arbitrary targets, selectors, ABI strings, calldata, users, and
+  operators;
+- reject an authority request for a consumer other than the session's
+  immutable-by-ID Lego;
+- revert when the external grant call reverts;
+- reject a non-reverting false return when the named interface returns a boolean;
+- verify the resulting operator state when the protocol exposes a reliable view;
+- prove the exact temporary or persistent lifecycle selected for that authority;
+- test explicit revocation and emergency disablement;
+- preserve predecessor authority when required for `EXIT_ONLY`;
+- permit reviewed predecessor/successor overlap without repointing either ID;
+- revoke predecessor authority only after no recorded exit dependency remains;
+  and
+- prove the initial yield-deposit route creates no external operator grant.
+
 ---
 
 ## 17. Feasibility and measurement
@@ -1884,14 +2008,37 @@ ceilings, measure the session-storage, calldata, decoding, and gas costs, and
 lower each bound when the first action family does not need it. No implementation
 begins with an unnamed or effectively unbounded array.
 
-A reviewer reported experimental Vyper measurements suggesting:
+The catalog-strip feasibility result has now been reproduced from commit
+`c8d3d002c374ce2cf7038d0e5de4fbd613478d39` with Vyper 0.4.3, code-size
+optimization, and an explicit `prague` EVM target:
 
-- a partial generic codec/bound mechanism alone exceeded the existing 1.5 KB
-  headroom; and
-- stripping catalog sections could create substantially more room.
+```text
+Current runtime:                         23,032 bytes
+Catalog-stripped runtime:                 8,461 bytes
+Catalog-stripped EIP-170 headroom:       16,115 bytes
 
-Those measurements support simplification but are not adopted as authoritative
-until reproduced in the repository's pinned compiler and harness.
+Catalog + legacy operator bridge stripped:
+                                            7,591 bytes
+EIP-170 headroom:                         16,985 bytes
+```
+
+Run:
+
+```bash
+python tools/measure_wallet_v3_catalog_strip.py --pretty
+```
+
+The tool records the source hash, exact removed external and internal functions,
+scratch-only legacy-interface adjustment, implicit-versus-pinned target match,
+creation/runtime hashes, and both comparator variants. The 8,461-byte result
+reproduces the earlier reviewer figure.
+
+This is an upper bound on available room, not an implementation disposition.
+The compiler may omit source-retained shared helpers while they are unreachable;
+the routed kernel will make some of them reachable again. Phase 0B must compile
+a provisional kernel and compare the complete result plus a reviewed safety
+reserve against this budget before issuing `PROCEED`, `PROCEED NARROWER`,
+`REDESIGN`, or `STOP`.
 
 ### 17.1 First vertical slice
 
@@ -1947,66 +2094,135 @@ with this document's action IDs, closed permission vocabulary, bound registries,
 session ordering, Config grant semantics, or fixed settlement modes, this
 governing document controls.
 
-### Phase 0 — Decisions and measurement
+### Phase 0A0 — Catalog-strip feasibility budget
+
+This measurement is complete and reproducible through
+`tools/measure_wallet_v3_catalog_strip.py`. It produces the 8,461-byte
+catalog-stripped upper bound described in section 17. It does not issue an
+implementation disposition by itself.
+
+### Phase 0A — Complete current-state baseline
+
+- capture the exact compiler, optimizer, EVM target, source, runtime, and
+  creation evidence for every contract the vertical slice may change;
+- record direct transfer/payment parity baselines;
+- record legacy yield-deposit calls, fund movement, events, manager counters,
+  `txUsdValue`, fee/loot/deposit-point effects, gas, calldata, and zero/missing/
+  stale-price behavior;
+- inventory every production Lego/action pair that currently requests external
+  operator authority;
+- classify each prospective artifact as isolated, new-generation-only,
+  replaceable per wallet, or shared live governance infrastructure; and
+- record the deployment and governance mechanism for each artifact without
+  authorizing deployment.
+
+### Phase 0B — Provisional design and first formal gate
 
 - complete the independent permission-taxonomy research;
-- decide the initial supported permission mask;
-- decide the maximum manager action-ID count;
+- decide the initial supported permission mask and manager action-ID bound;
 - set every prepared-action and session array/byte bound;
-- derive the first settlement modes from current code;
-- freeze one wallet-owned valuation recipe for each initial settlement mode;
+- derive the first settlement modes and wallet-owned valuation recipes from
+  current code;
 - map legacy Lego-returned `txUsdValue` behavior to expected routed
   `policyChargeUsd` differences;
-- freeze the capability-aware routed Lego ABI without a `txUsdValue` return;
-- reproduce bytecode measurements;
-- set bytecode safety reserves for the wallet and Config;
-- freeze the routed pre-action versus post-action policy input map;
-- freeze the two routed Config/ActionDataProvider/Sentinel API stages;
-- bind ActionRegistry and routed LegoBook at wallet creation, then prove UndyHq
-  registry updates cannot substitute either binding;
-- define and measure the LegoBook no-repoint succession rule while reusing its
-  existing add/confirm delay;
-- specify the Config storage-boundary set-difference check, including retained,
-  removed, re-added, starter-manager, and migration behavior;
-- define bounded `PreparedAction` and `ActivatedCapability` structs; and
-- freeze the phase-to-entry-point table.
+- provisionally define the capability-aware routed Lego ABI without a
+  `txUsdValue` return;
+- provisionally define `ActionSpec`, `PreparedAction`,
+  `ActivatedCapability`, the phase-to-entry-point table, and the transient phase
+  representation;
+- pin the release compiler/optimizer/EVM target;
+- keep ActionDataProvider mechanically thin and place routed policy
+  interpretation in replaceable Sentinel entry points;
+- design, but do not yet implement, the smallest named external operator-
+  authority vocabulary;
+- define the Config storage-boundary set-difference check;
+- define the LegoBook no-repoint succession rule using the existing
+  add/confirm delay;
+- compile a provisional kernel/interface skeleton; and
+- compare the complete candidate plus explicit wallet and Config safety reserves
+  against the Phase 0A0 budget.
 
-### Phase 1 — One yield action
+The recorded result is one of `PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or
+`STOP`. Interfaces remain provisional until Phase 1D; Phase 1C may propose
+evidence-backed amendments, which Phase 1D must either ratify or reject.
 
-- add the small ActionRegistry;
-- add manager routed-action IDs to Config;
-- add the wallet's bound ActionRegistry and routed-LegoBook constructor inputs
-  and read-only getters;
-- enforce action-ID additions inside Config by resolving lifecycle through the
-  wallet's bound ActionRegistry getter;
-- add the two-stage routed-policy API across Config, ActionDataProvider, and
-  Sentinel/backpack;
-- add the enforceable no-repoint rule for routed or position-bearing Lego IDs;
-- add the session kernel;
-- update one Yield Lego to consume a capability;
-- move one yield deposit action behind one extender; and
-- prove differential behavior.
+### Phase 1A — Isolated registry candidate
 
-### Phase 2 — Yield and debt families
+- implement and test ActionRegistry without wiring it into production contracts;
+- measure its maximum bounded record shape; and
+- retain it only if the Phase 1D vertical slice ratifies the architecture.
 
-- add withdrawal and rebalance actions;
-- add the closed `YIELD_REBALANCE` wallet-core settlement mode and its fixed
-  valuation/accounting recipe before registering rebalance;
-- add debt actions;
-- add one deleverage composite;
-- require cumulative permission masks;
-- validate fixed settlement modes; and
-- keep existing direct rails unchanged.
+### Phase 1B — Shared and new-generation infrastructure candidate
 
-### Phase 3 — Additional reviewed actions
+Treat the changed surfaces as separate risk classes:
+
+1. **New-generation-only:** `UserWalletConfig` action-ID storage and its
+   immutable thin ActionDataProvider interface.
+2. **Replaceable per wallet:** routed Sentinel policy entry points and
+   HighCommand coordination.
+3. **Shared governance infrastructure:** the enforceable LegoBook no-repoint
+   rule for routed and position-bearing IDs.
+
+Add the wallet's bound ActionRegistry and routed-LegoBook constructor inputs and
+getters, Config addition-only lifecycle validation, and the exact two-stage
+policy API. Measure and review each risk class separately.
+
+### Phase 1C — One yield-deposit vertical slice
+
+- add the smallest complete transient session kernel;
+- add one bounded Yield Extender;
+- update one Yield Lego to consume exactly one capability;
+- move one yield-deposit action behind one action ID;
+- use `UP_TO_WALLET_BALANCE` for legacy deposit-max parity;
+- derive `policyChargeUsd` through the fixed wallet recipe; and
+- keep every unrelated direct rail and action unchanged.
+
+### Phase 1D — Evidence, ratification, and release boundary
+
+- run differential, signer, permission, malicious-component, phase, spend,
+  settlement, bytecode, gas, calldata, and Base-fork evidence;
+- compare every declared behavior difference;
+- ratify or amend the provisional interfaces;
+- record the exact commit, evidence paths, implementer, independent reviewer,
+  owner, and disposition; and
+- choose `PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
+
+No Phase 1 contract is deployed, registered, or activated independently before
+this gate. Until a separate deployment authorization exists, rollback means
+reverting the unshipped candidate changes rather than leaving dormant Config
+fields, registries, or LegoBook restrictions in production.
+
+### Phase 2 — Complete yield family
+
+- add withdrawal first and repeat the action-level evidence gate;
+- add `YIELD_REBALANCE` only after its fixed settlement recipe is ratified;
+- keep manager swap-containing rebalance inactive until wallet-verifiable trade
+  observations exist; and
+- preserve direct payment and security rails.
+
+### Named operator-authority package — Before the first requiring action
+
+Implement only the production authority shapes approved in Phase 0B. This
+package must replace, not wrap, the arbitrary target-and-ABI mechanism and must
+pass the section 16.9 tests before debt or rewards actions that depend on it.
+
+### Phase 3 — Debt family
+
+- add collateral and repay actions first;
+- add borrow and remove-collateral after their observed settlement recipes pass;
+- add one deleverage composite last;
+- require every cumulative permission bit and named operator authority; and
+- repeat the formal disposition gate after each bounded subphase.
+
+### Phase 4 — Additional reviewed actions
 
 - swaps;
 - liquidity;
-- rewards;
+- rewards, after any required operator-authority package;
 - staking, if the permission taxonomy approves it; and
 - other actions that fit existing authority and settlement modes.
 
-Payments remain a separate decision.
+Payments remain a separate owner decision and are not bundled into these phases.
 
 ---
 
@@ -2064,6 +2280,17 @@ implementation decisions are:
 15. Are the fixed wallet-derived `policyChargeUsd` recipes—and their deliberate
     counter, event, and gas differences from Lego-returned `txUsdValue`—accepted
     for each first-phase action?
+16. Which confirmed production external-operator shapes belong in the first
+    named authority package, and which integrations remain unsupported?
+17. For each named operator authority, is access temporary, immediately revoked,
+    or intentionally persistent, and what objective condition permits final
+    revocation?
+18. Is the provisional transient phase representation accepted after pinned-
+    target bytecode and gas measurement?
+19. What explicit wallet and Config bytecode safety reserves control the Phase
+    0B and Phase 1D dispositions?
+20. Is new-generation-only routed execution accepted as the implementation and
+    coexistence boundary, with migration remaining outside this plan?
 
 None of these decisions should be hidden inside the first extender
 implementation.
@@ -2079,9 +2306,10 @@ Existing UserWallet
     existing msg.sender owner/manager authentication
     bound ActionRegistry + routed LegoBook
     read-only binding getters for Config and inspection
-    phase lock
+    transient phase lock under a pinned EVM target
     session commitment
     exact consume-time allowances
+    closed named external-operator authority, when separately approved
     fixed settlement
 
 Existing UserWalletConfig
@@ -2090,7 +2318,12 @@ Existing UserWalletConfig
     + set-addition lifecycle validation through wallet-bound ActionRegistry
     retained EXIT_ONLY IDs survive unrelated edits; removed IDs cannot return
 
-Existing Sentinel / backpack
+Thin immutable ActionDataProvider
+    mechanically gathers Config data
+    forwards exact stage-1 and stage-2 inputs
+    does not own evolving routed policy semantics
+
+Replaceable Sentinel / backpack
     existing checks
     + routed stage-1 caller/action/permission evaluation
     + routed stage-2 prepared asset/Lego evaluation
@@ -2123,6 +2356,13 @@ Capability-aware Lego
     performs one or multiple protocol calls
     returns outputs and residual committed assets
 
+Named operator-authority package
+    no Lego-supplied target, ABI string, or arbitrary calldata
+    only approved production call shapes
+    verified return/state semantics where supported
+    explicit temporary or persistent lifecycle
+    predecessor/successor overlap only for reviewed exits
+
 Manager trade composites
     inactive until wallet-verifiable per-swap evidence exists
 
@@ -2147,6 +2387,7 @@ should not be infinitely extensible.
 | Document | Role | Authority |
 |---|---|---|
 | `simplified-user-wallet-action-architecture-codex.md` | Governing architecture for this track | **Governing; implementation still requires separate owner authorization** |
+| `user-wallet-v3-implementation-plan-codex.md` | Measured work-package roadmap derived from this architecture | Draft implementation plan; contract changes and deployment require separate owner authorization |
 | `ideal-wallet-action-architecture-codex.md` | Legacy filename pointer to the governing document | Pointer only; not independently authoritative |
 | `incremental-extenders-proposal-claude.md` | Preserved independent analysis and provenance | **SUPERSEDED as a plan; useful sequencing and measurement constraints folded into sections 17–18** |
 | `user-wallet-incremental-extender-proposal-codex.md` | Preserved earlier Codex incremental proposal | **SUPERSEDED as a plan** |
@@ -2170,6 +2411,7 @@ contract edits, deployment, migration, or live transactions.
 | 2026-07-24 | Owner authority selection and preservation revision (2,174 lines) | Owner selected this file as the governing architecture; superseded the two incremental proposals as independent plans; recorded their folded sequencing and measurement contributions; and authorized a docs-only preservation commit without authorizing implementation |
 | 2026-07-24 | PoC namespace separation | Moved the paused experiment into `docs/poc/user-wallet/`, `contracts/poc/userWallet/`, and `tests/poc/userWallet/`; reserved the Wallet v3 contract and test paths for the new architecture; and preserved historical PoC names and evidence identities |
 | 2026-07-24 | Separation review correction | Moved the earlier Codex proposal into this directory; corrected stale archived runtime evidence; disclosed archive path, node-ID, and source-hash rewrites; and documented fork/gas reproduction and path-history constraints |
+| 2026-07-24 | Implementation-readiness clarification | Reproduced the 8,461-byte catalog-stripped feasibility bound; made ActionDataProvider a thin immutable adapter to replaceable Sentinel policy; specified transient-lock build pinning; added a closed named external-operator authority boundary; made routed execution explicitly new-generation-only; and split Phase 0/1 into measurement, provisional design, isolated/shared candidates, one yield slice, and a formal no-deployment-before-ratification gate |
 
 Future material revisions append a row here. A future replacement uses a new
 file and marks this document `SUPERSEDED` in its header rather than rewriting
