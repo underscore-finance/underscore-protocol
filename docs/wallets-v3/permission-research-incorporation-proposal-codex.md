@@ -57,8 +57,9 @@ My recommended incorporation is:
 3. Forward the manager/global routed masks and scope codes through
    `PolicyContextV1` and check them in the new routed Sentinel entry point.
    Preserve the existing direct-policy ABI and meaning.
-4. Use twelve initial vocabulary categories, four later categories, and one
-   reserved boundary. “Initial vocabulary” does not mean “enabled in the first
+4. Use twelve initial vocabulary categories and four later categories. Leave
+   every remaining bit unassigned until a concrete authority justifies its own
+   narrow category. “Initial vocabulary” does not mean “enabled in the first
    release”; support is enabled only with a reviewed action-family package.
 5. Give each immutable `ActionSpec` one exact static permission mask. The
    extender does not declare or narrow permission requirements at runtime.
@@ -180,10 +181,12 @@ proposal therefore adopts the family-specific split while continuing to share
 implementation proof machinery.
 
 The Codex synthesis also proposes a generic `persistenceMask` in `ActionSpec`.
-That may become useful later, but the first routed slice already has a closed
-position flag, fixed settlement mode, exit IDs, and no new payment, signature,
-bridge, or standing-approval object. Adding a generic persistence taxonomy
-before those effects exist would freeze speculative metadata.
+The owner-selected model does not adopt it. The first routed slice already has
+a closed position flag, fixed settlement mode, exit IDs, and no new payment,
+signature, bridge, or standing-approval object. Each future surviving effect
+must use a concrete typed field and narrow permission where applicable; a
+generic persistence taxonomy would freeze speculative metadata and blur
+unrelated authority families.
 
 ### 2.3 Combined judgment
 
@@ -200,7 +203,7 @@ they do not automatically justify merging distinct categories of authority.
 
 | Topic | Claude synthesis | Codex synthesis | This proposal |
 |---|---|---|---|
-| Documented boundaries | 17 | 16 | 17: 12 initial, 4 later, 1 reserved |
+| Documented boundaries | 17 | 16 | 16: 12 initial and 4 later; bits 16–255 unassigned |
 | Defensive authority | One cross-family `POSITION_EXIT` | Separate strategy, debt, and liquidity exit permissions | Separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT`, each narrowed further by exact action IDs and postconditions |
 | Network fees | Reverses between a separate bit (§4.2), rejection as a permission (§4.5), and separate boundary (§10.3) | Fee policy under the parent action | Separate `PAY_NETWORK_FEES` permission, additive to the parent action and ungrantable until its package exists |
 | Payee enrollment | Reverses between a separate bit (§4.2), owner configuration (§4.5), and bounded delegated enrollment (§10.3) | Owner-controlled recipient enrollment | Separate `ENROLL_PAYEE`, ungrantable until its probationary enrollment package exists |
@@ -289,8 +292,7 @@ reinterpreted as these bits.
 | 13 | `CROSS_CHAIN` | LATER | Separate cross-chain package | Create a typed, bounded cross-chain transfer or message |
 | 14 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create an enumerated, typed, tracked, and bounded signature that may be exercised later |
 | 15 | `GOVERNANCE` | LATER | Separate governance package | Exercise protocol governance without wallet administration or value transfer |
-| 16 | `PERSISTENT_EXTERNAL_AUTHORITY` | RESERVED | Not grantable until an owner-approved authority package exists | Create a named standing spender or operator right that survives the action |
-| 17–255 | Unassigned | — | Not grantable | Unknown bits reject |
+| 16–255 | Unassigned | — | Not grantable | Unknown bits reject; a concrete future authority needs a separately approved narrow category and lifecycle package |
 
 `INITIAL` means part of the initial durable vocabulary. The separate
 “First enforcement package” column states when the authority first becomes
@@ -300,8 +302,8 @@ Phase 1.
 Support still grows action family by action family. The first routed
 `SUPPORTED_PERMISSION_MASK` may contain only `YIELD`. A bit becomes grantable
 for routed execution only when a concrete action package, settlement recipe,
-policy mapping, and tests are authorized. Unimplemented initial, later, and
-reserved bits reject rather than existing as inert grants.
+policy mapping, and tests are authorized. Unimplemented assigned bits and every
+unassigned bit reject rather than existing as inert grants.
 
 ### 4.3 Mapping from the current wallet
 
@@ -448,9 +450,12 @@ for this behavior.
 
 #### Standing allowance
 
-A standing allowance is one subtype of the reserved
-`PERSISTENT_EXTERNAL_AUTHORITY` boundary. Exact transaction-scoped allowance
-remains capability machinery. Unlimited allowance remains owner-only.
+A standing allowance is a persistent-authority risk class, not a pre-approved
+generic permission. Exact transaction-scoped allowance remains capability
+machinery. A future bounded standing-allowance design needs its own narrow
+owner-approved category and lifecycle package; it cannot borrow authority from
+`TRANSFER`, `TRADE`, or another action family. Unlimited allowance remains
+owner-only.
 
 #### Sub-delegation and manager administration
 
@@ -512,10 +517,10 @@ every category required by the authority the signature creates
 A signed payment claim also requires `PAYMENT_COMMITMENT`; a signed trade or
 order requires `TRADE` and any additional commitment authority its exact shape
 creates; a signed governance instruction requires `GOVERNANCE`; and a standing
-spender or operator authorization requires
-`PERSISTENT_EXTERNAL_AUTHORITY`. `OFFCHAIN_SIGNATURE` alone cannot transfer
-value, create a payment commitment, trade, govern, approve a spender, or
-authorize arbitrary remote behavior.
+spender or operator authorization requires the narrow permission separately
+approved for that concrete authority family. `OFFCHAIN_SIGNATURE` alone cannot
+transfer value, create a payment commitment, trade, govern, approve a spender,
+or authorize arbitrary remote behavior.
 
 The future package must enumerate exact EIP-712 or otherwise typed message
 schemas. It must bind the domain and chain, verifying contract, signer purpose,
@@ -544,9 +549,9 @@ every category required by its additional effects
 ```
 
 A signed vote also requires `OFFCHAIN_SIGNATURE`; a standing governance
-delegate also requires the separately approved persistent-authority category
-applicable to that delegation; and any transfer, conversion, payment
-commitment, or other classified effect requires its own category.
+delegate also requires a separately approved narrow delegation category and
+lifecycle package; and any transfer, conversion, payment commitment, or other
+classified effect requires its own category.
 `GOVERNANCE` alone cannot change wallet managers or policy, move or trade
 assets, produce a signature, install a persistent delegate, or execute an
 arbitrary proposal payload.
@@ -840,8 +845,9 @@ If neither an approved transaction-scoped AUTH shape nor the required tracked
 pre-established state is available, the action rejects. It cannot invoke the
 legacy generic target-and-ABI helper or silently create a new persistent right.
 Any future manager operation that creates persistent operator authority needs a
-distinct action ID and the separately ratified persistent-authority boundary;
-none of the three family permissions is sufficient.
+distinct action ID, a narrow permission assigned to that concrete authority
+family, and its separately ratified lifecycle package; none of the three family
+permissions is sufficient.
 
 AUTH remains integration/action specific. An exit that requires no operator
 access does not wait for unrelated AUTH work. In contrast, the current
@@ -953,6 +959,7 @@ Phase 1 boundary: it does not create or activate:
 - a standing token allowance;
 - an offchain signature;
 - a bridge message;
+- a governance vote, proposal, or delegation;
 - a third-party pull;
 - a new payee;
 - delegated claim-revocation scope;
@@ -961,11 +968,12 @@ Phase 1 boundary: it does not create or activate:
 - a reusable external operator right.
 
 `ENROLL_PAYEE`, `REVOKE_CLAIMS`, `PAY_NETWORK_FEES`, `CROSS_CHAIN`,
-`OFFCHAIN_SIGNATURE`, and `PERSISTENT_EXTERNAL_AUTHORITY` remain outside the
-Phase 1 `SUPPORTED_PERMISSION_MASK`. Assignment in the durable vocabulary does
-not make a bit grantable. After the core Phase 1 action is integrated and
-ratified, each deferred capability still requires its own owner-approved
-package and evidence gate.
+`OFFCHAIN_SIGNATURE`, and `GOVERNANCE` remain outside the Phase 1
+`SUPPORTED_PERMISSION_MASK`. No generic persistent-authority bit exists, and
+bits 16–255 remain unassigned. Assignment in the durable vocabulary does not
+make a bit grantable. After the core Phase 1 action is integrated and ratified,
+each deferred capability still requires its own owner-approved package and
+evidence gate.
 
 The named operator-authority package remains separate and adds only confirmed,
 fixed call shapes.
@@ -981,10 +989,11 @@ must never create either authority.
 A concrete action becomes enabled only after the named AUTH package has
 classified the integration/action pair and supplied its required operator
 lifecycle. A permission may then use a transaction-scoped named AUTH shape or
-an approved, tracked existing right as §7.2 defines. If authority survives the
-transaction, its inventory, attribution, suspension, and cleanup semantics
-require the reserved persistent-authority boundary or an equally explicit
-owner-approved design.
+an approved, tracked existing right as §7.2 defines. If a manager action may
+create authority that survives the transaction, that concrete authority family
+first needs its own narrow owner-approved category plus inventory, attribution,
+suspension, and cleanup semantics. There is no umbrella bit to satisfy this
+gate.
 
 AUTH is an implementation and authority-lifecycle package, not another
 owner-facing action permission. Completing AUTH never grants a manager the
@@ -1012,10 +1021,10 @@ No new commitment type is created merely by registering an extender.
 
 `ENROLL_PAYEE` creates a surviving wallet-internal recipient configuration, not
 an external spender/operator right and not a payment claim. Its own permission
-and lifecycle gate that effect; it does not consume
-`PERSISTENT_EXTERNAL_AUTHORITY` or `PAYMENT_COMMITMENT`. The package must still
-satisfy every applicable inventory, attribution, expiry, suspension, ejection,
-and bounded-enumeration rule below.
+and lifecycle gate that effect; it does not consume `PAYMENT_COMMITMENT` or a
+generic persistence permission. The package must still satisfy every applicable
+inventory, attribution, expiry, suspension, ejection, and bounded-enumeration
+rule below.
 
 `REVOKE_CLAIMS` is the distinct reduction authority for tracked surviving
 claims. It does not require the claim-creation permission, because forcing the
@@ -1025,6 +1034,13 @@ cross-manager scope; anti-griefing and revocability rules still apply per claim
 type.
 
 ### 8.3 Future persistent-authority package
+
+“Persistent authority” remains a security classification and lifecycle gate,
+not an owner-grantable umbrella permission. Before implementation, each
+concrete standing authority family—for example, a bounded token allowance,
+protocol operator, governance delegate, or session key—must receive its own
+owner-approved permission category. No family may reuse another category merely
+because both survive the initiating transaction.
 
 Before a new persistent type becomes manager-authorized, require:
 
@@ -1209,8 +1225,9 @@ It proves:
 - Liquidity removal uses `LIQUIDITY_EXIT`; an exact eligible no-conversion
   variant may use `NATIVE_BOUNDED_RECOVERY`.
 - Claim-only uses `REWARDS`, but any integration-required operator setup must
-  first pass the AUTH/persistent-authority package; claim-and-sell adds
-  `TRADE`; claim-and-redeposit adds `YIELD`.
+  first pass AUTH and, if it survives the transaction, the lifecycle package
+  for its concrete narrow authority category; claim-and-sell adds `TRADE`;
+  claim-and-redeposit adds `YIELD`.
 - Any future wallet-funded fee variant adds `PAY_NETWORK_FEES` to its parent
   mask, uses a distinct action ID from the non-fee variant, and remains
   ungrantable until the bounded fee package is approved.
@@ -1224,7 +1241,9 @@ It proves:
   approved.
 - Payments map `TRANSFER` and `PAYMENT_COMMITMENT` onto direct rails before any
   routing comparison.
-- Later and reserved bits require their own owner-approved packages.
+- Later assigned categories require their own owner-approved packages.
+  Unassigned bits remain invalid until a concrete future category and package
+  are separately approved.
 
 ---
 
@@ -1283,14 +1302,14 @@ The research narrows the permission problem to these decisions.
 
 | # | Decision | Recommendation |
 |---:|---|---|
-| P1 | Durable taxonomy | Approve twelve initial-vocabulary, four later, and one reserved boundary; activate them only through reviewed enforcement packages |
+| P1 | Durable taxonomy | Approve twelve initial-vocabulary and four later categories; leave bits 16–255 unassigned; activate assigned categories only through reviewed enforcement packages |
 | P2 | Representation | **OWNER SELECTED 2026-07-25:** use parallel `uint256` manager/global routed masks and explicit scope-code fields in the new Config; keep existing direct-wallet structs unchanged; any later consolidation is a separate compatibility decision |
 | P3 | Family-specific reduction authority | **OWNER SELECTED 2026-07-25:** use separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; reuse proof/AUTH machinery without generalizing the grants |
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
 | P5 | Direct-path fallback | **OWNER SELECTED 2026-07-25:** ETH/WETH transforms require `canBuyAndSell`; the unknown default fails closed; implementation and deployment remain separately gated |
 | P6 | Empty policy sets | **OWNER SELECTED 2026-07-25:** Wallet v3 uses `NONE=0`, `SET=1`, and `ANY=2` for manager/global asset, Lego, and payee scopes; action IDs remain exact-only; legacy direct behavior is unchanged |
 | P7 | Price-independent exits | **OWNER SELECTED 2026-07-25:** allow exact `NATIVE_BOUNDED_RECOVERY` recipes only for eligible pure no-conversion `YIELD_EXIT`/`LIQUIDITY_EXIT` actions; default remains `PRICE_REQUIRED` |
-| P8 | First persistent additions | **OWNER SELECTED 2026-07-25:** Phase 1 creates only the expected wallet-owned yield position; keep `ENROLL_PAYEE`, `REVOKE_CLAIMS`, network fees, standing authority, signatures, bridges, and new commitment types ungrantable until later packages |
+| P8 | First persistent additions | **OWNER SELECTED 2026-07-25:** Phase 1 creates only the expected wallet-owned yield position; keep `ENROLL_PAYEE`, `REVOKE_CLAIMS`, network fees, standing authority, signatures, bridges, governance, and new commitment types ungrantable until later packages |
 | P9 | Network-fee authority | **OWNER SELECTED 2026-07-25:** use separate `PAY_NETWORK_FEES`, additive to the parent action and ungrantable until a bounded fee package exists |
 | P10 | Payee enrollment | **OWNER SELECTED 2026-07-25:** use separate `ENROLL_PAYEE`; it creates only bounded probationary enrollment and is ungrantable until its lifecycle package exists |
 | P11 | Claim revocation | **OWNER SELECTED 2026-07-25:** include separate reduction-only `REVOKE_CLAIMS`; keep it ungrantable until typed claim inventory, reliance, and anti-griefing rules exist |
@@ -1298,8 +1317,9 @@ The research narrows the permission problem to these decisions.
 | P13 | Cross-chain authority | **OWNER SELECTED 2026-07-25:** keep `CROSS_CHAIN` distinct and cumulative with every category required by the underlying local effects; keep it ungrantable until a bounded cross-chain package exists |
 | P14 | Offchain-signature authority | **OWNER SELECTED 2026-07-25:** keep `OFFCHAIN_SIGNATURE` distinct and cumulative with every category required by the authority created; prohibit arbitrary signing and keep it ungrantable until a typed-signature package exists |
 | P15 | Governance authority | **OWNER SELECTED 2026-07-25:** keep `GOVERNANCE` distinct from wallet administration and cumulative with every category required by signatures, delegation, or other effects; keep it ungrantable until a bounded governance package exists |
+| P16 | Generic persistent authority | **OWNER SELECTED 2026-07-25:** remove `PERSISTENT_EXTERNAL_AUTHORITY`; leave bits 16–255 unassigned until concrete standing-authority families justify their own narrow categories and lifecycle packages |
 
-P2–P3 and P5–P15 are owner-selected. P4 preserves an already governing
+P2–P3 and P5–P16 are owner-selected. P4 preserves an already governing
 action-identity rule. P1 remains the open decision this research most directly
 informs.
 
@@ -1370,6 +1390,10 @@ The independent reviewer should answer:
     require `GOVERNANCE` cumulatively with signature, persistent delegation,
     and other effects, remain separate from wallet administration, and prohibit
     manager-supplied arbitrary proposal payloads?
+25. Does the design consistently treat persistent authority as a security
+    classification rather than a grantable umbrella bit, leave bits 16–255
+    unassigned, and require a new narrow category and lifecycle package for
+    every concrete standing-authority family?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -1396,3 +1420,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P13 | Kept `CROSS_CHAIN` as a distinct cumulative permission; required underlying local-effect categories as applicable and deferred activation to a separately approved bounded bridge/messaging package |
 | 2026-07-25 | Owner disposition P14 | Kept `OFFCHAIN_SIGNATURE` as a distinct cumulative permission; prohibited arbitrary signing and deferred activation to a typed, inventoried, exposure-accounted signature package |
 | 2026-07-25 | Owner disposition P15 | Kept `GOVERNANCE` distinct from wallet administration and cumulative with signature, delegation, and other effects; deferred activation to a typed and bounded governance package |
+| 2026-07-25 | Owner disposition P16 | Removed the generic `PERSISTENT_EXTERNAL_AUTHORITY` permission; left bits 16–255 unassigned and required each future standing-authority family to receive its own narrow category and lifecycle package |
