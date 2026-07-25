@@ -55,17 +55,16 @@ My recommended incorporation is:
 3. Forward the manager and global routed masks through `PolicyContextV1` and
    check them in the new routed Sentinel entry point. Preserve the existing
    direct-policy ABI and meaning.
-4. Use eight initial vocabulary categories, four later categories, and one
+4. Use ten initial vocabulary categories, four later categories, and one
    reserved boundary. “Initial vocabulary” does not mean “enabled in the first
    release”; support is enabled only with a reviewed action-family package.
 5. Give each immutable `ActionSpec` one exact static permission mask. The
    extender does not declare or narrow permission requirements at runtime.
    Optional variants with different authority use different action IDs.
-6. Use one cross-family `POSITION_REDUCE` permission for mechanically
-   non-expanding actions, rather than separate exit bits for yield, debt, and
-   liquidity. It covers both recovery-shaped exits and tightly bound
-   obligation-reduction spends. Exact action IDs and wallet-computed
-   postconditions keep the category narrow in practice.
+6. Use separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions.
+   Reuse common argument-binding, AUTH, and non-expansion proof templates in
+   implementation, but do not generalize those distinct owner authorities into
+   one permanent bit.
 7. Keep payments on the mature direct rails initially. `TRANSFER` means value
    moves now; `PAYMENT_COMMITMENT` means a bounded claim survives.
 8. Do not add `ENROLL_PAYEE`, `PAY_NETWORK_FEES`, delegated administration,
@@ -162,11 +161,12 @@ architecture. Its highest-value contributions are:
 - a useful implementation and test sequence.
 
 Its 16-boundary recommendation splits entry and exit independently for yield,
-debt, and liquidity. That is defensible in isolation, but it underuses the exact
-manager `actionId` gate. If a manager must already be granted the exact yield
-withdrawal, debt repayment, or liquidity-removal action, separate categorical
-exit bits add permanent taxonomy and UI surface without adding equivalent
-security.
+debt, and liquidity. I initially recommended merging those exits because the
+exact manager `actionId` gate already narrows the procedure. The owner rejected
+that generalization: the categorical layer should independently let an owner
+grant yield recovery while withholding debt or liquidity authority. This
+proposal therefore adopts the family-specific split while continuing to share
+implementation proof machinery.
 
 The Codex synthesis also proposes a generic `persistenceMask` in `ActionSpec`.
 That may become useful later, but the first routed slice already has a closed
@@ -181,14 +181,16 @@ synthesis for repository-specific implementation constraints and adversarial
 corrections, and the existing governing architecture for the session,
 capability, settlement, registry, and succession design.
 
-Where the syntheses disagree, choose the smaller rule that still fails closed.
+Where the syntheses disagree, prefer an owner-readable boundary that reflects a
+meaningful product choice. Exact action IDs prevent procedural overbreadth, but
+they do not automatically justify merging distinct categories of authority.
 
 ### 2.4 Key disagreement matrix
 
 | Topic | Claude synthesis | Codex synthesis | This proposal |
 |---|---|---|---|
-| Documented boundaries | 17 | 16 | 13: 8 initial, 4 later, 1 reserved |
-| Defensive authority | One cross-family `POSITION_EXIT` | Separate strategy, debt, and liquidity exit permissions | One `POSITION_REDUCE`, narrowed by exact action IDs, argument binding, and postconditions |
+| Documented boundaries | 17 | 16 | 15: 10 initial, 4 later, 1 reserved |
+| Defensive authority | One cross-family `POSITION_EXIT` | Separate strategy, debt, and liquidity exit permissions | Separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT`, each narrowed further by exact action IDs and postconditions |
 | Network fees | Reverses between a separate bit (§4.2), rejection as a permission (§4.5), and separate boundary (§10.3) | Fee policy under the parent action | Parent-action fee profile initially; revisit non-enumerable recipients in a future fee package |
 | Payee enrollment | Reverses between a separate bit (§4.2), owner configuration (§4.5), and bounded delegated enrollment (§10.3) | Owner-controlled recipient enrollment | Keep owner/config-controlled initially |
 | Delegated revocation | Initial defensive permission | Later, after inventory and anti-griefing | Later |
@@ -228,7 +230,7 @@ governing design.
 
 ## 4. Proposed permission taxonomy
 
-### 4.1 Why eight initial-vocabulary categories are enough
+### 4.1 Why ten initial-vocabulary categories are appropriate
 
 The exact `actionId` gate answers:
 
@@ -242,10 +244,11 @@ The permission mask answers:
 What owner-readable kind of power does that procedure require?
 ```
 
-Because the first question is already exact, the second vocabulary should stay
-coarse. Categorical permissions should split only when the owner should be able
-to grant one class while withholding the other **even after exact action
-selection and existing limits are considered**.
+Because the first question is already exact, the second vocabulary should avoid
+procedural duplication. But it should still split when an owner may reasonably
+want to grant one family of reduction while withholding another **even after
+exact action selection and existing limits are considered**. The owner selected
+that finer control for yield exits, debt reduction, and liquidity exits.
 
 ### 4.2 Recommended permanent bit assignment
 
@@ -261,13 +264,15 @@ reinterpreted as these bits.
 | 4 | `DEBT` | INITIAL | Later debt package, after AUTH when the selected integration/action requires operator authority | Open or increase debt, leverage, or collateral-withdrawal risk |
 | 5 | `LIQUIDITY` | INITIAL | Later liquidity package | Open or increase an approved liquidity position |
 | 6 | `REWARDS` | INITIAL | Rewards package, after AUTH when an integration requires operator authority | Claim accrued rewards to the wallet without selling, transferring, or redeploying them |
-| 7 | `POSITION_REDUCE` | INITIAL | First withdrawal/defensive-debt package; AUTH first for any selected integration/action that requires operator authority | Close or reduce an existing wallet position or obligation under wallet-verified non-expansion rules |
-| 8 | `REVOKE_CLAIMS` | LATER | Separate revocation package | Cancel or reduce tracked persistent rights without creating or enlarging them |
-| 9 | `CROSS_CHAIN` | LATER | Separate cross-chain package | Create a typed, bounded cross-chain transfer or message |
-| 10 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create a tracked, bounded value-moving signature that may be used later |
-| 11 | `GOVERNANCE` | LATER | Separate governance package | Exercise protocol governance without wallet administration or value transfer |
-| 12 | `PERSISTENT_EXTERNAL_AUTHORITY` | RESERVED | Not grantable until an owner-approved authority package exists | Create a named standing spender or operator right that survives the action |
-| 13–255 | Unassigned | — | Not grantable | Unknown bits reject |
+| 7 | `YIELD_EXIT` | INITIAL | First yield-withdrawal package; AUTH first only when the selected integration/action requires operator authority | Withdraw, close, or reduce an approved yield position back to the wallet |
+| 8 | `DEBT_REDUCE` | INITIAL | First defensive-debt package; AUTH first when the selected integration/action requires operator authority | Repay or otherwise reduce an existing wallet debt obligation without increasing exposure |
+| 9 | `LIQUIDITY_EXIT` | INITIAL | First liquidity-removal package; AUTH first only when the selected integration/action requires operator authority | Remove or reduce an approved liquidity position back to the wallet |
+| 10 | `REVOKE_CLAIMS` | LATER | Separate revocation package | Cancel or reduce tracked persistent rights without creating or enlarging them |
+| 11 | `CROSS_CHAIN` | LATER | Separate cross-chain package | Create a typed, bounded cross-chain transfer or message |
+| 12 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create a tracked, bounded value-moving signature that may be used later |
+| 13 | `GOVERNANCE` | LATER | Separate governance package | Exercise protocol governance without wallet administration or value transfer |
+| 14 | `PERSISTENT_EXTERNAL_AUTHORITY` | RESERVED | Not grantable until an owner-approved authority package exists | Create a named standing spender or operator right that survives the action |
+| 15–255 | Unassigned | — | Not grantable | Unknown bits reject |
 
 `INITIAL` means part of the initial durable vocabulary. The separate
 “First enforcement package” column states when the authority first becomes
@@ -287,17 +292,17 @@ reserved bits reject rather than existing as inert grants.
 | `TransferPerms.canTransfer` | `TRANSFER` |
 | `TransferPerms.canCreateCheque` | `PAYMENT_COMMITMENT` |
 | `LegoPerms.canBuyAndSell` | `TRADE` |
-| `LegoPerms.canManageYield` | `YIELD` for entry/increase; `POSITION_REDUCE` for withdrawal |
-| `LegoPerms.canManageDebt` | `DEBT` for borrow/remove collateral; `POSITION_REDUCE` for a qualifying repay, collateral top-up, or close |
-| `LegoPerms.canManageLiq` | `LIQUIDITY` for entry/increase; `POSITION_REDUCE` for removal |
+| `LegoPerms.canManageYield` | `YIELD` for entry/increase; `YIELD_EXIT` for withdrawal |
+| `LegoPerms.canManageDebt` | `DEBT` for borrow/remove collateral; `DEBT_REDUCE` for a qualifying repay, collateral top-up, or close |
+| `LegoPerms.canManageLiq` | `LIQUIDITY` for entry/increase; `LIQUIDITY_EXIT` for removal |
 | `LegoPerms.canClaimRewards` | `REWARDS` |
 | Approved assets, Legos, payees, opportunities, slippage, counts, cooldowns, and value limits | Existing policy and limits, not new permission bits |
 
-The source syntheses use the name `POSITION_EXIT`. This proposal renames the
-category `POSITION_REDUCE` because the qualifying authority is not limited to
-actions that return proceeds. It may also cover an exactly bound spend that
-reduces an existing wallet obligation, such as repayment. The new name avoids
-claiming that every valid action has an exit-shaped fund flow.
+The Claude synthesis uses one `POSITION_EXIT`; the Codex synthesis recommends
+separate family exits. The owner selected the finer model. The permanent
+permission vocabulary therefore distinguishes recovery-shaped yield and
+liquidity exits from obligation-reduction debt spends. Common proof machinery
+may still be shared without sharing authority.
 
 The existing direct path can retain its current boolean meaning during the
 incremental build. The routed path uses the new mask. Any later decision to
@@ -308,7 +313,7 @@ the durable taxonomy while their current direct enforcement remains
 editable representations of the same live authority.
 
 Owner-facing consent for `YIELD` must say explicitly that it grants entry or
-increase only. A yield withdrawal requires `POSITION_REDUCE`. A default UI
+increase only. A yield withdrawal requires `YIELD_EXIT`. A default UI
 preset may pair the two, but the underlying authorities remain separately
 grantable so an owner may intentionally permit entry while retaining exclusive
 recovery authority.
@@ -485,10 +490,10 @@ If optional behavior changes the required authority, use separate action IDs:
 
 ```text
 yield.rebalance.no-swap.v1
-    POSITION_REDUCE | YIELD
+    YIELD_EXIT | YIELD
 
 yield.rebalance.with-swap.v1
-    POSITION_REDUCE | YIELD | TRADE
+    YIELD_EXIT | YIELD | TRADE
 ```
 
 This is easier to audit than a second runtime permission declaration and makes
@@ -534,7 +539,7 @@ speculative meaning to reserved metadata.
 
 ---
 
-## 7. Limits, composites, and defensive authority
+## 7. Limits, composites, and reduction authority
 
 ### 7.1 Composite actions
 
@@ -559,25 +564,39 @@ For every composite:
 Phase 0B must define the exact charge basis for each initial composite. It must
 not introduce a general limit DSL.
 
-### 7.2 `POSITION_REDUCE`
+### 7.2 Family-specific exit and reduction permissions
 
-`POSITION_REDUCE` is deliberately cross-family. The exact action-ID gate and
-existing allowed asset, Lego, and position rules determine which procedures
-the manager may use. It admits two fund-flow shapes rather than pretending
-every defensive action is literally an exit.
+The owner selected three permanent authorities:
 
-#### Recovery-shaped exit
+```text
+YIELD_EXIT
+DEBT_REDUCE
+LIQUIDITY_EXIT
+```
 
-The wallet may withdraw or remove an existing wallet-owned position when:
+They may share proof helpers, argument-binding patterns, and AUTH machinery, but
+they do not grant one another. The exact action-ID gate narrows each family
+further.
 
+#### `YIELD_EXIT` and `LIQUIDITY_EXIT`
+
+These are recovery-shaped permissions. The wallet may withdraw or remove an
+existing wallet-owned position only when:
+
+- the action references an existing position in the matching family;
 - every `receiver`, `beneficiary`, `owner`, and `onBehalfOf` parameter is bound
-  to the wallet where applicable; and
-- all proceeds and residual assets return to the wallet.
+  to the wallet where applicable;
+- all proceeds and residual assets return to the wallet; and
+- no new or enlarged position is hidden inside the exit.
 
-#### Obligation-reduction spend
+`YIELD_EXIT` cannot remove liquidity, and `LIQUIDITY_EXIT` cannot withdraw a
+yield position, even if the manager holds an exact action ID from the other
+family.
 
-The wallet may spend an exact allowed asset to reduce an existing
-wallet-owned obligation when:
+#### `DEBT_REDUCE`
+
+This is an obligation-reduction spend permission. The wallet may spend an exact
+allowed asset to reduce an existing wallet-owned obligation only when:
 
 - the destination is the pinned protocol integration, not an arbitrary
   recipient;
@@ -590,48 +609,49 @@ wallet-owned obligation when:
 
 Repayment and collateral top-up qualify only through this proof. Adding
 collateral to create a fresh position, enlarge exposure, or fund an unbound
-account is not `POSITION_REDUCE`; it requires the applicable risk-increasing
-family permission or remains unsupported.
+account is not `DEBT_REDUCE`; it requires `DEBT` or remains unsupported.
 
-Both shapes also require:
+#### Shared implementation rules
 
-- an existing wallet-owned position or obligation;
-- no increase in debt, liquidation risk, or required collateral burden;
+Every family-specific exit or reduction also requires:
+
+- an existing wallet-owned position or obligation in the matching family;
 - no new position, obligation, signature, recipient right, surviving approval,
-  operator right, or other persistent authority is created by
-  `POSITION_REDUCE` authority alone;
-- the ordinary exact transaction-scoped ERC20 capability is cleaned during
-  settlement, and any required external operator access uses an exact named
-  AUTH shape that is either created and removed transactionally under its
-  separately approved lifecycle or already established, inventoried, and
-  approved for continued use;
+  operator right, or other persistent authority created by the family
+  exit/reduction permission alone;
+- the ordinary exact transaction-scoped ERC20 capability to be cleaned during
+  settlement;
+- any required external operator access to use an exact named AUTH shape that
+  is either created and removed transactionally under its separately approved
+  lifecycle or already established, inventoried, and approved for continued
+  use;
 - a separate `TRADE` permission and independently enforced slippage/value
   controls for any conversion leg; and
-- frequency and fee/value-destruction bounds that prevent defensive churn from
-  becoming a griefing path.
+- frequency and fee/value-destruction bounds that prevent exit or reduction
+  churn from becoming a griefing path.
 
 If neither an approved transaction-scoped AUTH shape nor the required tracked
-pre-established state is available, the reduction action rejects. It cannot
-invoke the legacy generic target-and-ABI helper or silently create a new
-persistent right. Any future manager operation that creates persistent operator
-authority needs a distinct action ID and the separately ratified persistent-
-authority boundary; `POSITION_REDUCE` alone is insufficient.
+pre-established state is available, the action rejects. It cannot invoke the
+legacy generic target-and-ABI helper or silently create a new persistent right.
+Any future manager operation that creates persistent operator authority needs a
+distinct action ID and the separately ratified persistent-authority boundary;
+none of the three family permissions is sufficient.
 
-This dependency is integration/action specific. A withdrawal that requires no
-operator access does not wait for AUTH. In contrast, the current
+AUTH remains integration/action specific. An exit that requires no operator
+access does not wait for unrelated AUTH work. In contrast, the current
 [`RipeLego.vy`](../../contracts/legos/RipeLego.vy) returns its one-argument
 `setUndyLegoAccess(address)` request whenever access is absent without branching
-on the action. Its repay and collateral-top-up actions therefore cannot become
-routed `POSITION_REDUCE` actions until that Ripe authority shape and lifecycle
-have passed AUTH.
+on the action. Its repayment and collateral-top-up actions therefore cannot
+become routed `DEBT_REDUCE` actions until that Ripe authority shape and
+lifecycle have passed AUTH.
 
-If the wallet cannot prove the applicable shape for an integration, the action:
+If the wallet cannot prove the applicable family-specific rules, the action:
 
-- requires the risk-increasing family bit as well;
+- requires the corresponding entry/risk-increasing family bit as well;
 - remains owner-only; or
 - is unsupported.
 
-Removing collateral is not a defensive action. It requires `DEBT`.
+Removing collateral is not a reduction action. It requires `DEBT`.
 
 ### 7.3 Price behavior
 
@@ -696,9 +716,9 @@ The named operator-authority package remains separate and adds only confirmed,
 fixed call shapes.
 
 No categorical action permission bypasses that boundary. This applies to
-`DEBT`, `POSITION_REDUCE`, and `REWARDS`, not only to risk-increasing actions.
-The current Ripe integration requests `setUndyLegoAccess(address)` without
-branching on the debt action, while
+`DEBT`, `DEBT_REDUCE`, `YIELD_EXIT`, `LIQUIDITY_EXIT`, and `REWARDS`, not only
+to risk-increasing actions. The current Ripe integration requests
+`setUndyLegoAccess(address)` without branching on the debt action, while
 [`Euler.vy`](../../contracts/legos/yield/Euler.vy) exposes a
 `toggleOperator` setup call for rewards. A manager's action-permission bit alone
 must never create either authority.
@@ -824,8 +844,9 @@ Before the first implementation disposition:
 - define the supported-mask constant and unknown-bit failure;
 - define the exact initial action mask;
 - define the first composite charge bases;
-- define the `POSITION_REDUCE` proof template, without implementing a
-  reduction yet;
+- define the shared recovery-exit and obligation-reduction proof templates,
+  while preserving separate permission checks for `YIELD_EXIT`,
+  `DEBT_REDUCE`, and `LIQUIDITY_EXIT`;
   and
 - record `PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
 
@@ -898,14 +919,14 @@ It proves:
   any later family action. A nonempty requirement must pass AUTH first; an
   action that needs no external operator access does not wait for unrelated
   AUTH work.
-- Yield withdrawal uses `POSITION_REDUCE`.
-- Yield rebalance uses `POSITION_REDUCE | YIELD`, plus `TRADE` when applicable.
-- Debt repayment and collateral top-up use `POSITION_REDUCE` only when they
+- Yield withdrawal uses `YIELD_EXIT`.
+- Yield rebalance uses `YIELD_EXIT | YIELD`, plus `TRADE` when applicable.
+- Debt repayment and collateral top-up use `DEBT_REDUCE` only when they
   bind an existing wallet obligation and the action-specific postcondition
   proof passes; a fresh or expanding collateral position requires `DEBT`.
   Ripe variants also wait for the approved one-argument Ripe AUTH shape.
 - Borrow and collateral removal use `DEBT`.
-- Liquidity removal uses `POSITION_REDUCE`.
+- Liquidity removal uses `LIQUIDITY_EXIT`.
 - Claim-only uses `REWARDS`, but any integration-required operator setup must
   first pass the AUTH/persistent-authority package; claim-and-sell adds
   `TRADE`; claim-and-redeposit adds `YIELD`.
@@ -925,9 +946,9 @@ focused revision:
    boundary.
 3. State that `ActionSpec.requiredPermissionMask` is exact and solely
    registry-defined.
-4. Add `POSITION_REDUCE`'s two permitted fund-flow shapes, required
-   wallet-verifiable conditions, and integration/action-specific AUTH
-   prerequisite.
+4. Add the separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT`
+   permissions, their shared proof templates, family-specific fund-flow rules,
+   and integration/action-specific AUTH prerequisites.
 5. Strengthen composite policy from permission union to permission union plus
    cumulative limits.
 6. Add the price-independent exit boundary.
@@ -945,8 +966,9 @@ Update the implementation roadmap in the same revision:
 2. add Phase 0A permission and price baselines;
 3. add mask measurements and fields to Packages 0B, 1B1, and 1B2;
 4. set the first yield action's exact mask;
-5. add the `POSITION_REDUCE` proof and integration-specific AUTH gates before
-   withdrawals or defensive debt;
+5. add the family-specific exit/reduction permission, proof, and
+   integration-specific AUTH gates before withdrawals, liquidity removal, or
+   defensive debt;
 6. add composite charge-basis evidence;
 7. keep payment/persistence and dual control in separate future packages; and
 8. extend invariant traceability and drift tests.
@@ -962,17 +984,18 @@ The research narrows the permission problem to these decisions.
 
 | # | Decision | Recommendation |
 |---:|---|---|
-| P1 | Durable taxonomy | Approve eight initial-vocabulary, four later, and one reserved boundary; activate them only through reviewed enforcement packages |
+| P1 | Durable taxonomy | Approve ten initial-vocabulary, four later, and one reserved boundary; activate them only through reviewed enforcement packages |
 | P2 | Representation | Use parallel `uint256` manager/global routed masks in the new Config; do not expand existing manager structs |
-| P3 | Defensive authority | Use one cross-family `POSITION_REDUCE`, gated by exact action IDs, argument binding, wallet-verifiable non-expansion, and any separately approved integration/action-specific AUTH prerequisite |
+| P3 | Family-specific reduction authority | **OWNER SELECTED 2026-07-25:** use separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; reuse proof/AUTH machinery without generalizing the grants |
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
 | P5 | Direct-path fallback | **OWNER SELECTED 2026-07-25:** ETH/WETH transforms require `canBuyAndSell`; the unknown default fails closed; implementation and deployment remain separately gated |
 | P6 | Existing empty policy sets | Preserve current semantics for the first slice, make wildcard meaning explicit, and measure an explicit scope representation |
 | P7 | Price-independent exits | Permit only pure, non-converting, native-bounded exits with wallet-proven non-extraction and non-expansion |
 | P8 | First persistent additions | Keep payee enrollment, delegated revocation, standing authority, signatures, bridges, and new commitment types out of Phase 1 |
 
-P4 preserves an already governing action-identity rule. P1–P3 and P5–P8 are
-the decisions this research most directly informs.
+P3 and P5 are owner-selected. P4 preserves an already governing
+action-identity rule. P1–P2 and P6–P8 remain open decisions this research most
+directly informs.
 
 ---
 
@@ -980,11 +1003,10 @@ the decisions this research most directly informs.
 
 The independent reviewer should answer:
 
-1. Does the eight-permission initial vocabulary omit an authority that cannot
+1. Does the ten-permission initial vocabulary omit an authority that cannot
    be represented safely by action ID plus existing policy?
-2. Is a cross-family `POSITION_REDUCE` too broad even with exact action-ID,
-   asset, Lego, recipient, argument-binding, and action-specific postcondition
-   checks?
+2. Do `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` give meaningful
+   family-specific owner control without duplicating procedural action IDs?
 3. Does keeping self-custody transforms under `TRADE` create unacceptable
    owner-consent ambiguity?
 4. Is keeping payee enrollment owner-side the safer incremental choice, or
@@ -994,9 +1016,8 @@ The independent reviewer should answer:
 6. Are any mask fields missing from `PolicyContextV1`?
 7. Is the composite gross-charge rule precise enough to prevent swap-mediated
    limit laundering without a general effect language?
-8. Are the `POSITION_REDUCE` postconditions wallet-observable for both the
-   recovery-shaped and obligation-reduction fund flows in the first yield and
-   debt integrations?
+8. Are the family-specific exit/reduction postconditions wallet-observable for
+   the first yield, debt, and liquidity integrations?
 9. Does rejecting a generic `persistenceMask` leave any first-phase effect
    unclassified?
 10. Are the deferred payment, persistence, and dual-control packages separated
@@ -1010,10 +1031,10 @@ The independent reviewer should answer:
     shape or tracked persistent operator right, and is that prerequisite
     complete before `REWARDS` becomes grantable?
 15. Does owner-facing `YIELD` consent make clear that exit requires the separate
-    `POSITION_REDUCE` authority?
-16. Does each proposed `POSITION_REDUCE` integration/action pair require a
-    named AUTH shape, and if so is that prerequisite complete before the action
-    becomes grantable?
+    `YIELD_EXIT` authority?
+16. Does each proposed yield-exit, debt-reduction, or liquidity-exit
+    integration/action pair require a named AUTH shape, and if so is that
+    prerequisite complete before that family permission becomes grantable?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -1028,3 +1049,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Reviewer-feedback revision | Renamed `POSITION_EXIT` to `POSITION_REDUCE`; separated recovery and obligation-reduction fund flows; added grant-time supported-mask checks, reward/AUTH sequencing, explicit one-way `YIELD` consent, an immediate independent Sentinel hardening workstream, clearer vocabulary-versus-enforcement status, and document provenance |
 | 2026-07-25 | Re-review AUTH and fast-path clarification | Added integration/action-specific AUTH prerequisites for `DEBT` and `POSITION_REDUCE`; distinguished transaction-scoped versus pre-established named operator authority; documented Ripe's dependency; made the behavior-preserving Sentinel fix the recommended independent fast path; and stated the Claude synthesis's considered network-fee position fairly |
 | 2026-07-25 | Owner disposition P5 | Owner classified ETH/WETH wrapping and unwrapping as exchanges requiring `canBuyAndSell`; unknown direct actions fail closed; contract implementation and deployment remain separately gated |
+| 2026-07-25 | Owner disposition P3 | Replaced the proposed cross-family `POSITION_REDUCE` bit with separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; retained shared proof and AUTH machinery while keeping the owner grants distinct |
