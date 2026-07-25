@@ -69,12 +69,12 @@ My recommended incorporation is:
    one permanent bit.
 7. Keep payments on the mature direct rails initially. `TRANSFER` means value
    moves now; `PAYMENT_COMMITMENT` means a bounded claim survives.
-8. Add `PAY_NETWORK_FEES`, `ENROLL_PAYEE`, `REVOKE_CLAIMS`, `CROSS_CHAIN`, and
-   `OFFCHAIN_SIGNATURE` as distinct durable permissions, but do not make any
-   grantable before its bounded package exists. Keep delegated administration,
-   standing allowances, offchain-signature execution, and cross-chain
-   execution out of the initial implementation merely because the research
-   discussed them.
+8. Add `PAY_NETWORK_FEES`, `ENROLL_PAYEE`, `REVOKE_CLAIMS`, `CROSS_CHAIN`,
+   `OFFCHAIN_SIGNATURE`, and `GOVERNANCE` as distinct durable permissions, but
+   do not make any grantable before its bounded package exists. Keep delegated
+   administration, standing allowances, governance, offchain-signature
+   execution, and cross-chain execution out of the initial implementation
+   merely because the research discussed them.
 9. Treat composite authorization as:
 
    ```text
@@ -526,6 +526,40 @@ accounting. Arbitrary bytes, arbitrary hashes, unknown schemas, and generic
 
 Until the typed-signature inventory, exposure, cancellation, and replay package
 is reviewed and owner-approved, `OFFCHAIN_SIGNATURE` remains outside
+`SUPPORTED_PERMISSION_MASK` and is not grantable.
+
+### 4.10 `GOVERNANCE` is distinct from wallet administration
+
+The owner selected a separate `GOVERNANCE` permission. Protocol voting,
+proposal creation, and bounded delegation can materially affect the wallet's
+economic interests without being ordinary transfer, trade, or wallet
+administration. Every routed governance action requires:
+
+```text
+exact approved actionId
+    AND
+GOVERNANCE
+    AND
+every category required by its additional effects
+```
+
+A signed vote also requires `OFFCHAIN_SIGNATURE`; a standing governance
+delegate also requires the separately approved persistent-authority category
+applicable to that delegation; and any transfer, conversion, payment
+commitment, or other classified effect requires its own category.
+`GOVERNANCE` alone cannot change wallet managers or policy, move or trade
+assets, produce a signature, install a persistent delegate, or execute an
+arbitrary proposal payload.
+
+The future package must bind the exact governor or protocol, chain, operation
+kind, proposal ID or narrowly bounded proposal class, vote choice, voting-power
+or token ceiling, delegation target and duration, revocation path, and any
+token-locking, claim, reward, or execution effects. Proposal creation must use
+an enumerated typed shape; manager-supplied arbitrary calls or payloads are not
+governance authority.
+
+Until the governance inventory, cumulative effects, delegation lifecycle, and
+postconditions are reviewed and owner-approved, `GOVERNANCE` remains outside
 `SUPPORTED_PERMISSION_MASK` and is not grantable.
 
 ---
@@ -1263,8 +1297,9 @@ The research narrows the permission problem to these decisions.
 | P12 | Revocation scope | **OWNER SELECTED 2026-07-25:** each revoker receives a bounded owner-designated set of source-manager/epoch pairs; owner/system claims remain unreachable |
 | P13 | Cross-chain authority | **OWNER SELECTED 2026-07-25:** keep `CROSS_CHAIN` distinct and cumulative with every category required by the underlying local effects; keep it ungrantable until a bounded cross-chain package exists |
 | P14 | Offchain-signature authority | **OWNER SELECTED 2026-07-25:** keep `OFFCHAIN_SIGNATURE` distinct and cumulative with every category required by the authority created; prohibit arbitrary signing and keep it ungrantable until a typed-signature package exists |
+| P15 | Governance authority | **OWNER SELECTED 2026-07-25:** keep `GOVERNANCE` distinct from wallet administration and cumulative with every category required by signatures, delegation, or other effects; keep it ungrantable until a bounded governance package exists |
 
-P2–P3 and P5–P14 are owner-selected. P4 preserves an already governing
+P2–P3 and P5–P15 are owner-selected. P4 preserves an already governing
 action-identity rule. P1 remains the open decision this research most directly
 informs.
 
@@ -1331,6 +1366,10 @@ The independent reviewer should answer:
     `OFFCHAIN_SIGNATURE` cumulatively with the authority it creates, account
     for surviving exposure, provide bounded expiry and cancellation, and
     prohibit arbitrary bytes, hashes, and generic signing?
+24. Does every governance action bind an enumerated protocol and operation,
+    require `GOVERNANCE` cumulatively with signature, persistent delegation,
+    and other effects, remain separate from wallet administration, and prohibit
+    manager-supplied arbitrary proposal payloads?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -1356,3 +1395,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P2 | Selected parallel Wallet v3 routed masks and scope-code fields beside unchanged legacy direct-wallet structs; made any future storage consolidation a separate compatibility package and owner decision |
 | 2026-07-25 | Owner disposition P13 | Kept `CROSS_CHAIN` as a distinct cumulative permission; required underlying local-effect categories as applicable and deferred activation to a separately approved bounded bridge/messaging package |
 | 2026-07-25 | Owner disposition P14 | Kept `OFFCHAIN_SIGNATURE` as a distinct cumulative permission; prohibited arbitrary signing and deferred activation to a typed, inventoried, exposure-accounted signature package |
+| 2026-07-25 | Owner disposition P15 | Kept `GOVERNANCE` distinct from wallet administration and cumulative with signature, delegation, and other effects; deferred activation to a typed and bounded governance package |
