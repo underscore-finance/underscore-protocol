@@ -31,10 +31,14 @@ This directory contains the new Wallet v3 architecture work.
   analysis and owner-decision input only; it does not replace the governing
   architecture or authorize implementation.
 - [`permission-research-incorporation-proposal-codex.md`](permission-research-incorporation-proposal-codex.md)
-  compares both syntheses and proposes which conclusions, taxonomy, storage
-  model, and phase changes should enter the governing plan. It is a decision
-  record for independent review, not governing architecture or implementation
-  authorization.
+  compares both syntheses and records the owner-approved permission taxonomy,
+  storage model, scope semantics, and phase boundaries. It awaits independent
+  re-review and propagation into the governing architecture and roadmap; it is
+  not implementation authorization.
+- [`user-wallet-v3-visual-codex.html`](user-wallet-v3-visual-codex.html)
+  is the educational visual review site combining the governing architecture,
+  draft roadmap, and approved permission decision record. It labels source
+  authority and unresolved gates rather than acting as a contract specification.
 
 ## Separate proof of concept
 

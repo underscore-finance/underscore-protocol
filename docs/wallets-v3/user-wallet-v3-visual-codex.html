@@ -1,0 +1,2728 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta
+    name="description"
+    content="A visual, educational guide to the Wallet v3 architecture, permission model, transaction flow, and implementation roadmap."
+  >
+  <title>Wallet v3 — Architecture, permissions, and implementation plan</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f5f7fa;
+      --surface: #ffffff;
+      --surface-2: #eef2f6;
+      --surface-3: #e6ebf1;
+      --text: #17212b;
+      --muted: #5d6976;
+      --quiet: #7b8794;
+      --border: #d7dee6;
+      --border-strong: #b8c3cf;
+      --navy: #244b73;
+      --navy-bg: #eaf2fa;
+      --green: #28704e;
+      --green-bg: #eaf6ef;
+      --purple: #6b4c93;
+      --purple-bg: #f2ecf8;
+      --orange: #965620;
+      --orange-bg: #fff2e5;
+      --red: #9a3d43;
+      --red-bg: #fbecef;
+      --teal: #216e70;
+      --teal-bg: #e8f5f5;
+      --mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --sidebar: 270px;
+      --shadow: 0 8px 28px rgba(32, 48, 64, .07);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--page);
+    }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--page);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    a {
+      color: var(--navy);
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      color: inherit;
+    }
+
+    code {
+      font-family: var(--mono);
+      font-size: .9em;
+    }
+
+    .layout {
+      display: grid;
+      min-height: 100vh;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      height: 100vh;
+      padding: 22px 18px 30px;
+      overflow-y: auto;
+      border-right: 1px solid var(--border);
+      background: #edf1f5;
+    }
+
+    .brand {
+      display: block;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 780;
+      text-decoration: none;
+    }
+
+    .brand-subtitle {
+      margin: 4px 0 22px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .nav-label {
+      margin: 18px 8px 6px;
+      color: var(--quiet);
+      font-size: 10px;
+      font-weight: 760;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .sidebar nav {
+      display: grid;
+      gap: 2px;
+    }
+
+    .sidebar nav a {
+      padding: 7px 9px;
+      border-radius: 7px;
+      color: #44515f;
+      font-size: 12px;
+      text-decoration: none;
+    }
+
+    .sidebar nav a:hover,
+    .sidebar nav a:focus-visible {
+      color: var(--text);
+      background: #dde4eb;
+      outline: none;
+    }
+
+    .sidebar-status {
+      margin-top: 24px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, .68);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .content {
+      min-width: 0;
+    }
+
+    .document {
+      width: min(1220px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 48px 0 100px;
+    }
+
+    .doc-header {
+      padding: 0 0 32px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--navy);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 760;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      color: var(--text);
+      line-height: 1.22;
+    }
+
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      font-size: clamp(34px, 5vw, 56px);
+      letter-spacing: -.04em;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: clamp(26px, 3vw, 34px);
+      letter-spacing: -.025em;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      letter-spacing: -.01em;
+    }
+
+    h4 {
+      margin: 0 0 6px;
+      font-size: 14px;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    .lede {
+      max-width: 860px;
+      margin: 15px 0 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 20px;
+    }
+
+    .tag,
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 25px;
+      padding: 4px 9px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 690;
+    }
+
+    .tag.approved,
+    .status.complete {
+      color: var(--green);
+      border-color: #bcdac9;
+      background: var(--green-bg);
+    }
+
+    .tag.warning,
+    .status.next {
+      color: var(--orange);
+      border-color: #e8c9a8;
+      background: var(--orange-bg);
+    }
+
+    .tag.gated,
+    .status.gated {
+      color: var(--purple);
+      border-color: #d4c3e6;
+      background: var(--purple-bg);
+    }
+
+    .tag.future,
+    .status.future {
+      color: var(--navy);
+      border-color: #bfd0e2;
+      background: var(--navy-bg);
+    }
+
+    .section {
+      padding: 54px 0 6px;
+      scroll-margin-top: 18px;
+    }
+
+    .section-intro {
+      max-width: 840px;
+      margin-bottom: 22px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .callout {
+      margin: 20px 0;
+      padding: 17px 18px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--navy);
+      border-radius: 9px;
+      background: var(--surface);
+    }
+
+    .callout.warning {
+      border-left-color: var(--orange);
+      background: var(--orange-bg);
+    }
+
+    .callout.approved {
+      border-left-color: var(--green);
+      background: var(--green-bg);
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .grid.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid.four {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .card {
+      min-width: 0;
+      padding: 17px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--surface);
+      box-shadow: 0 1px 0 rgba(31, 45, 58, .02);
+    }
+
+    .card p:last-child,
+    .callout p:last-child {
+      margin-bottom: 0;
+    }
+
+    .card-kicker {
+      margin: 0 0 7px;
+      color: var(--quiet);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 730;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .compact-list {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    .compact-list li {
+      margin: 5px 0;
+    }
+
+    .plain-list {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .plain-list li {
+      position: relative;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    .plain-list li::before {
+      position: absolute;
+      top: .55em;
+      left: 1px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--navy);
+      content: "";
+    }
+
+    .formula {
+      display: grid;
+      gap: 9px;
+      padding: 18px;
+      border: 1px solid #c7d5e3;
+      border-radius: 11px;
+      background: var(--navy-bg);
+      font-family: var(--mono);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .formula .operator {
+      color: var(--quiet);
+      font-family: var(--sans);
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: .08em;
+    }
+
+    .diagram-shell {
+      padding: 18px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .diagram-title {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 17px;
+    }
+
+    .diagram-title p {
+      max-width: 650px;
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 13px;
+      margin: 14px 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-swatch {
+      width: 11px;
+      height: 11px;
+      border: 2px solid var(--border-strong);
+      border-radius: 3px;
+      background: var(--surface);
+    }
+
+    .legend-swatch.call {
+      border-color: var(--navy);
+      background: var(--navy-bg);
+    }
+
+    .legend-swatch.check {
+      border-color: var(--purple);
+      background: var(--purple-bg);
+    }
+
+    .legend-swatch.state {
+      border-color: var(--orange);
+      background: var(--orange-bg);
+    }
+
+    .legend-swatch.funds {
+      border-color: var(--green);
+      background: var(--green-bg);
+    }
+
+    .flow-row {
+      display: grid;
+      align-items: stretch;
+      gap: 8px;
+      grid-template-columns: minmax(110px, 1fr) 24px minmax(110px, 1fr) 24px minmax(110px, 1fr);
+    }
+
+    .flow-row.long {
+      grid-template-columns:
+        minmax(115px, 1fr) 22px minmax(115px, 1fr) 22px
+        minmax(115px, 1fr) 22px minmax(115px, 1fr);
+    }
+
+    .flow-node {
+      display: flex;
+      min-height: 90px;
+      padding: 13px;
+      flex-direction: column;
+      justify-content: center;
+      border: 2px solid var(--border-strong);
+      border-radius: 10px;
+      background: var(--surface);
+      text-align: center;
+    }
+
+    .flow-node strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .flow-node span {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .flow-node.call {
+      border-color: #9ebbd6;
+      background: var(--navy-bg);
+    }
+
+    .flow-node.check {
+      border-color: #c8b2dd;
+      background: var(--purple-bg);
+    }
+
+    .flow-node.state {
+      border-color: #dfb98d;
+      background: var(--orange-bg);
+    }
+
+    .flow-node.funds {
+      border-color: #a8cfb8;
+      background: var(--green-bg);
+    }
+
+    .flow-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--quiet);
+      font-size: 22px;
+    }
+
+    .lane-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 150px minmax(0, 1fr);
+    }
+
+    .lane-label {
+      display: flex;
+      align-items: center;
+      padding: 12px;
+      border-radius: 9px;
+      background: var(--surface-2);
+      font-size: 12px;
+      font-weight: 730;
+    }
+
+    .lane {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      padding: 10px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+    }
+
+    .lane-step {
+      min-width: 120px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-2);
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .lane-step.call {
+      border-color: #9ebbd6;
+      background: var(--navy-bg);
+    }
+
+    .lane-step.check {
+      border-color: #c8b2dd;
+      background: var(--purple-bg);
+    }
+
+    .lane-step.state {
+      border-color: #dfb98d;
+      background: var(--orange-bg);
+    }
+
+    .lane-step.funds {
+      border-color: #a8cfb8;
+      background: var(--green-bg);
+    }
+
+    .mini-arrow {
+      flex: 0 0 auto;
+      color: var(--quiet);
+    }
+
+    .permission-controls,
+    .scenario-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 16px;
+    }
+
+    .control-button {
+      padding: 7px 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 660;
+    }
+
+    .control-button:hover,
+    .control-button:focus-visible {
+      border-color: var(--border-strong);
+      background: var(--surface-2);
+      outline: none;
+    }
+
+    .control-button.active {
+      color: #ffffff;
+      border-color: var(--navy);
+      background: var(--navy);
+    }
+
+    .search-input {
+      width: min(320px, 100%);
+      padding: 8px 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .search-input:focus {
+      border-color: var(--navy);
+      outline: 2px solid rgba(36, 75, 115, .12);
+    }
+
+    .permission-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .permission-card {
+      position: relative;
+      min-height: 180px;
+      padding: 15px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+
+    .permission-card.phase1 {
+      border-color: #9fc6ae;
+      box-shadow: inset 0 3px 0 var(--green);
+    }
+
+    .permission-card.later {
+      border-color: #c6d4e1;
+      background: #f9fbfd;
+    }
+
+    .permission-bit {
+      position: absolute;
+      top: 13px;
+      right: 13px;
+      color: var(--quiet);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    .permission-name {
+      display: block;
+      max-width: calc(100% - 42px);
+      margin-bottom: 9px;
+      font-family: var(--mono);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .permission-card p {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .permission-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 12px;
+    }
+
+    .permission-meta span {
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 680;
+    }
+
+    .scenario-panel {
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--surface);
+    }
+
+    .scenario-summary {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr);
+    }
+
+    .permission-stack {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+      margin: 12px 0;
+    }
+
+    .permission-chip {
+      padding: 6px 9px;
+      border: 1px solid #c4b0da;
+      border-radius: 8px;
+      background: var(--purple-bg);
+      color: var(--purple);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 730;
+    }
+
+    .plus {
+      color: var(--quiet);
+      font-weight: 800;
+    }
+
+    .action-id-box {
+      padding: 13px;
+      border: 1px dashed var(--border-strong);
+      border-radius: 9px;
+      background: var(--surface-2);
+      font-family: var(--mono);
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    .phase-strip {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .phase {
+      position: relative;
+      padding: 16px 12px;
+      border: 2px solid var(--border-strong);
+      border-radius: 10px;
+      background: var(--surface);
+      text-align: center;
+    }
+
+    .phase:not(:last-child)::after {
+      position: absolute;
+      top: 50%;
+      right: -12px;
+      z-index: 2;
+      color: var(--quiet);
+      content: "→";
+      transform: translateY(-50%);
+    }
+
+    .phase strong {
+      display: block;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .phase span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .phase.idle {
+      border-color: #a9c7d9;
+      background: var(--teal-bg);
+    }
+
+    .phase.dispatching {
+      border-color: #c9b2df;
+      background: var(--purple-bg);
+    }
+
+    .phase.active {
+      border-color: #a8cfb8;
+      background: var(--green-bg);
+    }
+
+    .phase.settling {
+      border-color: #dfb98d;
+      background: var(--orange-bg);
+    }
+
+    .compare-table,
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--surface);
+      font-size: 12px;
+    }
+
+    .compare-table th,
+    .compare-table td,
+    .data-table th,
+    .data-table td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .compare-table th,
+    .data-table th {
+      color: #4b5865;
+      background: var(--surface-2);
+      font-size: 10px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .compare-table tr:last-child td,
+    .data-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .timeline {
+      position: relative;
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+      padding-left: 34px;
+    }
+
+    .timeline::before {
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 14px;
+      width: 2px;
+      background: var(--border-strong);
+      content: "";
+    }
+
+    .timeline-item {
+      position: relative;
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      grid-template-columns: 160px minmax(0, 1fr);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--surface);
+    }
+
+    .timeline-item::before {
+      position: absolute;
+      top: 22px;
+      left: -27px;
+      width: 12px;
+      height: 12px;
+      border: 3px solid var(--page);
+      border-radius: 50%;
+      background: var(--border-strong);
+      content: "";
+    }
+
+    .timeline-item.complete::before {
+      background: var(--green);
+    }
+
+    .timeline-item.next::before {
+      background: var(--orange);
+    }
+
+    .timeline-item.gated::before {
+      background: var(--purple);
+    }
+
+    .timeline-item.future::before {
+      background: var(--navy);
+    }
+
+    .timeline-key {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .timeline-key .status {
+      margin-top: 8px;
+      font-family: var(--sans);
+    }
+
+    .timeline-body p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .timeline-body ul {
+      margin: 7px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metric-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .metric {
+      padding: 15px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+
+    .metric strong {
+      display: block;
+      font-family: var(--mono);
+      font-size: 22px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .gate-options {
+      display: grid;
+      gap: 9px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 14px;
+    }
+
+    .gate-option {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+      text-align: center;
+    }
+
+    .gate-option strong {
+      display: block;
+      font-size: 12px;
+    }
+
+    .gate-option span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .source-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .source-link {
+      display: grid;
+      gap: 4px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+      text-decoration: none;
+    }
+
+    .source-link:hover,
+    .source-link:focus-visible {
+      border-color: var(--navy);
+      outline: none;
+    }
+
+    .source-link strong {
+      color: var(--navy);
+      font-size: 13px;
+    }
+
+    .source-link span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .glossary {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .term {
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+    }
+
+    .term dt {
+      margin-bottom: 5px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .term dd {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .footer {
+      margin-top: 60px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--quiet);
+      font-size: 11px;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 1080px) {
+      .permission-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .grid.four {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .flow-row,
+      .flow-row.long {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-arrow {
+        transform: rotate(90deg);
+      }
+
+      .scenario-summary {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .layout {
+        display: block;
+      }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        padding: 14px 16px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .sidebar nav {
+        display: flex;
+        padding-bottom: 4px;
+        overflow-x: auto;
+      }
+
+      .sidebar nav a {
+        flex: 0 0 auto;
+      }
+
+      .nav-label,
+      .sidebar-status {
+        display: none;
+      }
+
+      .brand-subtitle {
+        margin-bottom: 9px;
+      }
+
+      .document {
+        width: min(100% - 28px, 1220px);
+        padding-top: 32px;
+      }
+
+      .grid.two,
+      .grid.three,
+      .permission-grid,
+      .metric-grid,
+      .glossary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .phase-strip,
+      .gate-options {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .phase:nth-child(2)::after {
+        display: none;
+      }
+
+      .timeline-item {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      body {
+        font-size: 14px;
+      }
+
+      h1 {
+        font-size: 34px;
+      }
+
+      .section {
+        padding-top: 42px;
+      }
+
+      .grid.two,
+      .grid.three,
+      .grid.four,
+      .permission-grid,
+      .metric-grid,
+      .glossary,
+      .phase-strip,
+      .gate-options {
+        grid-template-columns: 1fr;
+      }
+
+      .phase::after {
+        display: none;
+      }
+
+      .lane-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .lane-label {
+        padding-bottom: 5px;
+        background: transparent;
+      }
+
+      .timeline {
+        padding-left: 26px;
+      }
+
+      .timeline::before {
+        left: 9px;
+      }
+
+      .timeline-item::before {
+        left: -23px;
+      }
+
+      .compare-table,
+      .data-table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="#top">Wallet v3 visual guide</a>
+      <p class="brand-subtitle">Architecture, permissions, transaction flow, and delivery sequence</p>
+
+      <div class="nav-label">Understand the design</div>
+      <nav aria-label="Page contents">
+        <a href="#status">1. Status and sources</a>
+        <a href="#mental-model">2. One-picture model</a>
+        <a href="#changes">3. What changes</a>
+        <a href="#authorization">4. Authorization gates</a>
+        <a href="#permissions">5. Permission vocabulary</a>
+        <a href="#composition">6. Permission composition</a>
+        <a href="#transaction">7. Transaction flow</a>
+        <a href="#components">8. Extender and Lego</a>
+        <a href="#funds">9. Funds and allowance</a>
+        <a href="#settlement">10. Settlement and price</a>
+        <a href="#lifecycle">11. Action lifecycle</a>
+        <a href="#persistence">12. Persistent effects</a>
+        <a href="#roadmap">13. Implementation roadmap</a>
+        <a href="#gates">14. Evidence gates</a>
+        <a href="#trust">15. Trust boundaries</a>
+        <a href="#open-decisions">16. Remaining decisions</a>
+        <a href="#references">17. References</a>
+      </nav>
+
+      <div class="sidebar-status">
+        <strong>Review status</strong><br>
+        Permission decisions are owner-approved. They still need independent
+        re-review and propagation into the governing architecture and roadmap.
+        Contract implementation and deployment remain unauthorized.
+      </div>
+    </aside>
+
+    <main class="content" id="top">
+      <article class="document">
+        <header class="doc-header">
+          <p class="eyebrow">Educational review artifact · 2026-07-25</p>
+          <h1>Wallet v3: how the architecture, permissions, and implementation plan fit together</h1>
+          <p class="lede">
+            This page explains the proposed new wallet generation using diagrams and concrete examples.
+            It combines the current governing architecture, the draft implementation roadmap, and the
+            owner-approved permission decision record. It does not authorize contract changes or deployment.
+          </p>
+          <div class="tag-row">
+            <span class="tag approved">Permission decisions approved</span>
+            <span class="tag">Governing architecture selected</span>
+            <span class="tag warning">Implementation not authorized</span>
+            <span class="tag">Migration out of scope</span>
+            <span class="tag">Archived POC kept separate</span>
+          </div>
+        </header>
+
+        <section class="section" id="status">
+          <p class="eyebrow">1 · Status and sources</p>
+          <h2>What is decided, and what is not</h2>
+          <p class="section-intro">
+            The documents have different authority. This page uses the approved permission decisions as the
+            latest overlay, but it does not silently rewrite the governing Markdown.
+          </p>
+
+          <div class="grid three">
+            <div class="card">
+              <p class="card-kicker">Governing</p>
+              <h3>Architecture direction</h3>
+              <p>
+                The incremental routed-action architecture is owner-selected. It defines the wallet,
+                registry, extender, Lego, session, capability, and settlement model.
+              </p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Draft roadmap</p>
+              <h3>Implementation packages</h3>
+              <p>
+                The work sequence is defined as small evidence-gated packages. Only the catalog-strip
+                measurement is complete. Contract implementation remains unauthorized.
+              </p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Owner-dispositioned</p>
+              <h3>Permission decisions</h3>
+              <p>
+                Sixteen categories, parallel routed fields, explicit scopes, cumulative composite checks,
+                narrow recovery, and future authority boundaries are approved pending propagation.
+              </p>
+            </div>
+          </div>
+
+          <div class="callout warning">
+            <strong>Important document boundary</strong>
+            <p>
+              If the approved permission record and the older provisional permission section disagree, this
+              page shows the approved decision and labels it as awaiting governing-document propagation.
+              The site is a review aid, not a new source of contract authority.
+            </p>
+          </div>
+        </section>
+
+        <section class="section" id="mental-model">
+          <p class="eyebrow">2 · One-picture model</p>
+          <h2>The wallet stays the authority boundary</h2>
+          <p class="section-intro">
+            New actions can be registered without adding another hardcoded wallet function, but only the
+            wallet can authenticate the caller, interpret permissions, open a session, create token authority,
+            and settle the result.
+          </p>
+
+          <div class="diagram-shell">
+            <div class="diagram-title">
+              <div>
+                <h3>Routed action path</h3>
+                <p>Calls move left to right. Funds remain at the wallet until the capability is consumed.</p>
+              </div>
+              <span class="tag approved">New Wallet v3 generation only</span>
+            </div>
+            <div class="flow-row long">
+              <div class="flow-node call">
+                <strong>Caller</strong>
+                <span>Owner, manager, or existing AgentWrapper path</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-node state">
+                <strong>User Wallet</strong>
+                <span>Custody, lock, session, spend authority, settlement</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-node call">
+                <strong>Extender</strong>
+                <span>Typed preparation and exact plan forwarding</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-node funds">
+                <strong>Capability-aware Lego</strong>
+                <span>Consumes once, then performs the reviewed protocol workflow</span>
+              </div>
+            </div>
+
+            <div class="flow-row" style="margin-top: 12px;">
+              <div class="flow-node check">
+                <strong>ActionRegistry</strong>
+                <span>Immutable action meaning, extender, exact mask, settlement mode, lifecycle</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">↗</div>
+              <div class="flow-node check">
+                <strong>Config + thin provider + Sentinel</strong>
+                <span>Action ID, permissions, scopes, limits, and post-action checks</span>
+              </div>
+              <div class="flow-arrow" aria-hidden="true">↖</div>
+              <div class="flow-node check">
+                <strong>Wallet-bound LegoBook</strong>
+                <span>Resolves reviewed consumer IDs without in-place repointing</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="legend">
+            <span class="legend-item"><span class="legend-swatch call"></span>Contract call or data flow</span>
+            <span class="legend-item"><span class="legend-swatch check"></span>Policy or identity check</span>
+            <span class="legend-item"><span class="legend-swatch state"></span>Wallet/session state</span>
+            <span class="legend-item"><span class="legend-swatch funds"></span>Token or protocol fund movement</span>
+          </div>
+
+          <div class="callout approved">
+            <strong>The design rule</strong>
+            <p>
+              Actions are open-ended. Authority is not. A new action fits only when existing permission
+              categories, policy inputs, spend primitives, session mechanics, and settlement modes can
+              describe it. Otherwise the action stops for a reviewed core change.
+            </p>
+          </div>
+        </section>
+
+        <section class="section" id="changes">
+          <p class="eyebrow">3 · What changes</p>
+          <h2>Incremental change, not a replacement policy system</h2>
+          <p class="section-intro">
+            The new generation is derived from the existing wallet trunk. Existing deployed wallets keep
+            their current behavior.
+          </p>
+
+          <div class="grid two">
+            <div class="card">
+              <p class="card-kicker">Preserved</p>
+              <h3>What stays in place</h3>
+              <ul class="compact-list">
+                <li>Wallet custody and accounting</li>
+                <li>Existing manager activation, expiry, limits, and cooldowns</li>
+                <li>Allowed assets, Legos, payees, and approved opportunities</li>
+                <li>Sentinel and wallet-backpack responsibilities</li>
+                <li>Direct transfers, cheques, payees, Billing, freeze, and recovery rails</li>
+                <li>Existing owner/security administration paths</li>
+              </ul>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Added for routed actions</p>
+              <h3>What is new</h3>
+              <ul class="compact-list">
+                <li>Immutable <code>bytes32 actionId</code> records</li>
+                <li>Parallel manager/global routed permission masks</li>
+                <li>Exact manager action-ID approval</li>
+                <li>Bounded extender <code>prepare</code></li>
+                <li>Transient session phase and one-time capability consumption</li>
+                <li>Capability-aware Legos that pull exact wallet-resolved amounts</li>
+                <li>Fixed wallet-owned settlement recipes</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid three" style="margin-top: 14px;">
+            <div class="card">
+              <p class="card-kicker">Existing wallets</p>
+              <h3>Unchanged</h3>
+              <p>They continue using the legacy action catalog. No migration design is part of this plan.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">New wallet generation</p>
+              <h3>Routed kernel</h3>
+              <p>New wallet and Config blueprints receive the session engine and bound registries.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Direct rails</p>
+              <h3>Remain direct initially</h3>
+              <p>Payments and security operations do not enter the action registry during Phase 1.</p>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 24px;">Complexity deliberately left out</h3>
+          <div class="grid four" style="margin-top: 12px;">
+            <div class="card">
+              <h4>No policy DSL</h4>
+              <p>Extenders cannot register new permission, limit, risk, or settlement meanings.</p>
+            </div>
+            <div class="card">
+              <h4>No arbitrary executor</h4>
+              <p>No manager-selected target and calldata, generic raw-call bridge, or open consumer address.</p>
+            </div>
+            <div class="card">
+              <h4>No mutable action code</h4>
+              <p>New meaning, schema, extender, or consumer implementation receives a new reviewed identity.</p>
+            </div>
+            <div class="card">
+              <h4>No generic persistence</h4>
+              <p>No persistence mask or umbrella standing-authority permission. Concrete future effects stay typed.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="authorization">
+          <p class="eyebrow">4 · Authorization gates</p>
+          <h2>A manager must pass all three layers</h2>
+          <p class="section-intro">
+            Action IDs answer “which exact procedure?” Permission bits answer “which type of authority?”
+            Existing scopes and limits answer “with which assets, integrations, recipients, values, and timing?”
+          </p>
+
+          <div class="grid three">
+            <div class="card">
+              <p class="card-kicker">Gate 1</p>
+              <h3>Exact action ID</h3>
+              <p>
+                The manager must hold the exact immutable action ID. Action IDs never support <code>ANY</code>.
+                A new extender, schema, or meaning receives a new ID.
+              </p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Gate 2</p>
+              <h3>Every required permission bit</h3>
+              <p>
+                The immutable <code>ActionSpec</code> supplies one exact static mask. Both manager and global
+                routed masks must cover the full requirement.
+              </p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Gate 3</p>
+              <h3>Existing policy and limits</h3>
+              <p>
+                Assets, Legos, payees, opportunities, cooldowns, transaction counts, USD limits, price,
+                approved-vault, swap-count, and slippage rules still apply.
+              </p>
+            </div>
+          </div>
+
+          <div class="formula" style="margin-top: 14px;">
+            <div>exact actionId approved</div>
+            <div class="operator">AND</div>
+            <div>manager mask covers exact required mask</div>
+            <div class="operator">AND</div>
+            <div>global mask covers exact required mask</div>
+            <div class="operator">AND</div>
+            <div>all manager/global scopes and existing limits pass</div>
+          </div>
+
+          <div class="grid two" style="margin-top: 14px;">
+            <div class="card">
+              <p class="card-kicker">Parallel storage</p>
+              <h3>Routed fields sit beside legacy fields</h3>
+              <p>
+                The new Config stores routed masks, action IDs, and explicit scope codes separately. Legacy
+                direct-wallet structs remain authoritative only for the direct path. No live authority has two
+                independently editable sources.
+              </p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Grant-time safety</p>
+              <h3>No dormant future bits</h3>
+              <p>
+                Config rejects unsupported bits when a grant is created or updated, not only when an action is
+                executed. Expanding the supported mask later cannot silently activate a pre-granted bit.
+              </p>
+            </div>
+          </div>
+
+          <div class="diagram-shell" style="margin-top: 14px;">
+            <div class="diagram-title">
+              <div>
+                <h3>Explicit scope codes</h3>
+                <p>Empty lists never carry an inferred meaning in Wallet v3.</p>
+              </div>
+            </div>
+            <div class="grid three">
+              <div class="flow-node check">
+                <strong><code>NONE = 0</code></strong>
+                <span>No asset, Lego, or payee in this scope is allowed. Stored list must be empty.</span>
+              </div>
+              <div class="flow-node check">
+                <strong><code>SET = 1</code></strong>
+                <span>Only exact members of the bounded stored set are allowed. Set must be nonempty.</span>
+              </div>
+              <div class="flow-node check">
+                <strong><code>ANY = 2</code></strong>
+                <span>Any item in this policy dimension is allowed. Stored list must be empty.</span>
+              </div>
+            </div>
+            <p style="margin: 14px 0 0; color: var(--muted); font-size: 12px;">
+              Manager and global asset, Lego, and payee scopes apply cumulatively. Unknown codes reject.
+              Action IDs remain exact-only and do not use these scope codes.
+            </p>
+          </div>
+        </section>
+
+        <section class="section" id="permissions">
+          <p class="eyebrow">5 · Permission vocabulary</p>
+          <h2>Sixteen approved categories</h2>
+          <p class="section-intro">
+            “Initial vocabulary” means the durable category is assigned, not that it is live in Phase 1.
+            The first routed supported mask may contain only <code>YIELD</code>. Every other category remains
+            unavailable until its reviewed enforcement package exists.
+          </p>
+
+          <div class="permission-controls" aria-label="Permission filters">
+            <button class="control-button active" type="button" data-permission-filter="all">All 16</button>
+            <button class="control-button" type="button" data-permission-filter="phase1">Phase 1 active</button>
+            <button class="control-button" type="button" data-permission-filter="initial">Initial vocabulary</button>
+            <button class="control-button" type="button" data-permission-filter="later">Later vocabulary</button>
+            <label>
+              <span class="visually-hidden">Search permissions</span>
+              <input class="search-input" id="permission-search" type="search" placeholder="Search permissions">
+            </label>
+          </div>
+
+          <div class="permission-grid" id="permission-grid" aria-live="polite"></div>
+
+          <div class="callout">
+            <strong>Bits 16–255 are unassigned</strong>
+            <p>
+              There is no generic <code>PERSISTENT_EXTERNAL_AUTHORITY</code> permission. “Persistent
+              authority” is a security classification. A concrete future token allowance, protocol operator,
+              governance delegate, or session-key design needs its own narrow owner-approved category and
+              lifecycle package.
+            </p>
+          </div>
+        </section>
+
+        <section class="section" id="composition">
+          <p class="eyebrow">6 · Permission composition</p>
+          <h2>One action can require several categories</h2>
+          <p class="section-intro">
+            Composite authorization is the union of every required permission bit plus cumulative application
+            of every relevant limit. An intermediate swap cannot hide value from asset, recipient, or value
+            ceilings.
+          </p>
+
+          <div class="scenario-controls" id="scenario-controls" aria-label="Choose an action example"></div>
+          <div class="scenario-panel" id="scenario-panel" aria-live="polite"></div>
+
+          <div class="callout approved">
+            <strong>Rebalance and deleverage can each be one action</strong>
+            <p>
+              “One action” means one immutable action ID, one wallet session, one consumer, and one capability
+              consumption. The Lego may perform several protocol calls inside that session. It does not call
+              nested wallet action functions.
+            </p>
+          </div>
+        </section>
+
+        <section class="section" id="transaction">
+          <p class="eyebrow">7 · Transaction flow</p>
+          <h2>One routed action, from request to settlement</h2>
+          <p class="section-intro">
+            The ordering is a security property. The wallet locks before its first untrusted external call,
+            checks policy before creating authority, and clears authority before settlement calls.
+          </p>
+
+          <div class="phase-strip" aria-label="Session phase machine">
+            <div class="phase idle">
+              <strong>IDLE</strong>
+              <span>Top-level entry is allowed</span>
+            </div>
+            <div class="phase dispatching">
+              <strong>DISPATCHING</strong>
+              <span>Registry, policy, prepare, and session setup</span>
+            </div>
+            <div class="phase active">
+              <strong>ACTIVE</strong>
+              <span>Capability consumed; exact authority is live</span>
+            </div>
+            <div class="phase settling">
+              <strong>SETTLING</strong>
+              <span>Allowance cleared; results checked and recorded</span>
+            </div>
+          </div>
+
+          <div class="diagram-shell" style="margin-top: 16px;">
+            <div class="diagram-title">
+              <div>
+                <h3>Canonical ordering</h3>
+                <p>Each row separates calls, checks, session state, and actual fund movement.</p>
+              </div>
+            </div>
+
+            <div class="lane-grid">
+              <div class="lane-label">1 · Lock and identify</div>
+              <div class="lane">
+                <div class="lane-step state">require IDLE<br>enter DISPATCHING</div>
+                <span class="mini-arrow">→</span>
+                <div class="lane-step check">ActionRegistry lookup<br>lifecycle check</div>
+                <span class="mini-arrow">→</span>
+                <div class="lane-step check">caller + action ID<br>permission mask</div>
+              </div>
+
+              <div class="lane-label">2 · Prepare and check</div>
+              <div class="lane">
+                <div class="lane-step call">bounded extender<br>static prepare</div>
+                <span class="mini-arrow">→</span>
+                <div class="lane-step check">decode and resolve<br>Lego IDs/codehashes</div>
+                <span class="mini-arrow">→</span>
+                <div class="lane-step check">asset + Lego scopes<br>existing policy</div>
+              </div>
+
+              <div class="lane-label">3 · Commit authority</div>
+              <div class="lane">
+                <div class="lane-step state">pre-action accounting<br>starting snapshots</div>
+                <span class="mini-arrow">→</span>
+                <div class="lane-step state">resolve exact spends<br>commit session</div>
+                <span class="mini-arrow">→</span>
+                <div class="lane-step call">extender acknowledges<br>exact plan</div>
+              </div>
+
+              <div class="lane-label">4 · Execute</div>
+              <div class="lane">
+                <div class="lane-step funds">exact Lego consumes<br>once</div>
+                <span class="mini-arrow">→</span>
+                <div class="lane-step funds">exact allowances<br>activate</div>
+                <span class="mini-arrow">→</span>
+                <div class="lane-step funds">protocol workflow<br>funds/position move</div>
+              </div>
+
+              <div class="lane-label">5 · Settle and clear</div>
+              <div class="lane">
+                <div class="lane-step state">enter SETTLING<br>clear allowances</div>
+                <span class="mini-arrow">→</span>
+                <div class="lane-step check">observe result<br>price + limits</div>
+                <span class="mini-arrow">→</span>
+                <div class="lane-step state">accounting/events<br>clear session → IDLE</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="callout">
+            <strong>Atomic failure</strong>
+            <p>
+              Any failure reverts the entire transaction: phase changes, allowance, protocol effects, policy
+              updates, and accounting. There is no partially open cross-transaction session in Phase 1.
+            </p>
+          </div>
+        </section>
+
+        <section class="section" id="components">
+          <p class="eyebrow">8 · Extender and Lego</p>
+          <h2>Typed preparation, then reviewed execution</h2>
+          <p class="section-intro">
+            The extender explains one approved action shape. The Lego executes the multi-step protocol
+            workflow. Neither receives custody or a generic call grant.
+          </p>
+
+          <div class="grid two">
+            <div class="diagram-shell">
+              <div class="diagram-title">
+                <div>
+                  <h3>Extender <code>prepare(actionData)</code></h3>
+                  <p>Bounded static output committed by the wallet.</p>
+                </div>
+              </div>
+              <div class="grid two">
+                <div class="flow-node call"><strong><code>planBytes</code></strong><span>Exact typed parameters used by the Lego</span></div>
+                <div class="flow-node check"><strong><code>consumerLegoId</code></strong><span>One reviewed consumer resolved by the wallet</span></div>
+                <div class="flow-node check"><strong><code>policyLegoIds[]</code></strong><span>Every integration that policy must approve</span></div>
+                <div class="flow-node check"><strong><code>touchedAssets[]</code></strong><span>Every wallet asset settlement must inspect</span></div>
+                <div class="flow-node funds"><strong><code>SpendRequest[]</code></strong><span>Only request for wallet-created token authority</span></div>
+                <div class="flow-node state"><strong><code>settlementData</code></strong><span>Identifiers for one closed wallet recipe</span></div>
+              </div>
+            </div>
+
+            <div class="diagram-shell">
+              <div class="diagram-title">
+                <div>
+                  <h3>Capability-aware Lego</h3>
+                  <p>One consumer may perform several protocol calls.</p>
+                </div>
+              </div>
+              <div class="flow-row">
+                <div class="flow-node call">
+                  <strong>Receive</strong>
+                  <span><code>sessionId + planBytes</code></span>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node funds">
+                  <strong>Consume once</strong>
+                  <span>Wallet returns exact resolved capability context</span>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node funds">
+                  <strong>Execute</strong>
+                  <span>One or multiple reviewed protocol calls</span>
+                </div>
+              </div>
+              <ul class="compact-list">
+                <li>No extender custody</li>
+                <li>No arbitrary target and calldata executor</li>
+                <li>No Lego-provided transaction USD truth</li>
+                <li>Consumer code changes receive a new immutable Lego ID</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="callout">
+            <strong>What “typed facade” means here</strong>
+            <p>
+              SDK methods such as <code>buildYieldDeposit(...)</code> or
+              <code>buildDebtDeleverage(...)</code> make the generic
+              <code>executeAction(actionId, actionData, deadline)</code> entry point readable and safe to use.
+              The facade is an offchain builder, not a second onchain authority source. New action IDs remain
+              the controlled escape hatch.
+            </p>
+          </div>
+        </section>
+
+        <section class="section" id="funds">
+          <p class="eyebrow">9 · Funds and allowance</p>
+          <h2>Where the money is at each moment</h2>
+          <p class="section-intro">
+            Custody remains at the wallet. The extender never holds user funds. A Lego receives only the
+            transaction-scoped token authority the wallet resolved and committed.
+          </p>
+
+          <div class="grid three">
+            <div class="flow-node state">
+              <strong>Before consumption</strong>
+              <span>Funds at wallet · allowance 0 · session committed but authority inactive</span>
+            </div>
+            <div class="flow-node funds">
+              <strong>During Lego execution</strong>
+              <span>Exact approved allowance activates only for the exact consumer and resolved amount</span>
+            </div>
+            <div class="flow-node state">
+              <strong>Before settlement calls</strong>
+              <span>Allowance returns to 0 · resulting funds or position belong to the wallet</span>
+            </div>
+          </div>
+
+          <div class="diagram-shell" style="margin-top: 14px;">
+            <div class="diagram-title">
+              <div>
+                <h3>First Phase 1 fund flow: yield deposit</h3>
+                <p>The first slice creates no external operator grant and requires only <code>YIELD</code>.</p>
+              </div>
+            </div>
+            <div class="flow-row long">
+              <div class="flow-node funds">
+                <strong>Wallet USDC</strong>
+                <span>Wallet resolves exact or up-to-balance amount after bookkeeping</span>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node funds">
+                <strong>Yield Lego</strong>
+                <span>Consumes capability and pulls only the resolved USDC</span>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node funds">
+                <strong>Yield protocol</strong>
+                <span>Deposit executes through the reviewed integration</span>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="flow-node funds">
+                <strong>Wallet position</strong>
+                <span>Vault/position token or wallet-owned position returns to custody</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="settlement">
+          <p class="eyebrow">10 · Settlement and price</p>
+          <h2>The wallet computes the result</h2>
+          <p class="section-intro">
+            Extenders choose only a wallet-supported settlement mode. They cannot register a new accounting
+            language or tell Sentinel an unverified transaction value.
+          </p>
+
+          <div class="grid three">
+            <div class="card">
+              <p class="card-kicker">Observed inputs</p>
+              <h3>Wallet-owned evidence</h3>
+              <p>Starting balances, capability ledger, final balances, position/debt state, and fixed recipe data.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Valuation</p>
+              <h3>Appraiser under a closed price code</h3>
+              <p>Settlement derives <code>policyChargeUsd</code> and any required swap inputs/outputs.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Policy result</p>
+              <h3>Existing limits update once</h3>
+              <p>Per-transaction, period, lifetime, vault, swap-count, and slippage checks use wallet-derived values.</p>
+            </div>
+          </div>
+
+          <div class="grid two" style="margin-top: 14px;">
+            <div class="card">
+              <p class="card-kicker">Default</p>
+              <h3><code>PRICE_REQUIRED</code></h3>
+              <p>
+                Missing, stale, invalid, or zero price rejects when a price is required. The routed path does
+                not weaken a USD limit by substituting zero.
+              </p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Narrow recovery exception</p>
+              <h3><code>NATIVE_BOUNDED_RECOVERY</code></h3>
+              <p>
+                Only an exact immutable pure no-conversion <code>YIELD_EXIT</code> or
+                <code>LIQUIDITY_EXIT</code> recipe may use native-unit ceilings and wallet-observed recovery
+                postconditions. Changing the price code requires a new action ID.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="lifecycle">
+          <p class="eyebrow">11 · Action lifecycle</p>
+          <h2>Action code is append-only; lifecycle only narrows</h2>
+          <p class="section-intro">
+            An action ID pins one meaning, schema, extender address, extender codehash, exact permission mask,
+            settlement mode, and entry/exit relationship.
+          </p>
+
+          <div class="flow-row long">
+            <div class="flow-node check">
+              <strong>PENDING</strong>
+              <span>Registered, review delay running, not executable</span>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node funds">
+              <strong>ENABLED</strong>
+              <span>Normal action use is allowed when wallet policy also passes</span>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node state">
+              <strong>EXIT_ONLY</strong>
+              <span>Only non-expanding unwind use survives</span>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node state">
+              <strong>DISABLED</strong>
+              <span>Terminal; re-enable requires a new action ID</span>
+            </div>
+          </div>
+          <p style="margin: 10px 0 0; color: var(--muted); font-size: 11px;">
+            The arrows show the longest narrowing path. <code>PENDING</code> may move directly to
+            <code>DISABLED</code>, and <code>ENABLED</code> may move directly to <code>DISABLED</code>.
+            No state may return to an earlier state.
+          </p>
+
+          <div class="grid two" style="margin-top: 14px;">
+            <div class="card">
+              <h3>New code means a new ID</h3>
+              <p>
+                A material action meaning, argument schema, or extender change cannot be installed behind an
+                existing manager grant. The manager must explicitly approve the new action ID.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Entries name reviewed exits</h3>
+              <p>
+                An action that opens or expands a persistent position names immutable exit action IDs.
+                Disabling the last usable exit must also disable dependent entry actions unless an approved
+                owner-only recovery path remains.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="persistence">
+          <p class="eyebrow">12 · Persistent effects</p>
+          <h2>Phase 1 is deliberately narrow</h2>
+          <p class="section-intro">
+            The first yield deposit creates only the expected wallet-owned yield position. It does not add a
+            new delegated authority or administrative object.
+          </p>
+
+          <div class="grid two">
+            <div class="card">
+              <p class="card-kicker">Phase 1 may create</p>
+              <h3>Wallet-owned yield position</h3>
+              <p>
+                One reviewed deposit action, one capability-aware Yield Lego, fixed settlement, and the
+                existing owner exit/recovery path.
+              </p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Phase 1 does not create</p>
+              <h3>New standing or deferred authority</h3>
+              <ul class="compact-list">
+                <li>Standing allowance or reusable operator right</li>
+                <li>Offchain signature or bridge message</li>
+                <li>Governance vote, proposal, or delegation</li>
+                <li>New payee, revocation scope, or payment commitment type</li>
+                <li>Stream, subscription, third-party pull, or wallet-funded fee</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 24px;">Later permissions have closed meanings</h3>
+          <div class="grid three" style="margin-top: 12px;">
+            <div class="card">
+              <h4><code>PAY_NETWORK_FEES</code></h4>
+              <p>Additive to the complete parent mask; never standalone. Future package binds mechanism, recipient, and caps.</p>
+            </div>
+            <div class="card">
+              <h4><code>ENROLL_PAYEE</code></h4>
+              <p>Creates only a probationary, expiring, exposure-bounded payee. It does not authorize payment.</p>
+            </div>
+            <div class="card">
+              <h4><code>REVOKE_CLAIMS</code></h4>
+              <p>Reduction-only across owner-designated source manager/epoch pairs. It cannot create or enlarge a claim.</p>
+            </div>
+            <div class="card">
+              <h4><code>CROSS_CHAIN</code></h4>
+              <p>Always distinct, then cumulative with <code>TRANSFER</code>, <code>TRADE</code>, or fees required by local effects.</p>
+            </div>
+            <div class="card">
+              <h4><code>OFFCHAIN_SIGNATURE</code></h4>
+              <p>Typed and cumulative with the authority created. Arbitrary bytes, hashes, and generic signing are prohibited.</p>
+            </div>
+            <div class="card">
+              <h4><code>GOVERNANCE</code></h4>
+              <p>Separate from wallet administration and cumulative with signature, delegation, or other effects.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="roadmap">
+          <p class="eyebrow">13 · Implementation roadmap</p>
+          <h2>Build one falsifiable slice at a time</h2>
+          <p class="section-intro">
+            Packages are development and review boundaries, not permission to ship partial infrastructure.
+            Phase 1 remains one unshipped candidate until its integrated ratification gate.
+          </p>
+
+          <div class="metric-grid">
+            <div class="metric">
+              <strong>23,032 B</strong>
+              <span>Current wallet runtime measurement</span>
+            </div>
+            <div class="metric">
+              <strong>8,461 B</strong>
+              <span>Catalog-stripped measurement-only upper bound</span>
+            </div>
+            <div class="metric">
+              <strong>16,115 B</strong>
+              <span>Measured EIP-170 headroom in stripped comparator</span>
+            </div>
+          </div>
+          <p style="margin-top: 8px; color: var(--muted); font-size: 11px;">
+            These measurements show plausible room; they do not prove the final wallet, Config, gas, or policy changes fit.
+          </p>
+
+          <div class="timeline">
+            <div class="timeline-item complete">
+              <div class="timeline-key">
+                0A0 · Catalog strip
+                <br><span class="status complete">Complete measurement</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Establish a bytecode budget</h3>
+                <p>Reproduce current wallet size and a conservative catalog-stripped comparator without changing production source.</p>
+              </div>
+            </div>
+
+            <div class="timeline-item next">
+              <div class="timeline-key">
+                0A · Baseline
+                <br><span class="status next">Next · not started</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Record current behavior before changing it</h3>
+                <ul>
+                  <li>Compiler, runtime, gas, calldata, and storage baselines</li>
+                  <li>Yield fund flow, accounting, counters, events, and price behavior</li>
+                  <li>Direct rails, operator-authority inventory, and deployment reach</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-item gated">
+              <div class="timeline-key">
+                0B · Compiled design
+                <br><span class="status gated">Pending prerequisites</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Propagate decisions and compile the smallest complete skeleton</h3>
+                <ul>
+                  <li>Approved taxonomy, parallel masks, explicit scopes, and <code>PolicyContextV1</code></li>
+                  <li>Bounds, settlement recipe, build identity, bytecode reserves, and operator vocabulary</li>
+                  <li>Formal outcome: proceed, narrow, redesign, or stop</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-item gated">
+              <div class="timeline-key">
+                1A · Registry
+                <br><span class="status gated">Gated by 0B</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Build ActionRegistry in isolation</h3>
+                <p>Test immutable records, exact masks, review delay, lifecycle, entry/exit dependencies, and unknown-bit failure before wiring it to a wallet.</p>
+              </div>
+            </div>
+
+            <div class="timeline-item gated">
+              <div class="timeline-key">
+                1B · Infrastructure
+                <br><span class="status gated">Gated by 0B</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Separate changes by blast radius</h3>
+                <ul>
+                  <li><strong>1B1:</strong> new-generation Config + thin ActionDataProvider</li>
+                  <li><strong>1B2:</strong> replaceable Sentinel + HighCommand routed entry points</li>
+                  <li><strong>1B3:</strong> shared LegoBook protected-ID rule</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-item gated">
+              <div class="timeline-key">
+                1C · Yield deposit
+                <br><span class="status gated">Integrated candidate</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Prove one real vertical slice</h3>
+                <p>
+                  Add the wallet kernel, one action ID, one Yield Extender, one capability-aware Yield Lego,
+                  exact allowance lifecycle, fixed settlement, and old/new differential evidence.
+                </p>
+              </div>
+            </div>
+
+            <div class="timeline-item gated">
+              <div class="timeline-key">
+                1D · Ratification
+                <br><span class="status gated">Owner evidence gate</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Decide whether this becomes the new trunk</h3>
+                <p>
+                  Review correctness, parity, adversarial cases, size, gas, calldata, fork evidence, open
+                  assumptions, and rollback. <code>PROCEED</code> still does not authorize deployment.
+                </p>
+              </div>
+            </div>
+
+            <div class="timeline-item future">
+              <div class="timeline-key">
+                2 · Yield family
+                <br><span class="status future">Future package</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Withdrawal first, rebalance second</h3>
+                <p>
+                  Add <code>YIELD_EXIT</code>, then a one-session rebalance using
+                  <code>YIELD_EXIT | YIELD</code> and <code>TRADE</code> when a swap occurs.
+                </p>
+              </div>
+            </div>
+
+            <div class="timeline-item future">
+              <div class="timeline-key">
+                AUTH · Operators
+                <br><span class="status future">Before requiring actions</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Replace the generic operator bridge</h3>
+                <p>
+                  Implement only exact production call shapes with target, argument, result, lifecycle,
+                  revocation, and predecessor/successor rules.
+                </p>
+              </div>
+            </div>
+
+            <div class="timeline-item future">
+              <div class="timeline-key">
+                3 · Debt family
+                <br><span class="status future">Future package</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Reduction before expansion</h3>
+                <ul>
+                  <li><strong>3A:</strong> add collateral and repay under qualifying <code>DEBT_REDUCE</code></li>
+                  <li><strong>3B:</strong> borrow and remove collateral under <code>DEBT</code></li>
+                  <li><strong>3C:</strong> one deleverage action; add <code>TRADE</code> if conversion occurs</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="timeline-item future">
+              <div class="timeline-key">
+                4 · Other families
+                <br><span class="status future">Future summaries</span>
+              </div>
+              <div class="timeline-body">
+                <h3>Expand only after the trunk is ratified</h3>
+                <p>Simple swaps, liquidity, rewards, and other actions that fit the approved authority and settlement vocabularies. Payments remain separate.</p>
+              </div>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 28px;">Change reach by artifact</h3>
+          <div class="grid four" style="margin-top: 12px;">
+            <div class="card">
+              <p class="card-kicker">New-generation only</p>
+              <h4>Wallet + Config + provider</h4>
+              <p>Fixed into newly created Wallet v3 instances; existing deployed wallets do not receive the routed kernel.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Replaceable per wallet</p>
+              <h4>Sentinel + HighCommand</h4>
+              <p>New routed entry points use existing backpack replacement paths, with direct behavior regressed separately.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Shared governance</p>
+              <h4>LegoBook protection</h4>
+              <p>No-repoint rules affect shared registry behavior and therefore receive an isolated blast-radius review.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Integration specific</p>
+              <h4>Extenders + Legos</h4>
+              <p>Each action and consumer implementation is reviewed, codehash-pinned, measured, and lifecycle-gated.</p>
+            </div>
+          </div>
+
+          <div class="callout warning">
+            <strong>Current practical next step</strong>
+            <p>
+              The next implementation package is still Phase 0A baseline evidence. Before 0B, the approved
+              permission record must be independently re-reviewed and propagated into the governing
+              architecture and roadmap. This website does not skip that document gate.
+            </p>
+          </div>
+        </section>
+
+        <section class="section" id="gates">
+          <p class="eyebrow">14 · Evidence gates</p>
+          <h2>Every package has the same contract</h2>
+          <p class="section-intro">
+            A package exists to answer one falsifiable question. It cannot quietly grow into the next package
+            or treat a passing test as deployment authorization.
+          </p>
+
+          <div class="grid two">
+            <div class="card">
+              <h3>Package record</h3>
+              <ol class="compact-list">
+                <li>Exact entry evidence and prerequisite commit</li>
+                <li>Question answered</li>
+                <li>Changed and untouched surfaces</li>
+                <li>Fund and authority flow</li>
+                <li>Security invariants and tests</li>
+                <li>Size, gas, calldata, and shared-contract measurements</li>
+                <li>Rollback and evidence record</li>
+                <li>Independent review and disposition</li>
+              </ol>
+            </div>
+            <div class="card">
+              <h3>Phase 1 stays unshipped</h3>
+              <p>
+                Registry, Config, Sentinel, LegoBook protection, wallet kernel, extender, and Lego candidates
+                are reviewed separately but remain one unshipped candidate until Phase 1D.
+              </p>
+              <ul class="compact-list">
+                <li>No dormant registry deployment</li>
+                <li>No early shared LegoBook production change</li>
+                <li>No partial Config field rollout</li>
+                <li>No live funds or governance calls during development</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="gate-options" aria-label="Formal gate outcomes">
+            <div class="gate-option"><strong>PROCEED</strong><span>Evidence supports the package</span></div>
+            <div class="gate-option"><strong>PROCEED NARROWER</strong><span>Keep a smaller safe slice</span></div>
+            <div class="gate-option"><strong>REDESIGN</strong><span>Revise a load-bearing mechanism</span></div>
+            <div class="gate-option"><strong>STOP</strong><span>Do not continue this track</span></div>
+          </div>
+
+          <h3 style="margin-top: 26px;">What the evidence package must cover</h3>
+          <div class="grid three" style="margin-top: 12px;">
+            <div class="card">
+              <p class="card-kicker">Correctness</p>
+              <h4>Compile and local tests</h4>
+              <p>Existing wallet suite, Wallet v3 suite, direct-rail regressions, links, formatting, and exact skipped tests.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Parity</p>
+              <h4>Old wallet versus new wallet</h4>
+              <p>Callers, policy, funds, positions, fees, counters, events, failures, approvals, returns, gas, and declared differences.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Adversarial</p>
+              <h4>Wrong or malicious components</h4>
+              <p>Extender, Lego, token, codehash, session, plan, callback, omitted asset/Lego, repeated consume, and exit conflicts.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Economics</p>
+              <h4>Size, gas, and calldata</h4>
+              <p>Runtime, creation size, reserves, deployment/action gas, calldata, L1 data, Appraiser calls, and governance gas.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Fork execution</p>
+              <h4>Pinned Base evidence</h4>
+              <p>Documented Boa/py-evm harness, pinned block and addresses, price inputs, fee conditions, and calibration stops.</p>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Traceability</p>
+              <h4>Security invariants</h4>
+              <p>Every active invariant maps to exact tests and outputs; inactive future invariants are recorded rather than claimed.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="trust">
+          <p class="eyebrow">15 · Trust boundaries</p>
+          <h2>What the wallet proves, and what reviewed code must provide</h2>
+          <p class="section-intro">
+            The design does not claim the wallet can infer arbitrary protocol semantics. It narrows trusted
+            code and makes its authority explicit.
+          </p>
+
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Boundary</th>
+                <th>Wallet-enforced</th>
+                <th>Reviewed-code or external trust</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Action identity</td>
+                <td>Exact ID, immutable spec, lifecycle, extender codehash, exact static mask</td>
+                <td>Governance review correctly classifies the action before activation</td>
+              </tr>
+              <tr>
+                <td>Policy</td>
+                <td>Manager/global masks, exact action set, explicit scopes, existing limits</td>
+                <td>Sentinel and Config implementation correctly apply the approved semantics</td>
+              </tr>
+              <tr>
+                <td>Prepared action</td>
+                <td>Bounds, exact decode, complete commitment, resolved Lego IDs, codehashes</td>
+                <td>Pinned extender declares the complete touched-asset and integration set</td>
+              </tr>
+              <tr>
+                <td>Token authority</td>
+                <td>Exact resolved spend, exact consumer, single consumption, cleanup before settlement</td>
+                <td>Token and protocol behavior match reviewed integration assumptions</td>
+              </tr>
+              <tr>
+                <td>Settlement</td>
+                <td>Closed mode, wallet observations, price code, post-action limits, counters once</td>
+                <td>Appraiser price correctness and reviewed protocol state observations</td>
+              </tr>
+              <tr>
+                <td>Governance</td>
+                <td>Monotonic lifecycle and fail-closed unknown values</td>
+                <td>Registry, LegoBook, backpack, and template governance execute reviewed changes</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout warning">
+            <strong>Independent legacy hardening item</strong>
+            <p>
+              The owner classified direct ETH/WETH wrapping and unwrapping as exchanges requiring
+              <code>canBuyAndSell</code>, and selected a fail-closed unknown direct-action default. That product
+              decision does not itself authorize editing or deploying the current Sentinel contract; it needs
+              a separate regression-tested hardening package.
+            </p>
+          </div>
+        </section>
+
+        <section class="section" id="open-decisions">
+          <p class="eyebrow">16 · Remaining decisions</p>
+          <h2>The permission interview is closed; implementation choices remain</h2>
+          <p class="section-intro">
+            The approved taxonomy and representation no longer belong on the open list. The following choices
+            still need exact evidence or owner disposition at their named gates.
+          </p>
+
+          <div class="grid two">
+            <div class="card">
+              <p class="card-kicker">Before Phase 0B can conclude</p>
+              <ul class="compact-list">
+                <li>Per-manager action-ID maximum and whether a global exact-ID ceiling exists</li>
+                <li>Owner action-ID bypass behavior under <code>canOwnerManage</code></li>
+                <li>ActionRegistry review delay</li>
+                <li><code>PreparedAction</code>, <code>PolicyContextV1</code>, stage, and session bounds</li>
+                <li>Wallet and Config bytecode safety reserves</li>
+                <li>First yield-deposit settlement/valuation recipe and declared-set completeness proof</li>
+                <li>Final pinned build settings and minimum LegoBook protected-ID scope</li>
+              </ul>
+            </div>
+            <div class="card">
+              <p class="card-kicker">Later package gates</p>
+              <ul class="compact-list">
+                <li>Yield-rebalance recipe and wallet-verifiable trade observations</li>
+                <li>Named operator-authority shapes and temporary/persistent lifecycles</li>
+                <li>Debt settlement recipes and entry/exit relationships</li>
+                <li>Payment routing comparison</li>
+                <li>Concrete future standing-authority categories</li>
+                <li>Protocol-specific verifiers, arbitrary relay/signature expansion, and migration</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="references">
+          <p class="eyebrow">17 · References and glossary</p>
+          <h2>Read the source documents</h2>
+          <p class="section-intro">
+            This site is intentionally a visual synthesis. The Markdown files remain the review sources.
+          </p>
+
+          <div class="source-list">
+            <a class="source-link" href="simplified-user-wallet-action-architecture-codex.md">
+              <strong>Governing architecture</strong>
+              <span>Wallet, registry, extender, Lego, session, capability, settlement, lifecycle, trust, and invariant design.</span>
+            </a>
+            <a class="source-link" href="user-wallet-v3-implementation-plan-codex.md">
+              <strong>Draft implementation roadmap</strong>
+              <span>Package sequence, changed/untouched surfaces, evidence model, rollback, deployment reach, and owner gates.</span>
+            </a>
+            <a class="source-link" href="permission-research-incorporation-proposal-codex.md">
+              <strong>Owner-dispositioned permission decision record</strong>
+              <span>Approved taxonomy, masks, scopes, composite behavior, price rules, persistent effects, and phase incorporation.</span>
+            </a>
+            <a class="source-link" href="README.md">
+              <strong>Wallet v3 document map</strong>
+              <span>Authority order, superseded analyses, research syntheses, and the separate archived POC.</span>
+            </a>
+          </div>
+
+          <h3 style="margin-top: 28px;">Glossary</h3>
+          <dl class="glossary">
+            <div class="term"><dt>actionId</dt><dd>Exact immutable identity for one action meaning, schema, and extender implementation.</dd></div>
+            <div class="term"><dt>ActionSpec</dt><dd>Registry record containing extender/codehash, exact permission mask, settlement mode, and entry/exit metadata.</dd></div>
+            <div class="term"><dt>Extender</dt><dd>Typed, codehash-pinned contract that statically prepares one bounded execution plan and later acknowledges it.</dd></div>
+            <div class="term"><dt>Lego</dt><dd>Reviewed protocol adapter that consumes the exact capability and may perform a one-step or multi-step workflow.</dd></div>
+            <div class="term"><dt>Capability</dt><dd>One-session authority for an exact consumer and wallet-resolved spend context.</dd></div>
+            <div class="term"><dt>PolicyContextV1</dt><dd>Versioned, action-agnostic context mechanically forwarded by the thin provider to replaceable Sentinel logic.</dd></div>
+            <div class="term"><dt>Settlement mode</dt><dd>Closed wallet-owned recipe for observing results, valuing them, applying limits, and updating accounting.</dd></div>
+            <div class="term"><dt>EXIT_ONLY</dt><dd>Lifecycle state that preserves only a non-expanding unwind action after ordinary entry use is stopped.</dd></div>
+            <div class="term"><dt>Supported mask</dt><dd>Permission bits currently implemented and grantable. Assigned vocabulary alone does not make a bit live.</dd></div>
+          </dl>
+        </section>
+
+        <footer class="footer">
+          Wallet v3 visual review artifact. It summarizes current repository documents as of 2026-07-25.
+          It is not a contract specification by itself and does not authorize implementation, deployment,
+          migration, registry changes, governance actions, or use of funds.
+        </footer>
+      </article>
+    </main>
+  </div>
+
+  <script>
+    "use strict";
+
+    const permissions = [
+      {
+        bit: 0,
+        name: "TRANSFER",
+        status: "initial",
+        phase1: false,
+        meaning: "Send approved value now to approved recipients within existing payment limits.",
+        package: "Existing direct rail; future compatibility package"
+      },
+      {
+        bit: 1,
+        name: "PAYMENT_COMMITMENT",
+        status: "initial",
+        phase1: false,
+        meaning: "Create a typed, bounded future payment claim through a direct wallet rail.",
+        package: "Existing cheque rail; future payment package"
+      },
+      {
+        bit: 2,
+        name: "PAY_NETWORK_FEES",
+        status: "initial",
+        phase1: false,
+        meaning: "Pay a bounded execution fee for an otherwise authorized parent action.",
+        package: "Future fee package; additive, never standalone"
+      },
+      {
+        bit: 3,
+        name: "ENROLL_PAYEE",
+        status: "initial",
+        phase1: false,
+        meaning: "Create a probationary payee under owner-defined expiry and exposure limits; no payment.",
+        package: "Future enrollment lifecycle package"
+      },
+      {
+        bit: 4,
+        name: "TRADE",
+        status: "initial",
+        phase1: false,
+        meaning: "Convert approved assets through approved integrations within price and slippage limits.",
+        package: "Later routed trade/composite package"
+      },
+      {
+        bit: 5,
+        name: "YIELD",
+        status: "initial",
+        phase1: true,
+        meaning: "Open or increase an approved non-debt strategy position; no exit authority.",
+        package: "Phase 1C first routed action"
+      },
+      {
+        bit: 6,
+        name: "DEBT",
+        status: "initial",
+        phase1: false,
+        meaning: "Open or increase debt, leverage, or collateral-withdrawal risk.",
+        package: "Later debt package, after required AUTH"
+      },
+      {
+        bit: 7,
+        name: "LIQUIDITY",
+        status: "initial",
+        phase1: false,
+        meaning: "Open or increase an approved liquidity position.",
+        package: "Later liquidity package"
+      },
+      {
+        bit: 8,
+        name: "REWARDS",
+        status: "initial",
+        phase1: false,
+        meaning: "Claim accrued rewards to the wallet without selling, transferring, or redeploying them.",
+        package: "Rewards package, after required AUTH"
+      },
+      {
+        bit: 9,
+        name: "YIELD_EXIT",
+        status: "initial",
+        phase1: false,
+        meaning: "Withdraw, close, or reduce an approved yield position back to the wallet.",
+        package: "First yield-withdrawal package"
+      },
+      {
+        bit: 10,
+        name: "DEBT_REDUCE",
+        status: "initial",
+        phase1: false,
+        meaning: "Repay or otherwise reduce an existing wallet debt obligation without increasing exposure.",
+        package: "First defensive-debt package"
+      },
+      {
+        bit: 11,
+        name: "LIQUIDITY_EXIT",
+        status: "initial",
+        phase1: false,
+        meaning: "Remove or reduce an approved liquidity position back to the wallet.",
+        package: "First liquidity-removal package"
+      },
+      {
+        bit: 12,
+        name: "REVOKE_CLAIMS",
+        status: "later",
+        phase1: false,
+        meaning: "Cancel or reduce tracked persistent rights without creating or enlarging them.",
+        package: "Separate future revocation package"
+      },
+      {
+        bit: 13,
+        name: "CROSS_CHAIN",
+        status: "later",
+        phase1: false,
+        meaning: "Create a typed, bounded cross-chain transfer or message; cumulative with local effects.",
+        package: "Separate future cross-chain package"
+      },
+      {
+        bit: 14,
+        name: "OFFCHAIN_SIGNATURE",
+        status: "later",
+        phase1: false,
+        meaning: "Create an enumerated, typed, tracked signature that may be exercised later.",
+        package: "Separate future typed-signature package"
+      },
+      {
+        bit: 15,
+        name: "GOVERNANCE",
+        status: "later",
+        phase1: false,
+        meaning: "Exercise bounded protocol governance without wallet administration or hidden value movement.",
+        package: "Separate future governance package"
+      }
+    ];
+
+    const scenarios = [
+      {
+        key: "yield-deposit",
+        label: "Yield deposit",
+        actionId: "yield.deposit.<integration>.v1",
+        permissions: ["YIELD"],
+        explanation: "Open or increase one approved yield position. This is the only Phase 1 routed permission.",
+        limits: "Exact action ID + manager/global masks + asset/Lego/opportunity scopes + existing limits.",
+        flow: "Wallet spend → one Yield Lego → protocol deposit → wallet-owned position → fixed settlement."
+      },
+      {
+        key: "yield-withdraw",
+        label: "Yield withdrawal",
+        actionId: "yield.withdraw.<integration>.v1",
+        permissions: ["YIELD_EXIT"],
+        explanation: "Reduce a yield position back to the wallet without granting new yield-entry authority.",
+        limits: "Existing wallet-owned position, exact exit action, postcondition, and ordinary policy checks.",
+        flow: "Position reduction → underlying returns to wallet → withdrawal settlement and accounting."
+      },
+      {
+        key: "rebalance",
+        label: "Yield rebalance",
+        actionId: "yield.rebalance.<source>-<target>.v1",
+        permissions: ["YIELD_EXIT", "YIELD", "TRADE if swap"],
+        explanation: "One action and one capability consumption may withdraw, optionally swap, and redeposit.",
+        limits: "Source reduction + target increase + every relevant asset/Lego/value/slippage limit.",
+        flow: "Withdraw source → optional conversion → deposit target → return residuals → fixed rebalance settlement."
+      },
+      {
+        key: "repay",
+        label: "Debt repayment",
+        actionId: "debt.repay.<integration>.v1",
+        permissions: ["DEBT_REDUCE"],
+        explanation: "Spend an approved asset only to reduce an existing wallet obligation.",
+        limits: "Bound wallet debtor, current outstanding obligation, spend ceilings, and non-expansion proof.",
+        flow: "Wallet asset → debt protocol → debt decreases → wallet observes improved obligation state."
+      },
+      {
+        key: "deleverage",
+        label: "Deleverage",
+        actionId: "debt.deleverage.<integration>.v1",
+        permissions: ["DEBT_REDUCE", "TRADE if conversion"],
+        explanation: "One reviewed Lego can release collateral, convert it, repay debt, and return residuals.",
+        limits: "Cumulative spend, asset, Lego, price/slippage, and debt-reduction postconditions.",
+        flow: "Release collateral → optional conversion → repay → return residuals → fixed debt settlement."
+      },
+      {
+        key: "fee",
+        label: "Wallet-funded fee",
+        actionId: "<parent-action>.fee-paying.v1",
+        permissions: ["complete parent mask", "PAY_NETWORK_FEES"],
+        explanation: "The fee bit cannot select or authorize a parent action by itself.",
+        limits: "Named fee mechanism/profile, bound recipient, and absolute/proportional fee caps.",
+        flow: "Authorized parent action executes; bounded wallet-funded execution charge is accounted separately."
+      },
+      {
+        key: "cross-chain",
+        label: "Cross-chain transfer",
+        actionId: "cross-chain.transfer.<adapter>.v1",
+        permissions: ["CROSS_CHAIN", "TRANSFER", "TRADE if conversion", "PAY_NETWORK_FEES if wallet-funded"],
+        explanation: "Cross-chain authority is always distinct, then cumulative with every local effect.",
+        limits: "Adapter, chains, recipient, asset/amount, replay domain, expiry, finality, and pending-limit accounting.",
+        flow: "Local value effect → bridge/message → pending remote effect → separately defined settlement."
+      },
+      {
+        key: "signature",
+        label: "Signed payment claim",
+        actionId: "signature.payment-claim.<schema>.v1",
+        permissions: ["OFFCHAIN_SIGNATURE", "PAYMENT_COMMITMENT"],
+        explanation: "Immediate action authority does not imply authority to create a signature exercisable later.",
+        limits: "Enumerated typed schema, domain, nonce, expiry, exposure, cancellation, and replay protection.",
+        flow: "Wallet creates typed tracked signature → claim survives → later exercise follows its bounded lifecycle."
+      },
+      {
+        key: "governance",
+        label: "Signed governance vote",
+        actionId: "governance.vote.<protocol>.v1",
+        permissions: ["GOVERNANCE", "OFFCHAIN_SIGNATURE"],
+        explanation: "Governance is distinct from wallet administration and signature authority is additive.",
+        limits: "Exact governor, chain, proposal, vote choice, voting power, expiry, and no arbitrary proposal payload.",
+        flow: "Typed vote instruction → tracked signature → bounded governance use; no wallet policy changes."
+      }
+    ];
+
+    const permissionGrid = document.getElementById("permission-grid");
+    const permissionSearch = document.getElementById("permission-search");
+    const permissionButtons = Array.from(document.querySelectorAll("[data-permission-filter]"));
+    let activePermissionFilter = "all";
+
+    function renderPermissions() {
+      const query = permissionSearch.value.trim().toLowerCase();
+      const visible = permissions.filter((permission) => {
+        const filterMatches =
+          activePermissionFilter === "all" ||
+          (activePermissionFilter === "phase1" && permission.phase1) ||
+          activePermissionFilter === permission.status;
+        const queryMatches =
+          !query ||
+          permission.name.toLowerCase().includes(query) ||
+          permission.meaning.toLowerCase().includes(query) ||
+          permission.package.toLowerCase().includes(query);
+        return filterMatches && queryMatches;
+      });
+
+      permissionGrid.innerHTML = visible.map((permission) => `
+        <article class="permission-card ${permission.status} ${permission.phase1 ? "phase1" : ""}">
+          <span class="permission-bit">bit ${permission.bit}</span>
+          <strong class="permission-name">${permission.name}</strong>
+          <p>${permission.meaning}</p>
+          <div class="permission-meta">
+            <span>${permission.status === "initial" ? "initial vocabulary" : "later vocabulary"}</span>
+            <span>${permission.phase1 ? "Phase 1 supported" : "not Phase 1 grantable"}</span>
+          </div>
+          <p style="margin-top: 10px; font-size: 10px;"><strong>First package:</strong> ${permission.package}</p>
+        </article>
+      `).join("");
+
+      if (visible.length === 0) {
+        permissionGrid.innerHTML = `
+          <div class="card" style="grid-column: 1 / -1;">
+            No permission matches this filter.
+          </div>
+        `;
+      }
+    }
+
+    permissionButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activePermissionFilter = button.dataset.permissionFilter;
+        permissionButtons.forEach((candidate) => candidate.classList.toggle("active", candidate === button));
+        renderPermissions();
+      });
+    });
+
+    permissionSearch.addEventListener("input", renderPermissions);
+
+    const scenarioControls = document.getElementById("scenario-controls");
+    const scenarioPanel = document.getElementById("scenario-panel");
+    let activeScenario = scenarios[0].key;
+
+    function renderScenarioControls() {
+      scenarioControls.innerHTML = scenarios.map((scenario) => `
+        <button
+          class="control-button ${scenario.key === activeScenario ? "active" : ""}"
+          type="button"
+          data-scenario="${scenario.key}"
+        >${scenario.label}</button>
+      `).join("");
+
+      scenarioControls.querySelectorAll("[data-scenario]").forEach((button) => {
+        button.addEventListener("click", () => {
+          activeScenario = button.dataset.scenario;
+          renderScenarioControls();
+          renderScenario();
+        });
+      });
+    }
+
+    function renderScenario() {
+      const scenario = scenarios.find((candidate) => candidate.key === activeScenario);
+      scenarioPanel.innerHTML = `
+        <div class="scenario-summary">
+          <div>
+            <p class="card-kicker">Example action</p>
+            <h3>${scenario.label}</h3>
+            <p style="color: var(--muted);">${scenario.explanation}</p>
+            <div class="permission-stack">
+              ${scenario.permissions.map((permission, index) => `
+                ${index > 0 ? '<span class="plus">+</span>' : ""}
+                <span class="permission-chip">${permission}</span>
+              `).join("")}
+            </div>
+            <p><strong>Policy:</strong> <span style="color: var(--muted);">${scenario.limits}</span></p>
+            <p><strong>Fund/action flow:</strong> <span style="color: var(--muted);">${scenario.flow}</span></p>
+          </div>
+          <div>
+            <p class="card-kicker">Exact immutable identity</p>
+            <div class="action-id-box">${scenario.actionId}</div>
+            <p style="margin-top: 11px; color: var(--muted); font-size: 11px;">
+              The registered ActionSpec fixes the exact static mask. The extender cannot add, remove, or
+              reinterpret permissions at runtime.
+            </p>
+          </div>
+        </div>
+      `;
+    }
+
+    renderPermissions();
+    renderScenarioControls();
+    renderScenario();
+  </script>
+</body>
+</html>
