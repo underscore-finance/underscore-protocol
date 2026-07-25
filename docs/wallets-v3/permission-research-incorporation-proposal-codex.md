@@ -49,10 +49,11 @@ My recommended incorporation is:
 1. Keep both authorization gates:
    - explicit manager approval of the exact `actionId`; and
    - every categorical permission required by that action.
-2. Add one `uint256` routed-permission mask beside the existing manager
-   structures in the new Wallet v3 Config, plus explicit `NONE / SET / ANY`
-   codes for asset, Lego, and payee scopes. Do not add more booleans to the
-   existing `ManagerSettings`, `LegoPerms`, or `TransferPerms` structures.
+2. The owner selected one `uint256` routed-permission mask beside the existing
+   manager structures in the new Wallet v3 Config, plus explicit
+   `NONE / SET / ANY` codes for asset, Lego, and payee scopes. Do not add more
+   booleans to the existing `ManagerSettings`, `LegoPerms`, or `TransferPerms`
+   structures.
 3. Forward the manager/global routed masks and scope codes through
    `PolicyContextV1` and check them in the new routed Sentinel entry point.
    Preserve the existing direct-policy ABI and meaning.
@@ -473,6 +474,14 @@ The existing structures are used across Config, Sentinel, HighCommand,
 ChequeBook, Migrator, Kernel, and ActionDataProvider. Adding more nested
 booleans would create the exact broad ABI and bytecode churn this incremental
 track is trying to avoid.
+
+The owner selected parallel Wallet v3 fields for this incremental track.
+“Parallel” means a separate routed-policy representation with one authoritative
+storage location for routed grants; it does not permit two independently
+editable representations of the same live authority. Existing direct-wallet
+settings remain authoritative only for the existing direct path. Any future
+consolidation of direct and routed policy storage is a separate compatibility
+package and owner decision, not implied Phase 1 work.
 
 The proposed new-generation Config stores routed permissions separately:
 
@@ -1177,7 +1186,7 @@ The research narrows the permission problem to these decisions.
 | # | Decision | Recommendation |
 |---:|---|---|
 | P1 | Durable taxonomy | Approve twelve initial-vocabulary, four later, and one reserved boundary; activate them only through reviewed enforcement packages |
-| P2 | Representation | Use parallel `uint256` manager/global routed masks in the new Config; do not expand existing manager structs |
+| P2 | Representation | **OWNER SELECTED 2026-07-25:** use parallel `uint256` manager/global routed masks and explicit scope-code fields in the new Config; keep existing direct-wallet structs unchanged; any later consolidation is a separate compatibility decision |
 | P3 | Family-specific reduction authority | **OWNER SELECTED 2026-07-25:** use separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; reuse proof/AUTH machinery without generalizing the grants |
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
 | P5 | Direct-path fallback | **OWNER SELECTED 2026-07-25:** ETH/WETH transforms require `canBuyAndSell`; the unknown default fails closed; implementation and deployment remain separately gated |
@@ -1189,8 +1198,8 @@ The research narrows the permission problem to these decisions.
 | P11 | Claim revocation | **OWNER SELECTED 2026-07-25:** include separate reduction-only `REVOKE_CLAIMS`; keep it ungrantable until typed claim inventory, reliance, and anti-griefing rules exist |
 | P12 | Revocation scope | **OWNER SELECTED 2026-07-25:** each revoker receives a bounded owner-designated set of source-manager/epoch pairs; owner/system claims remain unreachable |
 
-P3, P5–P12 are owner-selected. P4 preserves an already governing
-action-identity rule. P1–P2 remain open decisions this research most directly
+P2–P3 and P5–P12 are owner-selected. P4 preserves an already governing
+action-identity rule. P1 remains the open decision this research most directly
 informs.
 
 ---
@@ -1271,3 +1280,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P6 | Selected explicit Wallet v3 scope codes `NONE=0`, `SET=1`, and `ANY=2` for manager/global assets, Legos, and payees; kept routed action IDs exact-only and legacy direct semantics unchanged |
 | 2026-07-25 | Owner disposition P7 | Selected exact immutable `NATIVE_BOUNDED_RECOVERY` recipes for eligible pure no-conversion `YIELD_EXIT` and `LIQUIDITY_EXIT` actions; retained `PRICE_REQUIRED` as the default and prohibited zero-USD fallback accounting |
 | 2026-07-25 | Owner disposition P8 | Kept Phase 1 limited to the core routed architecture and expected wallet-owned yield position; left enrollment, revocation, network fees, standing authority, signatures, bridges, and new commitment types ungrantable until separate later packages |
+| 2026-07-25 | Owner disposition P2 | Selected parallel Wallet v3 routed masks and scope-code fields beside unchanged legacy direct-wallet structs; made any future storage consolidation a separate compatibility package and owner decision |
