@@ -69,10 +69,10 @@ My recommended incorporation is:
    one permanent bit.
 7. Keep payments on the mature direct rails initially. `TRANSFER` means value
    moves now; `PAYMENT_COMMITMENT` means a bounded claim survives.
-8. Add `PAY_NETWORK_FEES`, `ENROLL_PAYEE`, and `REVOKE_CLAIMS` as distinct
-   durable permissions, but do not make any grantable before its bounded
-   package exists. Keep delegated administration, standing allowances,
-   offchain signatures, and cross-chain authority out of the initial
+8. Add `PAY_NETWORK_FEES`, `ENROLL_PAYEE`, `REVOKE_CLAIMS`, and `CROSS_CHAIN`
+   as distinct durable permissions, but do not make any grantable before its
+   bounded package exists. Keep delegated administration, standing allowances,
+   offchain signatures, and cross-chain execution out of the initial
    implementation merely because the research discussed them.
 9. Treat composite authorization as:
 
@@ -463,6 +463,35 @@ These remain named future candidates, not pre-approved bits. Apply the split
 rule when a concrete action and settlement recipe exist. Slashing exposure,
 continuous funding, options obligations, or liquidation behavior may justify
 new categories later.
+
+### 4.8 `CROSS_CHAIN` is a distinct, cumulative boundary
+
+The owner selected a separate `CROSS_CHAIN` permission. Ordinary `TRANSFER`,
+`TRADE`, or other family authority cannot silently authorize a bridge or remote
+message. Every routed cross-chain action requires:
+
+```text
+exact approved actionId
+    AND
+CROSS_CHAIN
+    AND
+every category required by its underlying local effects
+```
+
+A value-moving bridge action therefore also requires `TRANSFER`; a conversion
+also requires `TRADE`; a wallet-funded execution charge also requires
+`PAY_NETWORK_FEES`. A message-only action may require only `CROSS_CHAIN` if its
+immutable action specification creates no other classified effect.
+`CROSS_CHAIN` alone is not a generic value-transfer, trade, fee-payment, or
+remote-call permission.
+
+The future package must bind the exact bridge or messaging adapter, source and
+destination chains, destination wallet or recipient, asset and amount or
+bounded message shape, expiry, replay domain, failure and retry behavior,
+finality assumptions, and settlement/accounting rules. It must also define
+whether and how pending remote effects consume limits. Until that package is
+reviewed and owner-approved, `CROSS_CHAIN` remains outside
+`SUPPORTED_PERMISSION_MASK` and is not grantable.
 
 ---
 
@@ -1197,8 +1226,9 @@ The research narrows the permission problem to these decisions.
 | P10 | Payee enrollment | **OWNER SELECTED 2026-07-25:** use separate `ENROLL_PAYEE`; it creates only bounded probationary enrollment and is ungrantable until its lifecycle package exists |
 | P11 | Claim revocation | **OWNER SELECTED 2026-07-25:** include separate reduction-only `REVOKE_CLAIMS`; keep it ungrantable until typed claim inventory, reliance, and anti-griefing rules exist |
 | P12 | Revocation scope | **OWNER SELECTED 2026-07-25:** each revoker receives a bounded owner-designated set of source-manager/epoch pairs; owner/system claims remain unreachable |
+| P13 | Cross-chain authority | **OWNER SELECTED 2026-07-25:** keep `CROSS_CHAIN` distinct and cumulative with every category required by the underlying local effects; keep it ungrantable until a bounded cross-chain package exists |
 
-P2–P3 and P5–P12 are owner-selected. P4 preserves an already governing
+P2–P3 and P5–P13 are owner-selected. P4 preserves an already governing
 action-identity rule. P1 remains the open decision this research most directly
 informs.
 
@@ -1232,29 +1262,32 @@ The independent reviewer should answer:
 11. Do any recommendations accidentally change current direct-wallet behavior?
 12. Which owner decisions must be settled before Phase 0B rather than at a
     later family gate?
-13. Does every Config create/update path reject manager and global masks outside
+13. Does every value-moving, converting, or wallet-fee-paying cross-chain action
+    require `CROSS_CHAIN` cumulatively with its underlying categories, while a
+    bounded message-only action avoids permissions for effects it cannot cause?
+14. Does every Config create/update path reject manager and global masks outside
     the current `SUPPORTED_PERMISSION_MASK`, preventing dormant future grants?
-14. Does each proposed rewards integration/action pair require a named AUTH
+15. Does each proposed rewards integration/action pair require a named AUTH
     shape or tracked persistent operator right, and is that prerequisite
     complete before `REWARDS` becomes grantable?
-15. Does owner-facing `YIELD` consent make clear that exit requires the separate
+16. Does owner-facing `YIELD` consent make clear that exit requires the separate
     `YIELD_EXIT` authority?
-16. Does each proposed yield-exit, debt-reduction, or liquidity-exit
+17. Does each proposed yield-exit, debt-reduction, or liquidity-exit
     integration/action pair require a named AUTH shape, and if so is that
     prerequisite complete before that family permission becomes grantable?
-17. Does every fee-paying action require both its complete parent mask and
+18. Does every fee-paying action require both its complete parent mask and
     `PAY_NETWORK_FEES`, use a distinct action ID, bind the fee mechanism and
     recipient, and enforce absolute/proportional caps?
-18. Does every payment to a manager-enrolled payee independently require
+19. Does every payment to a manager-enrolled payee independently require
     `TRANSFER`, the exact payment action ID, ordinary recipient policy, and the
     payee's remaining probationary limits?
-19. Does `REVOKE_CLAIMS` only reduce a typed inventoried claim, preserve
+20. Does `REVOKE_CLAIMS` only reduce a typed inventoried claim, preserve
     beneficiary and asset identity, fail atomically, and require the exact
     owner-designated revoker/source manager epochs plus anti-griefing rules?
-20. Do `NONE`, `SET`, and `ANY` validate their list shapes, combine manager and
+21. Do `NONE`, `SET`, and `ANY` validate their list shapes, combine manager and
     global scopes cumulatively, reject unknown codes, and remain unavailable
     for routed action-ID grants?
-21. Does every `NATIVE_BOUNDED_RECOVERY` action use an immutable eligible
+22. Does every `NATIVE_BOUNDED_RECOVERY` action use an immutable eligible
     no-conversion yield/liquidity-exit recipe, enforce native ceilings and
     wallet-observed recovery postconditions, avoid zero-USD accounting, and
     receive a new action ID if its price code changes?
@@ -1281,3 +1314,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P7 | Selected exact immutable `NATIVE_BOUNDED_RECOVERY` recipes for eligible pure no-conversion `YIELD_EXIT` and `LIQUIDITY_EXIT` actions; retained `PRICE_REQUIRED` as the default and prohibited zero-USD fallback accounting |
 | 2026-07-25 | Owner disposition P8 | Kept Phase 1 limited to the core routed architecture and expected wallet-owned yield position; left enrollment, revocation, network fees, standing authority, signatures, bridges, and new commitment types ungrantable until separate later packages |
 | 2026-07-25 | Owner disposition P2 | Selected parallel Wallet v3 routed masks and scope-code fields beside unchanged legacy direct-wallet structs; made any future storage consolidation a separate compatibility package and owner decision |
+| 2026-07-25 | Owner disposition P13 | Kept `CROSS_CHAIN` as a distinct cumulative permission; required underlying local-effect categories as applicable and deferred activation to a separately approved bounded bridge/messaging package |
