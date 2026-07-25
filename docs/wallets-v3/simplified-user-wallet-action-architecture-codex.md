@@ -2446,6 +2446,7 @@ should not be infinitely extensible.
 | `permission-action-taxonomy-research-prompt-codex.md` | Research instrument | Not an architecture proposal |
 | `perms-research-summary-claude.md` | Independent synthesis of the permission-taxonomy research | Supporting analysis and recommendations only; not governing |
 | `perms-research-summary-codex.md` | Codex synthesis of the permission-taxonomy research | Supporting analysis and owner-decision input only; not governing |
+| `permission-research-incorporation-proposal-codex.md` | Proposed disposition of the two permission-research syntheses | Proposed decision record; non-governing pending independent review and owner disposition |
 | `docs/poc/user-wallet/` | Archived PoC contracts, results, visual explanations, and superseded PoC-derived production track | Evidence and background only; PoC is on hold |
 
 An implementation may claim conformance to “the plan” only by naming this
@@ -2468,6 +2469,7 @@ contract edits, deployment, migration, or live transactions.
 | 2026-07-24 | Implementation-readiness clarification | Reproduced the 8,461-byte catalog-stripped feasibility bound; made ActionDataProvider a thin immutable adapter to replaceable Sentinel policy; specified transient-lock build pinning; added a closed named external-operator authority boundary; made routed execution explicitly new-generation-only; and split Phase 0/1 into measurement, provisional design, isolated/shared candidates, one yield slice, and a formal no-deployment-before-ratification gate |
 | 2026-07-25 | Implementation-plan traceability revision | Defined the bounded, versioned, action-agnostic `PolicyContextV1` boundary; rejected opaque provider-extension semantics; required unsupported policy inputs to fail before action enablement; added S59–S60; distinguished Wallet v3's Prague build from the archived PoC's Cancun evidence identity; and aligned package/invariant traceability with the implementation roadmap |
 | 2026-07-25 | Context-schema and research-provenance clarification | Made `PolicyContextV1` field-complete for the current action-data and manager-policy structures at both routed stages; clarified that `V1` names a frozen wallet-generation schema rather than an in-place upgrade path; and registered both permission-research syntheses as non-governing inputs |
+| 2026-07-25 | Permission-proposal provenance registration | Registered the non-governing permission-research incorporation proposal for review; this map entry does not adopt its taxonomy or authorize implementation |
 
 Future material revisions append a row here. A future replacement uses a new
 file and marks this document `SUPERSEDED` in its header rather than rewriting

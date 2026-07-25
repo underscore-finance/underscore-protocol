@@ -1490,6 +1490,9 @@ silently rewrite the legacy source out from under differential tests.
 This implementation plan is subordinate to the governing architecture. If they
 conflict, implementation stops until the documents are reconciled and reviewed.
 The visual website is explanatory and never overrides either Markdown document.
+The permission-research incorporation proposal is a non-governing design input
+pending independent review and owner disposition; its taxonomy and sequencing
+do not amend this roadmap merely by being referenced here.
 
 ### 13.2 Revision log
 
@@ -1498,6 +1501,7 @@ The visual website is explanatory and never overrides either Markdown document.
 | 2026-07-24 | Initial implementation roadmap | Added the reproduced catalog-strip budget; new-generation coexistence; thin immutable ActionDataProvider boundary; named operator-authority package; 0A/0B/1A/1B/1C/1D decomposition; no-partial-deployment rule; yield/debt expansion packages; artifact inventory; verification model; rollback rules; owner decisions; and uniform formal dispositions |
 | 2026-07-25 | Reviewer traceability and compatibility hardening | Added the package-status snapshot; defined action-agnostic `PolicyContextV1` and its fail-closed generation boundary; kept opaque provider extensions out of version one; separated Wallet v3 Prague and archived-PoC Cancun identities; added entry evidence and pending dispositions to Phase 0/1; classified section 8 as future summaries; mapped S1–S60 to packages; and required invariant-linked evidence at Phase 1D |
 | 2026-07-25 | Context-schema and research-provenance clarification | Defined `PolicyContextV1` as the unconditional, field-complete current action-data and manager-policy envelope at both routed stages; clarified that `V1` freezes a wallet-generation schema rather than promising in-place upgrades; and registered both independent permission-research syntheses as non-governing inputs |
+| 2026-07-25 | Permission-proposal provenance registration | Registered the permission-research incorporation proposal as a non-governing review input without adopting its taxonomy, changing package status, or authorizing implementation |
 
 Future material revisions append a row. A replacement marks this file
 `SUPERSEDED` rather than overwriting its history.

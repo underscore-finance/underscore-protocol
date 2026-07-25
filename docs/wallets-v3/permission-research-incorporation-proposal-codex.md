@@ -55,16 +55,17 @@ My recommended incorporation is:
 3. Forward the manager and global routed masks through `PolicyContextV1` and
    check them in the new routed Sentinel entry point. Preserve the existing
    direct-policy ABI and meaning.
-4. Use eight initial permission categories, four later categories, and one
-   reserved boundary. This is smaller than either synthesis because the exact
-   `actionId` gate already provides procedural granularity.
+4. Use eight initial vocabulary categories, four later categories, and one
+   reserved boundary. “Initial vocabulary” does not mean “enabled in the first
+   release”; support is enabled only with a reviewed action-family package.
 5. Give each immutable `ActionSpec` one exact static permission mask. The
    extender does not declare or narrow permission requirements at runtime.
    Optional variants with different authority use different action IDs.
-6. Use one cross-family `POSITION_EXIT` permission for mechanically
+6. Use one cross-family `POSITION_REDUCE` permission for mechanically
    non-expanding actions, rather than separate exit bits for yield, debt, and
-   liquidity. Exact action IDs and existing policy sets keep the category
-   narrow in practice.
+   liquidity. It covers both recovery-shaped exits and tightly bound
+   obligation-reduction spends. Exact action IDs and wallet-computed
+   postconditions keep the category narrow in practice.
 7. Keep payments on the mature direct rails initially. `TRANSFER` means value
    moves now; `PAYMENT_COMMITMENT` means a bounded claim survives.
 8. Do not add `ENROLL_PAYEE`, `PAY_NETWORK_FEES`, delegated administration,
@@ -117,16 +118,25 @@ introduces several product capabilities that the current wallet does not need
 for the first routed architecture, including delegated payee enrollment,
 network-fee authority, and delegated claim revocation.
 
-The document also contains two internal conflicts:
+The document also contains two unresolved reversals. This is not an inference
+from its source-attribution column: section 4.5 is explicitly titled
+“Deliberately not permissions,” and its third table column is “Why I decline.”
+Its own recommendations therefore move in opposite directions:
 
-- it recommends `PAY_NETWORK_FEES` as an initial permission, while later
-  classifying gas, relayer, and paymaster fees as policy under `TRANSFER`; and
-- it recommends `ENROLL_PAYEE` as an initial permission, while later
-  classifying first-time recipient control as existing configuration rather
-  than a permission.
+- section 4.2 assigns `PAY_NETWORK_FEES` an initial bit; section 4.5 declines
+  gas, relayer, and paymaster fees as a permission and places them under
+  `TRANSFER`; section 10.3 then recommends a separate network-fee boundary
+  again; and
+- section 4.2 assigns `ENROLL_PAYEE` an initial bit; section 4.5 declines
+  first-time recipient control as a permission; section 10.3 then recommends
+  bounded delegated enrollment again.
 
-Those conflicts reinforce the need to apply the split rule consistently rather
-than accept the proposed bit table as a unit.
+Those reversals reinforce the need to apply the split rule consistently rather
+than accept the proposed bit table as a unit. They do not make the underlying
+concerns frivolous. In particular, a fee recipient may not be enumerable in
+the same way as an ordinary payee. A future relayer/paymaster package should
+revisit that concrete constraint rather than treating this Phase 1 deferral as
+a permanent rejection.
 
 ### 2.2 What the Codex synthesis does especially well
 
@@ -172,9 +182,9 @@ Where the syntheses disagree, choose the smaller rule that still fails closed.
 | Topic | Claude synthesis | Codex synthesis | This proposal |
 |---|---|---|---|
 | Documented boundaries | 17 | 16 | 13: 8 initial, 4 later, 1 reserved |
-| Exit authority | One cross-family `POSITION_EXIT` | Separate strategy, debt, and liquidity exit permissions | One `POSITION_EXIT`, narrowed by exact action IDs and postconditions |
-| Network fees | Separate initial bit, but later text also folds them into transfer policy | Fee policy under the parent action | Fee policy; no initial bit |
-| Payee enrollment | Separate initial bit, but later text also calls it existing configuration | Owner-controlled recipient enrollment | Keep owner/config-controlled initially |
+| Defensive authority | One cross-family `POSITION_EXIT` | Separate strategy, debt, and liquidity exit permissions | One `POSITION_REDUCE`, narrowed by exact action IDs, argument binding, and postconditions |
+| Network fees | Reverses between a separate bit (§4.2), rejection as a permission (§4.5), and separate boundary (§10.3) | Fee policy under the parent action | Parent-action fee profile initially; revisit non-enumerable recipients in a future fee package |
+| Payee enrollment | Reverses between a separate bit (§4.2), owner configuration (§4.5), and bounded delegated enrollment (§10.3) | Owner-controlled recipient enrollment | Keep owner/config-controlled initially |
 | Delegated revocation | Initial defensive permission | Later, after inventory and anti-griefing | Later |
 | Self-custody transforms | Use existing family axis and action IDs | Separate initial transform permission | Explicit action under `TRADE` |
 | Action implementation update | Same semantic action ID may receive a versioned implementation | Material code receives a new action ID | New extender receives a new action ID |
@@ -212,7 +222,7 @@ governing design.
 
 ## 4. Proposed permission taxonomy
 
-### 4.1 Why eight initial categories are enough
+### 4.1 Why eight initial-vocabulary categories are enough
 
 The exact `actionId` gate answers:
 
@@ -236,25 +246,27 @@ selection and existing limits are considered**.
 The proposed assignment is new-generation-only. Existing booleans are not
 reinterpreted as these bits.
 
-| Bit | Permission | State | Owner-readable authority |
-|---:|---|---|---|
-| 0 | `TRANSFER` | INITIAL | Send approved value now to approved recipients within existing payment limits |
-| 1 | `PAYMENT_COMMITMENT` | INITIAL | Create a typed, bounded future payment claim through a direct wallet rail |
-| 2 | `TRADE` | INITIAL | Convert approved assets through approved integrations within price and slippage limits |
-| 3 | `YIELD` | INITIAL | Open or increase an approved non-debt strategy position |
-| 4 | `DEBT` | INITIAL | Open or increase debt, leverage, or collateral-withdrawal risk |
-| 5 | `LIQUIDITY` | INITIAL | Open or increase an approved liquidity position |
-| 6 | `REWARDS` | INITIAL | Claim accrued rewards to the wallet without selling, transferring, or redeploying them |
-| 7 | `POSITION_EXIT` | INITIAL | Close or reduce an existing position under wallet-verified non-expansion rules |
-| 8 | `REVOKE_CLAIMS` | LATER | Cancel or reduce tracked persistent rights without creating or enlarging them |
-| 9 | `CROSS_CHAIN` | LATER | Create a typed, bounded cross-chain transfer or message |
-| 10 | `OFFCHAIN_SIGNATURE` | LATER | Create a tracked, bounded value-moving signature that may be used later |
-| 11 | `GOVERNANCE` | LATER | Exercise protocol governance without wallet administration or value transfer |
-| 12 | `PERSISTENT_EXTERNAL_AUTHORITY` | RESERVED | Create a named standing spender or operator right that survives the action |
-| 13–255 | Unassigned | — | Unknown bits reject |
+| Bit | Permission | Vocabulary status | First enforcement package | Owner-readable authority |
+|---:|---|---|---|---|
+| 0 | `TRANSFER` | INITIAL | Existing direct `canTransfer`; future direct-mask compatibility package | Send approved value now to approved recipients within existing payment limits |
+| 1 | `PAYMENT_COMMITMENT` | INITIAL | Existing direct `canCreateCheque`; future payment package | Create a typed, bounded future payment claim through a direct wallet rail |
+| 2 | `TRADE` | INITIAL | Later routed trade/composite package | Convert approved assets through approved integrations within price and slippage limits |
+| 3 | `YIELD` | INITIAL | Phase 1C first routed action | Open or increase an approved non-debt strategy position; no exit authority |
+| 4 | `DEBT` | INITIAL | Later risk-increasing debt package | Open or increase debt, leverage, or collateral-withdrawal risk |
+| 5 | `LIQUIDITY` | INITIAL | Later liquidity package | Open or increase an approved liquidity position |
+| 6 | `REWARDS` | INITIAL | Rewards package, after AUTH when an integration requires operator authority | Claim accrued rewards to the wallet without selling, transferring, or redeploying them |
+| 7 | `POSITION_REDUCE` | INITIAL | First withdrawal/defensive-debt package | Close or reduce an existing wallet position or obligation under wallet-verified non-expansion rules |
+| 8 | `REVOKE_CLAIMS` | LATER | Separate revocation package | Cancel or reduce tracked persistent rights without creating or enlarging them |
+| 9 | `CROSS_CHAIN` | LATER | Separate cross-chain package | Create a typed, bounded cross-chain transfer or message |
+| 10 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create a tracked, bounded value-moving signature that may be used later |
+| 11 | `GOVERNANCE` | LATER | Separate governance package | Exercise protocol governance without wallet administration or value transfer |
+| 12 | `PERSISTENT_EXTERNAL_AUTHORITY` | RESERVED | Not grantable until an owner-approved authority package exists | Create a named standing spender or operator right that survives the action |
+| 13–255 | Unassigned | — | Not grantable | Unknown bits reject |
 
-`INITIAL` means part of the initial durable vocabulary. It does not mean every
-permission is implemented or activated in Phase 1.
+`INITIAL` means part of the initial durable vocabulary. The separate
+“First enforcement package” column states when the authority first becomes
+live. It does not mean every permission is implemented or activated in
+Phase 1.
 
 Support still grows action family by action family. The first routed
 `SUPPORTED_PERMISSION_MASK` may contain only `YIELD`. A bit becomes grantable
@@ -269,11 +281,17 @@ reserved bits reject rather than existing as inert grants.
 | `TransferPerms.canTransfer` | `TRANSFER` |
 | `TransferPerms.canCreateCheque` | `PAYMENT_COMMITMENT` |
 | `LegoPerms.canBuyAndSell` | `TRADE` |
-| `LegoPerms.canManageYield` | `YIELD` for entry/increase; `POSITION_EXIT` for withdrawal |
-| `LegoPerms.canManageDebt` | `DEBT` for borrow/remove collateral; `POSITION_EXIT` for repay/add collateral/close |
-| `LegoPerms.canManageLiq` | `LIQUIDITY` for entry/increase; `POSITION_EXIT` for removal |
+| `LegoPerms.canManageYield` | `YIELD` for entry/increase; `POSITION_REDUCE` for withdrawal |
+| `LegoPerms.canManageDebt` | `DEBT` for borrow/remove collateral; `POSITION_REDUCE` for a qualifying repay, collateral top-up, or close |
+| `LegoPerms.canManageLiq` | `LIQUIDITY` for entry/increase; `POSITION_REDUCE` for removal |
 | `LegoPerms.canClaimRewards` | `REWARDS` |
 | Approved assets, Legos, payees, opportunities, slippage, counts, cooldowns, and value limits | Existing policy and limits, not new permission bits |
+
+The source syntheses use the name `POSITION_EXIT`. This proposal renames the
+category `POSITION_REDUCE` because the qualifying authority is not limited to
+actions that return proceeds. It may also cover an exactly bound spend that
+reduces an existing wallet obligation, such as repayment. The new name avoids
+claiming that every valid action has an exit-shaped fund flow.
 
 The existing direct path can retain its current boolean meaning during the
 incremental build. The routed path uses the new mask. Any later decision to
@@ -282,6 +300,12 @@ compatibility package; until then `TRANSFER` and `PAYMENT_COMMITMENT` describe
 the durable taxonomy while their current direct enforcement remains
 `canTransfer` and `canCreateCheque`. No Config should store two independently
 editable representations of the same live authority.
+
+Owner-facing consent for `YIELD` must say explicitly that it grants entry or
+increase only. A yield withdrawal requires `POSITION_REDUCE`. A default UI
+preset may pair the two, but the underlying authorities remain separately
+grantable so an owner may intentionally permit entry while retaining exclusive
+recovery authority.
 
 ### 4.4 Deliberately not initial permissions
 
@@ -299,9 +323,11 @@ product.
 
 Ordinary transaction gas is not wallet permission. A wallet-funded relayer or
 paymaster charge is a bounded fee attached to a parent action. Enforce a named
-recipient/profile and absolute or proportional fee cap. It does not need an
-independent permission unless owners later need to delegate fee payment while
-withholding the parent action, which is not a current requirement.
+fee profile and absolute or proportional fee cap. The concrete package must
+also define how a dynamic or non-enumerable recipient is bound; an ordinary
+payee allowlist must not be assumed sufficient. It does not need an independent
+permission unless owners later need to delegate fee payment while withholding
+the parent action, which is not a current requirement.
 
 #### Self-custody transforms
 
@@ -356,7 +382,18 @@ The exact encoding and bounds remain Phase 0B measurement outputs.
 
 ### 5.2 Fixed checks
 
-For a manager-routed action:
+At every Config path that creates or updates a routed grant:
+
+```text
+require newManagerMask & ~SUPPORTED_PERMISSION_MASK == 0
+require newGlobalMask & ~SUPPORTED_PERMISSION_MASK == 0
+```
+
+The check occurs when the authority is stored, not only when it is exercised.
+Otherwise an unsupported bit can exist as dormant pre-granted authority and
+silently become live when a later release expands `SUPPORTED_PERMISSION_MASK`.
+
+For every manager-routed execution:
 
 ```text
 required = ActionSpec.requiredPermissionMask
@@ -407,11 +444,20 @@ HighCommand may still need one narrow Wallet v3 coordination entry point for
 routed masks and action IDs. Phase 0B must measure that exact addition rather
 than expanding every existing settings call.
 
-The direct `else: return True` fallback is a real fail-open behavior, but fixing
-it changes current authorization semantics. Treat it as a separately reviewed
-legacy hardening candidate. Wallet v3 routed authorization always rejects an
-unknown action or mask. Its production disposition must be explicit before a
-Wallet v3 release; documenting it is not acceptance of the fallback.
+The direct `else: return True` fallback in
+[`Sentinel.vy`](../../contracts/core/walletBackpack/Sentinel.vy) is a real
+fail-open behavior, but fixing it requires an explicit legacy disposition
+because the presently reachable fallthroughs include the direct ETH/WETH
+transforms. Treat it as an immediate, independent hardening workstream rather
+than waiting for the Wallet v3 release:
+the minimum behavior-preserving candidate is to add explicit approved branches
+for those known transforms and change the final default to `False`. A second
+choice—making the transforms consume `canBuyAndSell`—is a policy change and
+must not be smuggled into the fallback fix.
+
+No contract change is authorized by this proposal. The legacy package needs
+owner approval plus direct regression tests for every current `ActionType`.
+Wallet v3 routed authorization always rejects an unknown action or mask.
 
 ---
 
@@ -433,10 +479,10 @@ If optional behavior changes the required authority, use separate action IDs:
 
 ```text
 yield.rebalance.no-swap.v1
-    POSITION_EXIT | YIELD
+    POSITION_REDUCE | YIELD
 
 yield.rebalance.with-swap.v1
-    POSITION_EXIT | YIELD | TRADE
+    POSITION_REDUCE | YIELD | TRADE
 ```
 
 This is easier to audit than a second runtime permission declaration and makes
@@ -507,28 +553,52 @@ For every composite:
 Phase 0B must define the exact charge basis for each initial composite. It must
 not introduce a general limit DSL.
 
-### 7.2 `POSITION_EXIT`
+### 7.2 `POSITION_REDUCE`
 
-`POSITION_EXIT` is deliberately cross-family. The exact action-ID gate and
-existing allowed asset/Lego/position rules determine which exit procedures the
-manager may use.
+`POSITION_REDUCE` is deliberately cross-family. The exact action-ID gate and
+existing allowed asset, Lego, and position rules determine which procedures
+the manager may use. It admits two fund-flow shapes rather than pretending
+every defensive action is literally an exit.
 
-An action may require only `POSITION_EXIT` when the wallet can prove:
+#### Recovery-shaped exit
 
-- it references a position owned by the wallet;
+The wallet may withdraw or remove an existing wallet-owned position when:
+
 - every `receiver`, `beneficiary`, `owner`, and `onBehalfOf` parameter is bound
-  to the wallet where applicable;
-- no debt or liquidation risk increases;
-- no required collateral buffer decreases;
-- no new position, obligation, signature, approval, recipient right, or other
-  persistent authority is created;
-- all proceeds and residual assets return to the wallet;
-- any conversion leg has its own `TRADE` permission and independently enforced
-  slippage/value controls; and
-- frequency and fee/value-destruction bounds prevent defensive churn from
+  to the wallet where applicable; and
+- all proceeds and residual assets return to the wallet.
+
+#### Obligation-reduction spend
+
+The wallet may spend an exact allowed asset to reduce an existing
+wallet-owned obligation when:
+
+- the destination is the pinned protocol integration, not an arbitrary
+  recipient;
+- the wallet is the bound debtor, beneficiary, or `onBehalfOf` account;
+- the spend is bounded by the wallet's current outstanding obligation and all
+  applicable manager/global limits;
+- wallet-computed postconditions prove that debt, risk, or liquidation
+  exposure improves; and
+- no third party receives an independent benefit.
+
+Repayment and collateral top-up qualify only through this proof. Adding
+collateral to create a fresh position, enlarge exposure, or fund an unbound
+account is not `POSITION_REDUCE`; it requires the applicable risk-increasing
+family permission or remains unsupported.
+
+Both shapes also require:
+
+- an existing wallet-owned position or obligation;
+- no increase in debt, liquidation risk, or required collateral burden;
+- no new position, obligation, signature, approval, recipient right, operator
+  right, or other persistent authority;
+- a separate `TRADE` permission and independently enforced slippage/value
+  controls for any conversion leg; and
+- frequency and fee/value-destruction bounds that prevent defensive churn from
   becoming a griefing path.
 
-If the wallet cannot prove those properties for an integration, the action:
+If the wallet cannot prove the applicable shape for an integration, the action:
 
 - requires the risk-increasing family bit as well;
 - remains owner-only; or
@@ -598,6 +668,16 @@ fixed yield settlement and entry/exit metadata. It does not create:
 The named operator-authority package remains separate and adds only confirmed,
 fixed call shapes.
 
+`REWARDS` does not bypass that boundary. Some integrations require an operator
+relationship before rewards can be claimed; the current
+[`Euler.vy`](../../contracts/legos/yield/Euler.vy) integration, for example,
+exposes a `toggleOperator` setup call. A manager's `REWARDS` bit alone must
+never create that authority. The concrete rewards action is enabled only after
+the named AUTH package has classified and safely established the required
+operator state. If the authority survives the transaction, its inventory,
+attribution, suspension, and cleanup semantics require the reserved
+persistent-authority boundary or an equally explicit owner-approved design.
+
 ### 8.2 Direct payment semantics
 
 Keep the existing specialized payment paths initially:
@@ -656,6 +736,24 @@ For the first architecture:
 
 ## 9. Incorporation into the implementation roadmap
 
+### 9.0 Immediate independent legacy hardening decision
+
+Do not wait for the Wallet v3 release to disposition Sentinel's direct
+unknown-action fallback. Open a separately authorized, narrowly scoped legacy
+hardening package:
+
+1. enumerate every current `ActionType` and its intended direct permission;
+2. decide whether the existing ETH/WETH transform behavior remains explicitly
+   allowed or begins consuming `canBuyAndSell`;
+3. if preserving behavior, add explicit transform branches that return `True`
+   and change only the unknown default to `False`;
+4. add positive and negative regression tests for every current action type,
+   including an unknown or future value; and
+5. ship only after owner approval of the chosen transform semantics.
+
+This workstream is independent of the Wallet v3 routed implementation and does
+not authorize a contract edit in this documentation task.
+
 ### 9.1 Phase 0A — add evidence, not contract behavior
 
 Extend the current-state baseline to record:
@@ -686,7 +784,8 @@ Before the first implementation disposition:
 - define the supported-mask constant and unknown-bit failure;
 - define the exact initial action mask;
 - define the first composite charge bases;
-- define the `POSITION_EXIT` proof template, without implementing an exit yet;
+- define the `POSITION_REDUCE` proof template, without implementing a
+  reduction yet;
   and
 - record `PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
 
@@ -709,7 +808,9 @@ Implement and measure:
 - the bounded manager action-ID set;
 - the parallel routed manager mask;
 - the routed global mask;
-- duplicate and unknown-bit rejection;
+- duplicate and unknown-bit rejection at every grant create/update path;
+- rejection of manager/global masks outside `SUPPORTED_PERMISSION_MASK`, so
+  dormant pre-granted bits cannot activate in a later release;
 - action-ID addition checks;
 - full `PolicyContextV1` forwarding; and
 - unchanged legacy manager structs and direct provider behavior.
@@ -725,8 +826,9 @@ Implement and measure:
 - no first-match `if / elif` behavior for masks; and
 - no new generic policy evaluator.
 
-The current direct fail-open fallback receives a separate disposition. It is
-not silently changed through the routed entry point.
+The direct fallback is handled by the independent §9.0 workstream. It is not
+silently changed through the routed entry point or deferred merely because
+Wallet v3 is not yet released.
 
 ### 9.6 Phase 1C — first yield-deposit slice
 
@@ -752,14 +854,16 @@ It proves:
 
 ### 9.7 Later action-family packages
 
-- Yield withdrawal uses `POSITION_EXIT`.
-- Yield rebalance uses `POSITION_EXIT | YIELD`, plus `TRADE` when applicable.
-- Debt repayment and collateral top-up use `POSITION_EXIT` only after the
-  action-specific postcondition proof passes.
+- Yield withdrawal uses `POSITION_REDUCE`.
+- Yield rebalance uses `POSITION_REDUCE | YIELD`, plus `TRADE` when applicable.
+- Debt repayment and collateral top-up use `POSITION_REDUCE` only when they
+  bind an existing wallet obligation and the action-specific postcondition
+  proof passes; a fresh or expanding collateral position requires `DEBT`.
 - Borrow and collateral removal use `DEBT`.
-- Liquidity removal uses `POSITION_EXIT`.
-- Claim-only uses `REWARDS`; claim-and-sell adds `TRADE`; claim-and-redeposit
-  adds `YIELD`.
+- Liquidity removal uses `POSITION_REDUCE`.
+- Claim-only uses `REWARDS`, but any integration-required operator setup must
+  first pass the AUTH/persistent-authority package; claim-and-sell adds
+  `TRADE`; claim-and-redeposit adds `YIELD`.
 - Payments map `TRANSFER` and `PAYMENT_COMMITMENT` onto direct rails before any
   routing comparison.
 - Later and reserved bits require their own owner-approved packages.
@@ -776,7 +880,8 @@ focused revision:
    boundary.
 3. State that `ActionSpec.requiredPermissionMask` is exact and solely
    registry-defined.
-4. Add `POSITION_EXIT`'s required wallet-verifiable conditions.
+4. Add `POSITION_REDUCE`'s two permitted fund-flow shapes and required
+   wallet-verifiable conditions.
 5. Strengthen composite policy from permission union to permission union plus
    cumulative limits.
 6. Add the price-independent exit boundary.
@@ -794,7 +899,7 @@ Update the implementation roadmap in the same revision:
 2. add Phase 0A permission and price baselines;
 3. add mask measurements and fields to Packages 0B, 1B1, and 1B2;
 4. set the first yield action's exact mask;
-5. add the `POSITION_EXIT` proof gate before withdrawals or defensive debt;
+5. add the `POSITION_REDUCE` proof gate before withdrawals or defensive debt;
 6. add composite charge-basis evidence;
 7. keep payment/persistence and dual control in separate future packages; and
 8. extend invariant traceability and drift tests.
@@ -810,11 +915,11 @@ The research narrows the permission problem to these decisions.
 
 | # | Decision | Recommendation |
 |---:|---|---|
-| P1 | Initial taxonomy | Approve eight initial, four later, and one reserved boundary |
+| P1 | Durable taxonomy | Approve eight initial-vocabulary, four later, and one reserved boundary; activate them only through reviewed enforcement packages |
 | P2 | Representation | Use parallel `uint256` manager/global routed masks in the new Config; do not expand existing manager structs |
-| P3 | Exit authority | Use one cross-family `POSITION_EXIT`, gated by exact action IDs and wallet-verifiable non-expansion |
+| P3 | Defensive authority | Use one cross-family `POSITION_REDUCE`, gated by exact action IDs, argument binding, and wallet-verifiable non-expansion |
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
-| P5 | Direct-path fallback | Review as a separate legacy hardening change and resolve its production disposition before release; routed unknown actions always fail |
+| P5 | Direct-path fallback | Authorize an immediate independent hardening package; choose explicit current transform allowance versus `canBuyAndSell`, and make the unknown default fail closed |
 | P6 | Existing empty policy sets | Preserve current semantics for the first slice, make wildcard meaning explicit, and measure an explicit scope representation |
 | P7 | Price-independent exits | Permit only pure, non-converting, native-bounded exits with wallet-proven non-extraction and non-expansion |
 | P8 | First persistent additions | Keep payee enrollment, delegated revocation, standing authority, signatures, bridges, and new commitment types out of Phase 1 |
@@ -830,8 +935,9 @@ The independent reviewer should answer:
 
 1. Does the eight-permission initial vocabulary omit an authority that cannot
    be represented safely by action ID plus existing policy?
-2. Is a cross-family `POSITION_EXIT` too broad even with exact action-ID,
-   asset, Lego, recipient, and action-specific postcondition checks?
+2. Is a cross-family `POSITION_REDUCE` too broad even with exact action-ID,
+   asset, Lego, recipient, argument-binding, and action-specific postcondition
+   checks?
 3. Does keeping self-custody transforms under `TRADE` create unacceptable
    owner-consent ambiguity?
 4. Is keeping payee enrollment owner-side the safer incremental choice, or
@@ -841,8 +947,9 @@ The independent reviewer should answer:
 6. Are any mask fields missing from `PolicyContextV1`?
 7. Is the composite gross-charge rule precise enough to prevent swap-mediated
    limit laundering without a general effect language?
-8. Are the `POSITION_EXIT` postconditions wallet-observable for the first yield
-   and debt integrations?
+8. Are the `POSITION_REDUCE` postconditions wallet-observable for both the
+   recovery-shaped and obligation-reduction fund flows in the first yield and
+   debt integrations?
 9. Does rejecting a generic `persistenceMask` leave any first-phase effect
    unclassified?
 10. Are the deferred payment, persistence, and dual-control packages separated
@@ -850,6 +957,22 @@ The independent reviewer should answer:
 11. Do any recommendations accidentally change current direct-wallet behavior?
 12. Which owner decisions must be settled before Phase 0B rather than at a
     later family gate?
+13. Does every Config create/update path reject manager and global masks outside
+    the current `SUPPORTED_PERMISSION_MASK`, preventing dormant future grants?
+14. Does each proposed rewards integration require an AUTH action or persistent
+    operator right, and is that prerequisite sequenced before `REWARDS` becomes
+    grantable?
+15. Does owner-facing `YIELD` consent make clear that exit requires the separate
+    `POSITION_REDUCE` authority?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
+
+---
+
+## 13. Revision log
+
+| Date | Revision | Effect |
+|---|---|---|
+| 2026-07-25 | Initial proposal | Synthesized the two permission-research reports into a smaller, non-governing recommendation |
+| 2026-07-25 | Reviewer-feedback revision | Renamed `POSITION_EXIT` to `POSITION_REDUCE`; separated recovery and obligation-reduction fund flows; added grant-time supported-mask checks, reward/AUTH sequencing, explicit one-way `YIELD` consent, an immediate independent Sentinel hardening workstream, clearer vocabulary-versus-enforcement status, and document provenance |
