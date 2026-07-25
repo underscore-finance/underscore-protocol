@@ -408,13 +408,25 @@ requested reduction, and wallet-observed post-action exposure. Security-
 critical partial failure is not caught; the entire same-chain revocation
 reverts atomically.
 
+The owner selects a bounded revocation-source set for each revoker:
+
+```text
+(revokerManager, revokerEpoch)
+    -> allowed (sourceManager, sourceEpoch) pairs
+```
+
+The revoker may act only on claims attributed to those exact source pairs.
+Owner-, security-, or system-created claims are never reachable through
+delegated revocation. An empty source set means none, not any. Only the owner
+may add or remove source pairs; neither the revoker nor a source manager may
+expand the scope. Epoch binding prevents an ejected and later re-added address
+from inheriting stale revocation authority.
+
 The package must also define cancellation notice, reliance versus unilateral-
 right semantics, cancellation fees, frequency limits, manager-ejection
-behavior, and whether a manager may revoke only its own attributed claims or a
-broader owner-approved scope. That last scope remains a separate owner
-decision. Until the inventory and anti-griefing package is ratified,
-`REVOKE_CLAIMS` remains outside `SUPPORTED_PERMISSION_MASK` and is not
-grantable.
+behavior, and bounded source-set storage. Until the inventory and anti-griefing
+package is ratified, `REVOKE_CLAIMS` remains outside
+`SUPPORTED_PERMISSION_MASK` and is not grantable.
 
 ### 4.7 Deliberately not initial permissions
 
@@ -843,8 +855,9 @@ and bounded-enumeration rule below.
 `REVOKE_CLAIMS` is the distinct reduction authority for tracked surviving
 claims. It does not require the claim-creation permission, because forcing the
 same compromised manager authority to cancel what it created would defeat the
-separation. Its eventual scope and anti-griefing rules remain independently
-owner-controlled.
+separation. The owner-designated, epoch-bound source set supplies the exact
+cross-manager scope; anti-griefing and revocability rules still apply per claim
+type.
 
 ### 8.3 Future persistent-authority package
 
@@ -1029,8 +1042,9 @@ It proves:
   lifecycle package is approved. Payment to that payee remains separate and
   requires `TRANSFER`.
 - Any future claim-revocation action requires `REVOKE_CLAIMS`, can only reduce
-  a typed inventoried claim under the approved attribution scope, and remains
-  ungrantable until reliance and anti-griefing rules are approved.
+  a typed inventoried claim from an owner-designated, epoch-bound source
+  manager, and remains ungrantable until reliance and anti-griefing rules are
+  approved.
 - Payments map `TRANSFER` and `PAYMENT_COMMITMENT` onto direct rails before any
   routing comparison.
 - Later and reserved bits require their own owner-approved packages.
@@ -1097,9 +1111,10 @@ The research narrows the permission problem to these decisions.
 | P8 | First persistent additions | Keep the `ENROLL_PAYEE` and `REVOKE_CLAIMS` packages, standing authority, signatures, bridges, and new commitment types out of Phase 1 despite assigning their reviewed vocabulary boundaries |
 | P9 | Network-fee authority | **OWNER SELECTED 2026-07-25:** use separate `PAY_NETWORK_FEES`, additive to the parent action and ungrantable until a bounded fee package exists |
 | P10 | Payee enrollment | **OWNER SELECTED 2026-07-25:** use separate `ENROLL_PAYEE`; it creates only bounded probationary enrollment and is ungrantable until its lifecycle package exists |
-| P11 | Claim revocation | **OWNER SELECTED 2026-07-25:** include separate reduction-only `REVOKE_CLAIMS`; keep it ungrantable until typed claim inventory, scope, reliance, and anti-griefing rules exist |
+| P11 | Claim revocation | **OWNER SELECTED 2026-07-25:** include separate reduction-only `REVOKE_CLAIMS`; keep it ungrantable until typed claim inventory, reliance, and anti-griefing rules exist |
+| P12 | Revocation scope | **OWNER SELECTED 2026-07-25:** each revoker receives a bounded owner-designated set of source-manager/epoch pairs; owner/system claims remain unreachable |
 
-P3, P5, and P9–P11 are owner-selected. P4 preserves an already governing
+P3, P5, and P9–P12 are owner-selected. P4 preserves an already governing
 action-identity rule. P1–P2 and P6–P8 remain open decisions this research most
 directly informs.
 
@@ -1148,8 +1163,8 @@ The independent reviewer should answer:
     `TRANSFER`, the exact payment action ID, ordinary recipient policy, and the
     payee's remaining probationary limits?
 19. Does `REVOKE_CLAIMS` only reduce a typed inventoried claim, preserve
-    beneficiary and asset identity, fail atomically, and apply the
-    owner-selected attribution scope and anti-griefing rules?
+    beneficiary and asset identity, fail atomically, and require the exact
+    owner-designated revoker/source manager epochs plus anti-griefing rules?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -1168,3 +1183,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P9 | Added `PAY_NETWORK_FEES` as a separate durable permission that is additive to the parent action and ungrantable until recipient binding and fee caps are implemented |
 | 2026-07-25 | Owner disposition P10 | Added `ENROLL_PAYEE` as a separate durable non-payment permission for attributable, expiring, exposure-bounded probationary enrollment; left it ungrantable until its lifecycle package exists |
 | 2026-07-25 | Owner disposition P11 | Confirmed separate reduction-only `REVOKE_CLAIMS`; left it ungrantable until typed inventory, attribution scope, reliance, cancellation-cost, and anti-griefing rules are approved |
+| 2026-07-25 | Owner disposition P12 | Scoped delegated claim revocation to bounded owner-designated source-manager/epoch pairs per revoker/epoch; excluded owner, security, and system claims and stale authority after manager re-addition |
