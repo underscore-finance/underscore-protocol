@@ -55,7 +55,7 @@ My recommended incorporation is:
 3. Forward the manager and global routed masks through `PolicyContextV1` and
    check them in the new routed Sentinel entry point. Preserve the existing
    direct-policy ABI and meaning.
-4. Use ten initial vocabulary categories, four later categories, and one
+4. Use eleven initial vocabulary categories, four later categories, and one
    reserved boundary. “Initial vocabulary” does not mean “enabled in the first
    release”; support is enabled only with a reviewed action-family package.
 5. Give each immutable `ActionSpec` one exact static permission mask. The
@@ -67,9 +67,11 @@ My recommended incorporation is:
    one permanent bit.
 7. Keep payments on the mature direct rails initially. `TRANSFER` means value
    moves now; `PAYMENT_COMMITMENT` means a bounded claim survives.
-8. Do not add `ENROLL_PAYEE`, `PAY_NETWORK_FEES`, delegated administration,
-   standing allowances, offchain signatures, or cross-chain authority to the
-   initial implementation merely because the research discussed them.
+8. Add `PAY_NETWORK_FEES` as a distinct durable permission, but do not make it
+   grantable before a bounded fee mechanism exists. Keep `ENROLL_PAYEE`,
+   delegated administration, standing allowances, offchain signatures, and
+   cross-chain authority out of the initial implementation merely because the
+   research discussed them.
 9. Treat composite authorization as:
 
    ```text
@@ -114,8 +116,9 @@ repository. Its highest-value contributions are:
 
 Its broader 17-boundary recommendation should not be adopted wholesale. It
 introduces several product capabilities that the current wallet does not need
-for the first routed architecture, including delegated payee enrollment,
-network-fee authority, and delegated claim revocation.
+for the first routed architecture, including delegated payee enrollment and
+delegated claim revocation. This proposal adopts the network-fee boundary in
+the durable vocabulary without pretending the functionality already exists.
 
 The document also contains two unresolved reversals. This is not an inference
 from its source-attribution column: section 4.5 is explicitly titled
@@ -133,15 +136,15 @@ Its own recommendations therefore move in opposite directions:
 Those reversals reinforce the need to apply the split rule consistently rather
 than accept the proposed bit table as a unit. They do not make the underlying
 concerns frivolous. In particular, a fee recipient may not be enumerable in
-the same way as an ordinary payee. A future relayer/paymaster package should
-revisit that concrete constraint rather than treating this Phase 1 deferral as
-a permanent rejection.
+the same way as an ordinary payee. The owner therefore selected a distinct
+permission while requiring a future relayer/paymaster package to solve that
+recipient-binding problem before the bit becomes grantable.
 
 For fairness, the Claude synthesis's later and more deliberate reconciliation
 in section 10.3 and Appendix A favors a separate `PAY_NETWORK_FEES` permission
-despite the section 4.5 reversal. This proposal's deferral is therefore a
-substantive disagreement with that synthesis's considered position, not a
-tie-break caused only by ambiguity.
+despite the section 4.5 reversal. This proposal now agrees with that considered
+boundary while adding explicit parent-mask, action-ID, recipient-binding, cap,
+and grantability requirements.
 
 ### 2.2 What the Codex synthesis does especially well
 
@@ -189,9 +192,9 @@ they do not automatically justify merging distinct categories of authority.
 
 | Topic | Claude synthesis | Codex synthesis | This proposal |
 |---|---|---|---|
-| Documented boundaries | 17 | 16 | 15: 10 initial, 4 later, 1 reserved |
+| Documented boundaries | 17 | 16 | 16: 11 initial, 4 later, 1 reserved |
 | Defensive authority | One cross-family `POSITION_EXIT` | Separate strategy, debt, and liquidity exit permissions | Separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT`, each narrowed further by exact action IDs and postconditions |
-| Network fees | Reverses between a separate bit (§4.2), rejection as a permission (§4.5), and separate boundary (§10.3) | Fee policy under the parent action | Parent-action fee profile initially; revisit non-enumerable recipients in a future fee package |
+| Network fees | Reverses between a separate bit (§4.2), rejection as a permission (§4.5), and separate boundary (§10.3) | Fee policy under the parent action | Separate `PAY_NETWORK_FEES` permission, additive to the parent action and ungrantable until its package exists |
 | Payee enrollment | Reverses between a separate bit (§4.2), owner configuration (§4.5), and bounded delegated enrollment (§10.3) | Owner-controlled recipient enrollment | Keep owner/config-controlled initially |
 | Delegated revocation | Initial defensive permission | Later, after inventory and anti-griefing | Later |
 | Self-custody transforms | Use existing family axis and action IDs | Separate initial transform permission | Explicit action under `TRADE` |
@@ -230,7 +233,7 @@ governing design.
 
 ## 4. Proposed permission taxonomy
 
-### 4.1 Why ten initial-vocabulary categories are appropriate
+### 4.1 Why eleven initial-vocabulary categories are appropriate
 
 The exact `actionId` gate answers:
 
@@ -248,7 +251,10 @@ Because the first question is already exact, the second vocabulary should avoid
 procedural duplication. But it should still split when an owner may reasonably
 want to grant one family of reduction while withholding another **even after
 exact action selection and existing limits are considered**. The owner selected
-that finer control for yield exits, debt reduction, and liquidity exits.
+that finer control for yield exits, debt reduction, and liquidity exits. The
+owner also selected a separate network-fee boundary because it authorizes a
+purpose-specific wallet outflow to a recipient class that may not fit ordinary
+payee allowlisting.
 
 ### 4.2 Recommended permanent bit assignment
 
@@ -259,20 +265,21 @@ reinterpreted as these bits.
 |---:|---|---|---|---|
 | 0 | `TRANSFER` | INITIAL | Existing direct `canTransfer`; future direct-mask compatibility package | Send approved value now to approved recipients within existing payment limits |
 | 1 | `PAYMENT_COMMITMENT` | INITIAL | Existing direct `canCreateCheque`; future payment package | Create a typed, bounded future payment claim through a direct wallet rail |
-| 2 | `TRADE` | INITIAL | Later routed trade/composite package | Convert approved assets through approved integrations within price and slippage limits |
-| 3 | `YIELD` | INITIAL | Phase 1C first routed action | Open or increase an approved non-debt strategy position; no exit authority |
-| 4 | `DEBT` | INITIAL | Later debt package, after AUTH when the selected integration/action requires operator authority | Open or increase debt, leverage, or collateral-withdrawal risk |
-| 5 | `LIQUIDITY` | INITIAL | Later liquidity package | Open or increase an approved liquidity position |
-| 6 | `REWARDS` | INITIAL | Rewards package, after AUTH when an integration requires operator authority | Claim accrued rewards to the wallet without selling, transferring, or redeploying them |
-| 7 | `YIELD_EXIT` | INITIAL | First yield-withdrawal package; AUTH first only when the selected integration/action requires operator authority | Withdraw, close, or reduce an approved yield position back to the wallet |
-| 8 | `DEBT_REDUCE` | INITIAL | First defensive-debt package; AUTH first when the selected integration/action requires operator authority | Repay or otherwise reduce an existing wallet debt obligation without increasing exposure |
-| 9 | `LIQUIDITY_EXIT` | INITIAL | First liquidity-removal package; AUTH first only when the selected integration/action requires operator authority | Remove or reduce an approved liquidity position back to the wallet |
-| 10 | `REVOKE_CLAIMS` | LATER | Separate revocation package | Cancel or reduce tracked persistent rights without creating or enlarging them |
-| 11 | `CROSS_CHAIN` | LATER | Separate cross-chain package | Create a typed, bounded cross-chain transfer or message |
-| 12 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create a tracked, bounded value-moving signature that may be used later |
-| 13 | `GOVERNANCE` | LATER | Separate governance package | Exercise protocol governance without wallet administration or value transfer |
-| 14 | `PERSISTENT_EXTERNAL_AUTHORITY` | RESERVED | Not grantable until an owner-approved authority package exists | Create a named standing spender or operator right that survives the action |
-| 15–255 | Unassigned | — | Not grantable | Unknown bits reject |
+| 2 | `PAY_NETWORK_FEES` | INITIAL | Future bounded network-fee package; ungrantable until then | Pay a bounded relayer, paymaster, or equivalent execution fee for an otherwise authorized parent action |
+| 3 | `TRADE` | INITIAL | Later routed trade/composite package | Convert approved assets through approved integrations within price and slippage limits |
+| 4 | `YIELD` | INITIAL | Phase 1C first routed action | Open or increase an approved non-debt strategy position; no exit authority |
+| 5 | `DEBT` | INITIAL | Later debt package, after AUTH when the selected integration/action requires operator authority | Open or increase debt, leverage, or collateral-withdrawal risk |
+| 6 | `LIQUIDITY` | INITIAL | Later liquidity package | Open or increase an approved liquidity position |
+| 7 | `REWARDS` | INITIAL | Rewards package, after AUTH when an integration requires operator authority | Claim accrued rewards to the wallet without selling, transferring, or redeploying them |
+| 8 | `YIELD_EXIT` | INITIAL | First yield-withdrawal package; AUTH first only when the selected integration/action requires operator authority | Withdraw, close, or reduce an approved yield position back to the wallet |
+| 9 | `DEBT_REDUCE` | INITIAL | First defensive-debt package; AUTH first when the selected integration/action requires operator authority | Repay or otherwise reduce an existing wallet debt obligation without increasing exposure |
+| 10 | `LIQUIDITY_EXIT` | INITIAL | First liquidity-removal package; AUTH first only when the selected integration/action requires operator authority | Remove or reduce an approved liquidity position back to the wallet |
+| 11 | `REVOKE_CLAIMS` | LATER | Separate revocation package | Cancel or reduce tracked persistent rights without creating or enlarging them |
+| 12 | `CROSS_CHAIN` | LATER | Separate cross-chain package | Create a typed, bounded cross-chain transfer or message |
+| 13 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create a tracked, bounded value-moving signature that may be used later |
+| 14 | `GOVERNANCE` | LATER | Separate governance package | Exercise protocol governance without wallet administration or value transfer |
+| 15 | `PERSISTENT_EXTERNAL_AUTHORITY` | RESERVED | Not grantable until an owner-approved authority package exists | Create a named standing spender or operator right that survives the action |
+| 16–255 | Unassigned | — | Not grantable | Unknown bits reject |
 
 `INITIAL` means part of the initial durable vocabulary. The separate
 “First enforcement package” column states when the authority first becomes
@@ -291,6 +298,7 @@ reserved bits reject rather than existing as inert grants.
 |---|---|
 | `TransferPerms.canTransfer` | `TRANSFER` |
 | `TransferPerms.canCreateCheque` | `PAYMENT_COMMITMENT` |
+| No current manager equivalent | `PAY_NETWORK_FEES`; assigned in the durable vocabulary but ungrantable until its package exists |
 | `LegoPerms.canBuyAndSell` | `TRADE` |
 | `LegoPerms.canManageYield` | `YIELD` for entry/increase; `YIELD_EXIT` for withdrawal |
 | `LegoPerms.canManageDebt` | `DEBT` for borrow/remove collateral; `DEBT_REDUCE` for a qualifying repay, collateral top-up, or close |
@@ -318,7 +326,31 @@ preset may pair the two, but the underlying authorities remain separately
 grantable so an owner may intentionally permit entry while retaining exclusive
 recovery authority.
 
-### 4.4 Deliberately not initial permissions
+### 4.4 `PAY_NETWORK_FEES` is additive, never standalone
+
+Ordinary transaction gas paid by the transaction sender is not wallet
+permission. A wallet-funded relayer, paymaster, or equivalent execution charge
+requires `PAY_NETWORK_FEES` in addition to every permission required by the
+parent action:
+
+```text
+authorized fee-paying action
+    parent action's exact static permission mask
+    |
+    PAY_NETWORK_FEES
+```
+
+`PAY_NETWORK_FEES` alone cannot move value, select a parent action, or authorize
+a general transfer. If fee payment is optional, the fee-paying and non-fee
+variants use distinct action IDs because their static permission masks differ.
+
+The future package must enforce a named fee mechanism/profile, an absolute
+and/or proportional fee cap, and exact binding for a dynamic or
+non-enumerable recipient. An ordinary payee allowlist must not be assumed
+sufficient. The bit remains outside `SUPPORTED_PERMISSION_MASK` and is not
+grantable until that complete package is reviewed and authorized.
+
+### 4.5 Deliberately not initial permissions
 
 #### Payee enrollment
 
@@ -329,16 +361,6 @@ If product evidence later requires manager-assisted enrollment, design a
 separate probation-class object with attribution, expiry, a lifetime cap, and
 owner-configured ceilings. Do not pre-allocate an initial bit for an unbuilt
 product.
-
-#### Network, relayer, and paymaster fees
-
-Ordinary transaction gas is not wallet permission. A wallet-funded relayer or
-paymaster charge is a bounded fee attached to a parent action. Enforce a named
-fee profile and absolute or proportional fee cap. The concrete package must
-also define how a dynamic or non-enumerable recipient is bound; an ordinary
-payee allowlist must not be assumed sufficient. It does not need an independent
-permission unless owners later need to delegate fee payment while withholding
-the parent action, which is not a current requirement.
 
 #### Self-custody transforms
 
@@ -930,6 +952,9 @@ It proves:
 - Claim-only uses `REWARDS`, but any integration-required operator setup must
   first pass the AUTH/persistent-authority package; claim-and-sell adds
   `TRADE`; claim-and-redeposit adds `YIELD`.
+- Any future wallet-funded fee variant adds `PAY_NETWORK_FEES` to its parent
+  mask, uses a distinct action ID from the non-fee variant, and remains
+  ungrantable until the bounded fee package is approved.
 - Payments map `TRANSFER` and `PAYMENT_COMMITMENT` onto direct rails before any
   routing comparison.
 - Later and reserved bits require their own owner-approved packages.
@@ -955,7 +980,8 @@ focused revision:
 7. State that permission meanings and bit positions are immutable and never
    reused.
 8. Add mask fields to the `PolicyContextV1` definition.
-9. Record the rejected initial categories and future package boundaries.
+9. Record the rejected initial categories, the additive
+   `PAY_NETWORK_FEES` boundary, and future package boundaries.
 10. Add governing invariants and map each new invariant to implementation
     packages and tests.
 
@@ -984,7 +1010,7 @@ The research narrows the permission problem to these decisions.
 
 | # | Decision | Recommendation |
 |---:|---|---|
-| P1 | Durable taxonomy | Approve ten initial-vocabulary, four later, and one reserved boundary; activate them only through reviewed enforcement packages |
+| P1 | Durable taxonomy | Approve eleven initial-vocabulary, four later, and one reserved boundary; activate them only through reviewed enforcement packages |
 | P2 | Representation | Use parallel `uint256` manager/global routed masks in the new Config; do not expand existing manager structs |
 | P3 | Family-specific reduction authority | **OWNER SELECTED 2026-07-25:** use separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; reuse proof/AUTH machinery without generalizing the grants |
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
@@ -992,8 +1018,9 @@ The research narrows the permission problem to these decisions.
 | P6 | Existing empty policy sets | Preserve current semantics for the first slice, make wildcard meaning explicit, and measure an explicit scope representation |
 | P7 | Price-independent exits | Permit only pure, non-converting, native-bounded exits with wallet-proven non-extraction and non-expansion |
 | P8 | First persistent additions | Keep payee enrollment, delegated revocation, standing authority, signatures, bridges, and new commitment types out of Phase 1 |
+| P9 | Network-fee authority | **OWNER SELECTED 2026-07-25:** use separate `PAY_NETWORK_FEES`, additive to the parent action and ungrantable until a bounded fee package exists |
 
-P3 and P5 are owner-selected. P4 preserves an already governing
+P3, P5, and P9 are owner-selected. P4 preserves an already governing
 action-identity rule. P1–P2 and P6–P8 remain open decisions this research most
 directly informs.
 
@@ -1003,7 +1030,7 @@ directly informs.
 
 The independent reviewer should answer:
 
-1. Does the ten-permission initial vocabulary omit an authority that cannot
+1. Does the eleven-permission initial vocabulary omit an authority that cannot
    be represented safely by action ID plus existing policy?
 2. Do `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` give meaningful
    family-specific owner control without duplicating procedural action IDs?
@@ -1035,6 +1062,9 @@ The independent reviewer should answer:
 16. Does each proposed yield-exit, debt-reduction, or liquidity-exit
     integration/action pair require a named AUTH shape, and if so is that
     prerequisite complete before that family permission becomes grantable?
+17. Does every fee-paying action require both its complete parent mask and
+    `PAY_NETWORK_FEES`, use a distinct action ID, bind the fee mechanism and
+    recipient, and enforce absolute/proportional caps?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -1050,3 +1080,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Re-review AUTH and fast-path clarification | Added integration/action-specific AUTH prerequisites for `DEBT` and `POSITION_REDUCE`; distinguished transaction-scoped versus pre-established named operator authority; documented Ripe's dependency; made the behavior-preserving Sentinel fix the recommended independent fast path; and stated the Claude synthesis's considered network-fee position fairly |
 | 2026-07-25 | Owner disposition P5 | Owner classified ETH/WETH wrapping and unwrapping as exchanges requiring `canBuyAndSell`; unknown direct actions fail closed; contract implementation and deployment remain separately gated |
 | 2026-07-25 | Owner disposition P3 | Replaced the proposed cross-family `POSITION_REDUCE` bit with separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; retained shared proof and AUTH machinery while keeping the owner grants distinct |
+| 2026-07-25 | Owner disposition P9 | Added `PAY_NETWORK_FEES` as a separate durable permission that is additive to the parent action and ungrantable until recipient binding and fee caps are implemented |
