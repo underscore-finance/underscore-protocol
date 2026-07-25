@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+import sys
 from collections import defaultdict
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -33,14 +35,40 @@ SETEXT_HEADING_RE = re.compile(r"^\s{0,3}(=+|-+)\s*$")
 LINE_ANCHOR_RE = re.compile(r"^L(\d+)(?:-L(\d+))?$", re.IGNORECASE)
 
 
-def documentation_files() -> list[Path]:
+def skipped_path_message(path: Path | str, error: OSError) -> str:
+    try:
+        display_path = Path(path).resolve().relative_to(REPO_ROOT)
+    except (OSError, ValueError):
+        display_path = Path(path)
+    return f"{display_path}: {type(error).__name__}: {error}"
+
+
+def documentation_files(skipped: list[str] | None = None) -> list[Path]:
+    skipped_paths = skipped if skipped is not None else []
     files: list[Path] = []
-    for path in REPO_ROOT.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in DOC_SUFFIXES:
-            continue
-        if any(part in EXCLUDED_DIRS for part in path.relative_to(REPO_ROOT).parts):
-            continue
-        files.append(path)
+
+    def record_walk_error(error: OSError) -> None:
+        skipped_paths.append(skipped_path_message(error.filename or REPO_ROOT, error))
+
+    for root, dirs, filenames in os.walk(
+        REPO_ROOT,
+        topdown=True,
+        onerror=record_walk_error,
+        followlinks=False,
+    ):
+        dirs[:] = sorted(
+            directory for directory in dirs if directory not in EXCLUDED_DIRS
+        )
+        for filename in sorted(filenames):
+            path = Path(root, filename)
+            if path.suffix.lower() not in DOC_SUFFIXES:
+                continue
+            try:
+                if path.is_file():
+                    files.append(path)
+            except OSError as error:
+                skipped_paths.append(skipped_path_message(path, error))
+
     return sorted(files)
 
 
@@ -131,7 +159,10 @@ def validate_anchor(destination: Path, fragment: str) -> str | None:
 
     line_anchor = LINE_ANCHOR_RE.fullmatch(fragment)
     if line_anchor:
-        line_count = len(destination.read_text(errors="replace").splitlines())
+        try:
+            line_count = len(destination.read_text(errors="replace").splitlines())
+        except OSError as error:
+            return f"cannot read target: {type(error).__name__}: {error}"
         start = int(line_anchor.group(1))
         end = int(line_anchor.group(2) or start)
         if 1 <= start <= end <= line_count:
@@ -141,7 +172,10 @@ def validate_anchor(destination: Path, fragment: str) -> str | None:
     if destination.suffix.lower() not in DOC_SUFFIXES:
         return f"cannot resolve non-line anchor #{fragment} in {destination.name}"
 
-    text = destination.read_text(errors="replace")
+    try:
+        text = destination.read_text(errors="replace")
+    except OSError as error:
+        return f"cannot read target: {type(error).__name__}: {error}"
     anchors = (
         markdown_anchors(text)
         if destination.suffix.lower() == ".md"
@@ -153,13 +187,18 @@ def validate_anchor(destination: Path, fragment: str) -> str | None:
 
 
 def main() -> int:
-    files = documentation_files()
+    skipped: list[str] = []
+    files = documentation_files(skipped)
     failures: list[str] = []
     local_links = 0
     anchor_links = 0
 
     for source in files:
-        text = source.read_text(errors="replace")
+        try:
+            text = source.read_text(errors="replace")
+        except OSError as error:
+            skipped.append(skipped_path_message(source, error))
+            continue
         for raw_target in link_targets(source, text):
             resolved = resolved_target(source, raw_target)
             if resolved is None:
@@ -171,12 +210,29 @@ def main() -> int:
                 anchor_links += 1
 
             label = f"{source.relative_to(REPO_ROOT)} -> {raw_target}"
-            if not destination.exists():
+            try:
+                destination_exists = destination.exists()
+                destination_is_dir = destination.is_dir()
+            except OSError as error:
+                failures.append(
+                    f"{label}: cannot stat target: {type(error).__name__}: {error}"
+                )
+                continue
+
+            if not destination_exists:
                 failures.append(f"{label}: target does not exist")
                 continue
-            if destination.is_dir() and fragment:
+            if destination_is_dir and fragment:
                 readme = destination / "README.md"
-                if not readme.exists():
+                try:
+                    readme_exists = readme.exists()
+                except OSError as error:
+                    failures.append(
+                        f"{label}: cannot stat directory README: "
+                        f"{type(error).__name__}: {error}"
+                    )
+                    continue
+                if not readme_exists:
                     failures.append(f"{label}: directory has no README.md")
                     continue
                 destination = readme
@@ -184,6 +240,14 @@ def main() -> int:
             anchor_failure = validate_anchor(destination, fragment)
             if anchor_failure:
                 failures.append(f"{label}: {anchor_failure}")
+
+    if skipped:
+        print(
+            f"Skipped {len(skipped)} unreadable documentation path(s):",
+            file=sys.stderr,
+        )
+        for skipped_path in skipped:
+            print(f"- {skipped_path}", file=sys.stderr)
 
     if failures:
         print("Documentation link validation failed:")

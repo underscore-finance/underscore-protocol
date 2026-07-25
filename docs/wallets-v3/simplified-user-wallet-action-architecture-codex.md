@@ -297,6 +297,35 @@ validation path. Version one should use that asymmetry deliberately:
 - bytecode and regression tests cover the Config, ActionDataProvider, and
   Sentinel changes as three distinct risk surfaces.
 
+The thin provider's forwarding ABI is itself an immutable wallet-generation
+boundary. Sentinel replaceability does not help when a future policy decision
+needs a Config datum or authorization stage that the provider cannot express.
+Version one therefore freezes an action-agnostic `PolicyContextV1`, not a
+yield-deposit-shaped projection. Phase 0B must define the smallest complete
+context that includes:
+
+- wallet, Config, caller, and action identity;
+- the complete existing action-data/manager-policy bundle needed by routed
+  checks, rather than a hand-picked subset for the first action;
+- an explicit stage discriminator;
+- bounded prepared asset and Lego sets for stage two; and
+- the wallet-bound registry identities required to interpret those fields.
+
+The provider only gathers and forwards these mechanically. Action-specific
+classifications use only the fixed typed fields already admitted by ActionSpec,
+the replaceable Sentinel, or another already-approved bounded source. This does
+not add generic policy parameters, and those classifications do not become new
+provider branches.
+
+Version one deliberately does not include an opaque reserved extension blob.
+An untyped blob cannot manufacture future Config data that the immutable
+provider does not know how to gather, and interpreting it would obscure the
+closed-policy boundary. A proposed action may be enabled in a wallet generation
+only when all of its caller and prepared-policy requirements fit that
+generation's versioned context and two-stage API. Otherwise registration or
+enablement fails closed and the proposal returns for a reviewed core/new-wallet-
+generation change.
+
 This does not make routed actions retrofittable into an already-deployed wallet.
 Existing wallet bytecode has no routed entry point, session kernel, or bound
 ActionRegistry/routed-LegoBook getters, and its Config cannot replace the
@@ -1741,6 +1770,8 @@ S55  Operator-grant return semantics and resulting external state are verified w
 S56  A predecessor required for EXIT_ONLY may retain reviewed operator authority until its last dependent position can exit; succession never repoints its Lego ID.
 S57  The immutable ActionDataProvider remains a thin adapter; replaceable Sentinel entry points own routed policy interpretation.
 S58  Wallet v3 compilation pins compiler version, optimizer, and EVM target for every release measurement.
+S59  PolicyContextV1 is versioned and action-agnostic; the immutable ActionDataProvider has no per-action policy branches or opaque extension semantics.
+S60  An action cannot be enabled when its caller or prepared-policy requirements cannot be expressed by the wallet generation's bound policy context and stages.
 ```
 
 ---
@@ -2008,9 +2039,17 @@ ceilings, measure the session-storage, calldata, decoding, and gas costs, and
 lower each bound when the first action family does not need it. No implementation
 begins with an unnamed or effectively unbounded array.
 
-The catalog-strip feasibility result has now been reproduced from commit
-`c8d3d002c374ce2cf7038d0e5de4fbd613478d39` with Vyper 0.4.3, code-size
+The catalog-strip feasibility result has now been reproduced from checkout
+`c8d3d002c374ce2cf7038d0e5de4fbd613478d39`; the measured wallet source was
+last modified at `9c959ac449a7f37c9287cd014c76d08b83aa5935` and is identified
+independently by its source hash. The measurement uses Vyper 0.4.3, code-size
 optimization, and an explicit `prague` EVM target:
+
+This Wallet v3 build identity is intentionally separate from the archived PoC
+identity in `docs/poc/user-wallet/`, which pins Vyper 0.4.3 with
+`optimizer=gas` and `evm_version=cancun`. The PoC remains historical evidence;
+its target must not be “harmonized” with Wallet v3 because doing so would change
+the bytecode and invalidate its hash-pinned evidence identity.
 
 ```text
 Current runtime:                         23,032 bytes
@@ -2028,10 +2067,11 @@ Run:
 python tools/measure_wallet_v3_catalog_strip.py --pretty
 ```
 
-The tool records the source hash, exact removed external and internal functions,
-scratch-only legacy-interface adjustment, implicit-versus-pinned target match,
-creation/runtime hashes, and both comparator variants. The 8,461-byte result
-reproduces the earlier reviewer figure.
+The tool separately records the current repository commit and the source file's
+last-modified commit, plus the source hash, exact removed external and internal
+functions, scratch-only legacy-interface adjustment, implicit-versus-pinned
+target match, creation/runtime hashes, and both comparator variants. The
+8,461-byte result reproduces the earlier reviewer figure.
 
 This is an upper bound on available room, not an implementation disposition.
 The compiler may omit source-retained shared helpers while they are unreachable;
@@ -2412,6 +2452,7 @@ contract edits, deployment, migration, or live transactions.
 | 2026-07-24 | PoC namespace separation | Moved the paused experiment into `docs/poc/user-wallet/`, `contracts/poc/userWallet/`, and `tests/poc/userWallet/`; reserved the Wallet v3 contract and test paths for the new architecture; and preserved historical PoC names and evidence identities |
 | 2026-07-24 | Separation review correction | Moved the earlier Codex proposal into this directory; corrected stale archived runtime evidence; disclosed archive path, node-ID, and source-hash rewrites; and documented fork/gas reproduction and path-history constraints |
 | 2026-07-24 | Implementation-readiness clarification | Reproduced the 8,461-byte catalog-stripped feasibility bound; made ActionDataProvider a thin immutable adapter to replaceable Sentinel policy; specified transient-lock build pinning; added a closed named external-operator authority boundary; made routed execution explicitly new-generation-only; and split Phase 0/1 into measurement, provisional design, isolated/shared candidates, one yield slice, and a formal no-deployment-before-ratification gate |
+| 2026-07-25 | Implementation-plan traceability revision | Defined the bounded, versioned, action-agnostic `PolicyContextV1` boundary; rejected opaque provider-extension semantics; required unsupported policy inputs to fail before action enablement; added S59–S60; distinguished Wallet v3's Prague build from the archived PoC's Cancun evidence identity; and aligned package/invariant traceability with the implementation roadmap |
 
 Future material revisions append a row here. A future replacement uses a new
 file and marks this document `SUPERSEDED` in its header rather than rewriting

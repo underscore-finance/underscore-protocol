@@ -245,6 +245,13 @@ def run_measurement() -> dict[str, object]:
         "repositoryCommit": git_value("rev-parse", "HEAD"),
         "repositoryDirty": bool(git_value("status", "--short")),
         "sourcePath": str(SOURCE_PATH.relative_to(REPO_ROOT)),
+        "sourceLastModifiedCommit": git_value(
+            "log",
+            "-1",
+            "--format=%H",
+            "--",
+            str(SOURCE_PATH.relative_to(REPO_ROOT)),
+        ),
         "sourceSha256": sha256_bytes(source_bytes),
         "sourceLines": len(source.splitlines()),
         "vyperVersion": vyper.__version__,

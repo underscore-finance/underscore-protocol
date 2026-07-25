@@ -71,6 +71,22 @@ AUTH Named external operator-authority package
 4    Swap / liquidity / rewards / other reviewed actions
 ```
 
+### 1.1 Package status at this revision
+
+| Package | Status | Meaning |
+|---|---|---|
+| 0A0 | Complete | Reproducible measurement only; no implementation disposition |
+| 0A | Next / not started | May begin only with a recorded base commit and evidence location |
+| 0B | Pending prerequisites | Waits for reviewed 0A evidence and the named section 11 owner decisions |
+| 1A, 1B1, 1B2, 1B3, 1C | Gated | Wait for a qualifying 0B disposition; remain one unshipped candidate |
+| 1D | Gated | Waits for the complete integrated Phase 1 evidence package |
+| 2A, 2B, AUTH, 3A, 3B, 3C, 4 | Future summaries | Must be expanded to the full section 5 contract before their entry gates |
+
+`Complete` describes only package 0A0's measurement status. The overall plan
+remains a draft, and no contract implementation or deployment is authorized.
+No package is currently blocked by an unexpected failure; `gated` means its
+declared prerequisites have not yet been satisfied.
+
 Payments remain a separate owner decision.
 
 No Phase 1 contract is deployed, registered, or activated independently before
@@ -150,8 +166,11 @@ python tools/measure_wallet_v3_catalog_strip.py --pretty
 Measurement source:
 
 ```text
-Repository commit:
+Measurement baseline checkout:
 c8d3d002c374ce2cf7038d0e5de4fbd613478d39
+
+Wallet source last-modified commit:
+9c959ac449a7f37c9287cd014c76d08b83aa5935
 
 Source:
 contracts/core/userWallet/UserWallet.vy
@@ -171,6 +190,10 @@ prague
 
 The implicit Vyper target and explicitly pinned `prague` target produced
 byte-for-byte identical baseline runtime code during this measurement.
+The report records both `repositoryCommit` for the checkout in which it ran and
+`sourceLastModifiedCommit` for the measured wallet source. Documentation-only
+commits may change the former; the latter plus `sourceSha256` identifies the
+load-bearing input.
 
 ### 3.2 Results
 
@@ -261,6 +284,13 @@ Phase 0 must:
 The default implementation direction is transient unless evidence requires a
 different choice.
 
+Wallet v3's current reproduction identity is Vyper 0.4.3,
+`optimizer=codesize`, and `evm_version=prague`. The archived PoC intentionally
+uses Vyper 0.4.3, `optimizer=gas`, and `evm_version=cancun`. They are separate
+evidence profiles. No implementation or cleanup pass may harmonize the archived
+PoC target with Wallet v3, because that would change the PoC bytecode and break
+its hash-pinned historical evidence.
+
 ### 4.2 Thin immutable ActionDataProvider
 
 Each current Config binds `ACTION_DATA_PROVIDER` immutably. Sentinel and
@@ -283,6 +313,31 @@ replaceable Sentinel
 ActionDataProvider must not become the evolving policy engine. Sentinel owns
 substantive routed-policy interpretation through distinct entry points, and the
 legacy direct entry point retains its existing meaning.
+
+The provider's forwarding ABI is nevertheless immutable per Config generation,
+so Phase 0B must design an action-agnostic, versioned `PolicyContextV1` rather
+than a projection tailored to yield deposit. The bounded context must carry:
+
+- wallet, Config, caller, and action identity;
+- the complete existing action-data/manager-policy bundle required by routed
+  checks;
+- an explicit stage discriminator;
+- bounded stage-two prepared asset and Lego sets; and
+- the wallet-bound registry identities needed to interpret the context.
+
+The provider mechanically gathers and forwards those fields. It contains no
+per-action branches. New action-specific classifications use only fixed typed
+fields already admitted by the immutable ActionSpec, the replaceable Sentinel,
+or another already-approved bounded source. This does not add generic policy
+parameters.
+
+There is no opaque reserved extension blob in version one. Such a blob would
+not let an immutable provider gather a future Config datum it does not know
+about, while its interpretation would weaken the closed-policy model. A future
+action is compatible without wallet changes only when all of its caller and
+prepared-policy requirements fit `PolicyContextV1` and the two declared stages.
+Otherwise registration or enablement fails closed and the proposal requires a
+reviewed core/new-generation change.
 
 ### 4.3 Closed external operator authority
 
@@ -329,7 +384,7 @@ requires a separate owner authorization and its own rollback plan.
 
 ## 5. Work-package contract
 
-Every package must contain:
+A package is implementation-ready only when its record contains:
 
 1. **Entry evidence:** exact prerequisite commit, decisions, and passing gates.
 2. **Question answered:** one falsifiable reason the package exists.
@@ -343,6 +398,11 @@ Every package must contain:
 9. **Evidence record:** commands, outputs, artifact hashes, and expected
    differences.
 10. **Disposition:** `PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
+
+Phase 0 and Phase 1 packages below carry this contract now because they are the
+next implementable work. Section 8 entries are explicitly future summaries; the
+owner cannot authorize entry into one until it has first been expanded into the
+same ten-field contract and independently reviewed.
 
 ### 5.1 Risk classes
 
@@ -378,6 +438,41 @@ Deferred questions:
 The implementer prepares the evidence. An independent reviewer checks it. The
 owner selects the final disposition when an owner gate is named.
 
+### 5.3 Security-invariant traceability
+
+The governing architecture currently defines S1–S60. The table names the first
+package expected to produce executable proof and the later package that must
+carry the integrated or regression evidence. A package's own evidence list
+names its applicable IDs; Phase 1D may not ratify an active surface with an
+unmapped or unproven invariant.
+
+| Invariant IDs | First executable proof | Integrated or continuing proof |
+|---|---|---|
+| S1–S2 | 0B phase-kernel harness | 1C and every routed action |
+| S3 | 1A lifecycle + 1B2 fail-closed policy | 1C and every routed action |
+| S4–S6 | 1B1/1B2 manager-policy tests | 1C and every manager route |
+| S7–S8 | 1A registry tests | Every later action registration |
+| S9–S25 | 1C vertical slice | Every routed action; S12 also regressed by 1B3 |
+| S26–S27 | 2B rebalance | 3C and every later composite/trade action |
+| S28–S30 | 1C settlement tests | Every routed action |
+| S31–S32 | 1C surviving-exit and direct-rail tests | 2A/2B exits; separate payment decision |
+| S33 | 1C wallet-bound registry tests | Every Wallet v3 generation |
+| S34 | No verifier in Phase 1; negative assertion at 1D | First Phase 4 package proposing a verifier |
+| S35–S36 | 1B2 authentication + 1C commitment | Every routed action |
+| S37–S39 | 1A lifecycle tests | 1C dispatch and every EXIT_ONLY action |
+| S40–S43 | 1C prepared-set and zero-spend tests | Every routed action |
+| S44–S45 | 1B3 protected-ID tests | 2A/2B and every position-bearing successor |
+| S46 | 1B1 Config lifecycle tests | Every manager action-ID update |
+| S47–S50 | 1B2/1C policy, callback, and session tests | Every routed settlement |
+| S51–S52 | 1B1/1B2 Config and routed-ABI tests | 1C and every routed action |
+| S53–S56 | AUTH | Every action that requires external operator authority |
+| S57 | 1B1/1B2 provider/Sentinel boundary tests | Every provider or Sentinel replacement |
+| S58 | 0A/0B build evidence | Every compiled release artifact |
+| S59–S60 | 0B context design + 1B1 provider tests | 1C and every proposed future action |
+
+The matrix is a coverage index, not a substitute for test cases. The evidence
+record at each gate links each listed invariant to exact tests and outputs.
+
 ---
 
 ## 6. Phase 0 packages
@@ -386,11 +481,35 @@ owner selects the final disposition when an owner gate is named.
 
 **Status:** Complete.
 
+**Entry evidence:** Source baseline
+checkout `c8d3d002c374ce2cf7038d0e5de4fbd613478d39`; wallet source
+last-modified commit `9c959ac449a7f37c9287cd014c76d08b83aa5935`;
+measurement implementation and record at `fdb3bad`. No owner decision or prior
+package was required because the work modified scratch source only.
+
 **Question:** Can removal of the hardcoded action catalog create plausible
 kernel headroom?
 
+**Changed surfaces:** Measurement tool and documentation. The tool creates
+temporary compiler inputs and deletes them after the run.
+
+**Untouched surfaces:** Production contract source, ABI, storage, tests,
+registries, governance, and deployments.
+
+**Fund and authority flow:** None. No wallet is deployed or called, no token
+authority is created, and no live funds move.
+
+**Security invariants:** S58. The result also sizes code later needed to prove
+S1–S57 and S59–S60; it does not itself prove them.
+
 **Result:** The source transformation reproduced an 8,461-byte runtime with
 16,115 bytes of EIP-170 headroom.
+
+**Measurements:** Section 3 records creation/runtime sizes, code hashes, source
+hash, explicit compiler settings, and the implicit-versus-pinned target match.
+
+**Evidence record:** `python tools/measure_wallet_v3_catalog_strip.py --pretty`
+must reproduce section 3 from the named source hash.
 
 **Disposition:** Measurement only. The formal disposition waits for 0B's
 compiled provisional skeleton.
@@ -398,6 +517,13 @@ compiled provisional skeleton.
 **Rollback:** None; production source was not transformed.
 
 ### 6.2 Package 0A — Current-state baseline
+
+**Status:** Next / not started.
+
+**Entry evidence:** Record the exact base commit before edits; reproduce 0A0
+from `fdb3bad`; verify the governing architecture and this plan are the current
+reviewed revisions. No section 11 owner decision is required to collect
+read-only baseline evidence.
 
 **Question:** What exact behavior and cost must the first routed deposit preserve
 or deliberately change?
@@ -429,12 +555,42 @@ or deliberately change?
 - no registry or timelock action;
 - no migration design.
 
+**Fund and authority flow:** Record the complete existing flow before changing
+it: caller authorization, pre-action accounting, approval creation, Lego pull,
+protocol deposit, returned position, approval cleanup, settlement, and every
+external operator grant or revocation. Fork execution uses local overlay funds
+only; no live transaction is authorized.
+
+**Security invariants:** Baseline S32, S35, and S58 directly. Record the current
+behavior that later packages compare when proving S1–S31, S33–S57, and S59–S60.
+
+**Measurements:** The required-evidence list above is the minimum size, gas,
+calldata, L1-data, Appraiser, and governance baseline.
+
+**Rollback:** Revert only tests, measurement helpers, and documentation if the
+baseline method is rejected. Contract state and deployed state never change.
+
+**Evidence record:** Record the exact base/result commits, commands, environment,
+selected tests, outputs, hashes, and unexplained deviations in the Phase 0
+evidence directory selected before work begins.
+
+**Disposition:** Pending independent review: `PROCEED`, `PROCEED NARROWER`,
+`REDESIGN`, or `STOP` for entry into 0B.
+
 **Stop condition:** Any baseline that cannot be reproduced or explained blocks
 the dependent 0B decision. It does not get replaced by an estimate.
 
 **Exit:** Evidence is complete, reproducible, and reviewed.
 
 ### 6.3 Package 0B — Provisional design and compiled skeleton
+
+**Status:** Pending prerequisites.
+
+**Entry evidence:** Exact reviewed 0A result commit; 0A disposition permitting
+0B; owner decisions 1–12 from section 11; and the exact
+governing-architecture revision used to draft interfaces. Decisions 16–20 may
+remain open because 0B records the authority problem and candidate vocabulary
+without implementing AUTH.
 
 **Question:** Can a narrowly bounded session architecture and required shared
 interfaces fit with explicit safety reserves?
@@ -459,6 +615,7 @@ interfaces fit with explicit safety reserves?
 - capability-aware Yield Lego ABI;
 - Config action-ID set representation;
 - ActionDataProvider stage-one/stage-two forwarding ABI;
+- versioned, action-agnostic `PolicyContextV1` and a future-action fit test;
 - Sentinel routed-policy entry points;
 - LegoBook protected-ID rule;
 - first fixed settlement recipe; and
@@ -475,6 +632,22 @@ interfaces fit with explicit safety reserves?
 - ActionRegistry maximum record shape; and
 - LegoBook protected-ID change.
 
+**Changed surfaces:** Provisional contracts, interfaces, compiler harness,
+candidate tests, and evidence only. Every candidate remains unshipped and may
+be replaced at the gate.
+
+**Untouched surfaces:** Existing production wallet/Config bytecode and deployed
+state; current registry mappings; timelocked governance; migration; live funds;
+and the archived PoC compiler profile and evidence hashes.
+
+**Fund and authority flow:** Skeleton tests use no live funds. The candidate
+must model the complete lock → authorize → prepare → commit → consume → settle
+authority lifecycle, but no protocol integration receives a production grant.
+
+**Security invariants:** Design and skeleton coverage for S1–S3, S9–S25,
+S28–S30, S33, S35–S36, S40–S43, S47–S50, and S57–S60. Registry, Config,
+LegoBook, and integration-specific proofs remain assigned to Phase 1.
+
 **Required comparison:**
 
 ```text
@@ -490,11 +663,19 @@ complete Config blueprint/runtime
 The owner selects the reserve before the gate; the implementation does not use
 all measured headroom by default.
 
+**Measurements:** Complete wallet runtime/creation size, Config
+runtime/blueprint size, Sentinel/HighCommand and LegoBook impact, safety
+reserves, phase/storage cost, maximum context/calldata sizes, and skeleton gas.
+
+**Evidence record:** Record the exact entry/result commits, compiler settings,
+source and bytecode hashes, interface schemas, candidate bounds, commands,
+outputs, invariant-to-test links, and every difference from 0A.
+
 **Permitted amendment:** Interfaces are provisional. Phase 1C may propose a
 minimal evidence-backed change. Phase 1D must record and ratify it; silent drift
 is not allowed.
 
-**Gate:** `PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
+**Disposition gate:** `PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
 
 **Rollback:** Discard the skeleton and retain only the evidence when the
 disposition is `REDESIGN` or `STOP`.
@@ -504,6 +685,12 @@ disposition is `REDESIGN` or `STOP`.
 ## 7. Phase 1 packages
 
 ### 7.1 Package 1A — Isolated ActionRegistry
+
+**Status:** Gated by 0B.
+
+**Entry evidence:** Exact 0B result commit and a disposition that permits the
+registry candidate; frozen ActionSpec/lifecycle bounds; recorded implementation
+base commit; and no unresolved 0B condition assigned to 1A.
 
 **Question:** Can action identity, immutable implementation binding, and one-way
 lifecycle remain small and independently auditable?
@@ -537,6 +724,13 @@ Final names are frozen in 0B.
 - Hatchery and MissionControl;
 - production registries.
 
+**Fund and authority flow:** No wallet or Lego calls the isolated registry.
+Tests exercise governance identities and lifecycle state only; no token
+authority or funds exist.
+
+**Security invariants:** S3 and S6–S8 directly; registry-side prerequisites for
+S9, S33, and S37–S39.
+
 **Evidence:**
 
 - full section 16.1 test set;
@@ -544,10 +738,27 @@ Final names are frozen in 0B.
 - malicious registration and lifecycle tests; and
 - no storage or call dependency on current wallets.
 
+**Measurements:** Maximum runtime/creation size, maximum-record storage and
+read gas, registration/confirmation/lifecycle gas, and review-delay timing.
+
+**Evidence record:** Exact base/result commits, compiler settings, ABI and
+storage layout, maximum ActionSpec encoding, commands, outputs, hashes, and
+S3/S6–S8 test links.
+
 **Rollback:** Delete/revert the unshipped isolated candidate if Phase 1D does not
 ratify the architecture.
 
+**Disposition:** Pending Phase 1A review and final Phase 1D ratification:
+`PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
+
 ### 7.2 Package 1B1 — New-generation Config and thin ActionDataProvider
+
+**Status:** Gated by 0B.
+
+**Entry evidence:** Exact 0B result commit and qualifying disposition; owner-
+selected action-ID bounds and `PolicyContextV1`; recorded implementation base
+commit; and the exact Wallet v3 Config/ActionDataProvider ABI frozen for this
+candidate.
 
 **Question:** Can explicit manager action IDs and two-stage forwarding fit
 without creating a second policy engine?
@@ -562,7 +773,9 @@ without creating a second policy engine?
 - addition-only lifecycle validation through the wallet's bound registry getter;
 - retained `EXIT_ONLY` behavior;
 - starter manager begins with no routed action IDs;
-- immutable thin ActionDataProvider with stage-one/stage-two forwarding; and
+- immutable thin ActionDataProvider with stage-one/stage-two forwarding;
+- versioned, action-agnostic `PolicyContextV1`, with no per-action branch or
+  opaque extension semantics; and
 - exact Wallet v3 Config/ActionDataProvider interfaces.
 
 **Untouched:**
@@ -571,6 +784,13 @@ without creating a second policy engine?
   semantics;
 - existing deployed Configs and their immutable providers;
 - Sentinel policy meaning.
+
+**Fund and authority flow:** Config/forwarding tests create no token allowance
+and move no protocol funds. They prove only who may request routed policy data,
+which manager/action grants exist, and exactly what bounded context reaches
+Sentinel.
+
+**Security invariants:** S5–S6, S46, S51, S57, and S59–S60.
 
 **Evidence:**
 
@@ -581,11 +801,35 @@ without creating a second policy engine?
   designing migration;
 - direct Config regression suite; and
 - proof that ActionDataProvider contains forwarding/data assembly rather than
-  new policy decisions.
+  new policy decisions;
+- field-by-field proof that the full existing routed-policy bundle is forwarded,
+  not a yield-deposit projection; and
+- at least one plausible future action scenario whose caller and prepared-policy
+  requirements fit `PolicyContextV1` without an ActionDataProvider change, plus
+  a negative scenario that fails before enablement because it requires data or
+  a stage outside that envelope.
+
+**Measurements:** Config runtime/blueprint size and reserve after each field and
+method group; provider runtime/creation size; context/calldata bounds; manager
+update gas; and provider/Sentinel forwarding gas.
+
+**Evidence record:** Exact base/result commits, ABI/storage/context schema,
+compiler settings, size/gas outputs, future-action positive/negative fixtures,
+direct-regression results, hashes, and S5–S6/S46/S51/S57/S59–S60 test links.
 
 **Rollback:** Revert both candidate blueprints/interfaces. Nothing is deployed.
 
+**Disposition:** Pending 1B1 review and final Phase 1D ratification:
+`PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
+
 ### 7.3 Package 1B2 — Replaceable Sentinel and HighCommand entry points
+
+**Status:** Gated by 0B.
+
+**Entry evidence:** Exact qualifying 0B result commit; reviewed
+`PolicyContextV1` from 1B1; frozen permission taxonomy and owner action-ID rule;
+recorded implementation base commit; and no unresolved condition that changes
+direct Sentinel meaning.
 
 **Question:** Can routed policy reuse current data and helpers while preserving
 direct behavior?
@@ -608,6 +852,15 @@ direct behavior?
 - payment/payee/cheque policy;
 - production backpack registrations.
 
+**Fund and authority flow:** Policy tests do not create token authority. Stage
+one authenticates and authorizes; stage two validates prepared sets; manager
+counters advance only once during later settlement. Direct callers retain their
+existing path.
+
+**Security invariants:** S3–S5, S35, S41, S47, S52, S57, and S59–S60. This
+package supplies cumulative-permission machinery later used by S27, but the
+first executable S27 proof remains Phase 2B.
+
 **Evidence:**
 
 - old direct suite passes unchanged;
@@ -617,9 +870,26 @@ direct behavior?
 - replaceability path is tested but not exercised in production; and
 - runtime/gas impact is recorded separately for Sentinel and HighCommand.
 
+**Measurements:** Sentinel and HighCommand runtime/creation size, stage-one and
+stage-two gas, direct-call gas delta, manager-update gas, maximum context size,
+and backpack registration impact.
+
+**Evidence record:** Exact base/result commits, direct/routed ABI, compiler
+settings, commands, outputs, hashes, direct-regression comparison, and invariant
+test links.
+
 **Rollback:** Revert the unregistered candidate implementations.
 
+**Disposition:** Pending 1B2 review and final Phase 1D ratification:
+`PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
+
 ### 7.4 Package 1B3 — Shared LegoBook protection
+
+**Status:** Gated by 0B.
+
+**Entry evidence:** Exact qualifying 0B result commit; owner-selected minimum
+protected-ID scope; recorded implementation base commit; inventory of current
+update callers; and a reviewed predecessor/successor test fixture.
 
 **Question:** Can routed and position-bearing Lego IDs be made non-repointable
 without breaking current registry use?
@@ -641,6 +911,13 @@ without breaking current registry use?
 - production Lego mappings;
 - no ID is protected or registered during development.
 
+**Fund and authority flow:** Registry-governance tests create no wallet
+allowance and move no funds. They prove that consumer authority continues to
+resolve to the reviewed predecessor or separately registered successor ID and
+cannot change through in-place repointing.
+
+**Security invariants:** S12, S44–S45, and S49.
+
 **Evidence:**
 
 - section 16.2 tests;
@@ -649,10 +926,27 @@ without breaking current registry use?
 - current-v2 lookup compatibility; and
 - predecessor/successor exit fixture.
 
+**Measurements:** LegoBook runtime/creation size, protected-ID storage,
+add/confirm/update gas, governance delay, and current-v2 lookup gas/behavior.
+
+**Evidence record:** Exact base/result commits, ABI/storage delta, current
+caller inventory, compiler settings, commands, outputs, hashes, governance
+timing, and S12/S44–S45/S49 test links.
+
 **Rollback:** Revert the unshipped shared-contract change. This package may not
 be deployed early merely because other Phase 1 code is ready.
 
+**Disposition:** Pending 1B3 review and final Phase 1D ratification:
+`PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
+
 ### 7.5 Package 1C — Yield-deposit vertical slice
+
+**Status:** Gated by 0B and the reviewed 1A/1B candidates.
+
+**Entry evidence:** Exact qualifying 0B disposition; exact reviewed 1A, 1B1,
+1B2, and 1B3 candidate commits; all Phase 1 interfaces and bounds named in one
+integration record; recorded implementation base commit; and no unresolved
+condition affecting the yield-deposit flow.
 
 **Question:** Does one real action validate the complete architecture at
 acceptable complexity and cost?
@@ -671,7 +965,7 @@ acceptable complexity and cost?
 - fixed yield-deposit settlement and Appraiser valuation; and
 - Wallet v3 tests and differential fixtures.
 
-**Exact call and fund flow:**
+**Fund and authority flow:**
 
 ```text
 Caller
@@ -713,6 +1007,10 @@ The initial slice creates no external protocol operator grant.
 - debt, swap, liquidity, rewards, and payment routing;
 - operator-authority implementation.
 
+**Security invariants:** S1–S25, S28–S33, S35–S43, S47–S52, and S57–S60.
+The slice must identify the surviving owner exit/recovery path required by S31.
+S26–S27, S34, and S53–S56 remain inactive rather than implicitly proven.
+
 **Evidence:**
 
 - all governing section 16 tests applicable to the slice;
@@ -728,15 +1026,35 @@ The initial slice creates no external protocol operator grant.
 - direct-rail regression/parity; and
 - Base-fork execution under the documented harness.
 
+**Measurements:** Complete wallet/Config/provider/Sentinel/HighCommand/
+ActionRegistry/LegoBook/extender/Lego runtime and creation sizes; every safety
+reserve; deployment and action gas; calldata and L1 data cost; Appraiser calls;
+and shared-governance gas.
+
+**Evidence record:** Exact entry/result commits and source hashes, compiled
+settings, bytecode hashes, interface versions, invariant-to-test mapping,
+differential expected differences, commands, outputs, fork inputs, and gas
+artifacts.
+
 **Rollback:** Revert all Phase 1 candidate changes. No production component has
 been deployed or registered.
 
+**Disposition:** Pending integrated review and Phase 1D owner decision:
+`PROCEED`, `PROCEED NARROWER`, `REDESIGN`, or `STOP`.
+
 ### 7.6 Package 1D — Ratification gate
+
+**Status:** Gated by complete Phase 1 evidence.
+
+**Entry evidence:** Exact integrated Phase 1 result commit; reviewed 1A, 1B1,
+1B2, 1B3, and 1C package records; complete S1–S60 coverage index with inactive
+invariants explicitly identified; independent review identity; and rollback
+confirmation.
 
 **Question:** Is the vertical slice sufficiently safe, understandable, bounded,
 and economical to become the trunk for additional actions?
 
-**Required record:**
+**Evidence record:**
 
 - exact commit and source hashes;
 - all changed contracts and interfaces;
@@ -750,6 +1068,27 @@ and economical to become the trunk for additional actions?
 - rollback confirmation;
 - independent review; and
 - owner disposition.
+
+**Changed surfaces:** Evidence and ratification record only. Any interface or
+contract amendment discovered at the gate returns to the owning package and is
+recompiled/retested before disposition.
+
+**Untouched surfaces:** Production deployments, registries, timelocks, live
+funds, migration, and all post-1D action families.
+
+**Fund and authority flow:** Confirm that the integrated evidence matches the
+documented 1C flow, starts and ends with zero routed allowance, leaves no
+session authority, and preserves a usable owner exit/recovery path.
+
+**Security invariants:** Ratify every invariant active in the slice. Record
+S26–S27, S34, and S53–S56 as inactive/deferred, not silently satisfied.
+
+**Measurements:** Ratify final measured sizes, reserves, gas, calldata, L1 data,
+Appraiser calls, deployment/governance costs, and every approved delta from 0A.
+
+**Rollback:** A `REDESIGN` or `STOP` disposition leaves all candidate components
+unshipped and preserves only evidence. `PROCEED` does not itself authorize
+deployment.
 
 **Dispositions:**
 
@@ -765,9 +1104,18 @@ planning.
 
 ## 8. Expansion packages
 
+The entries in this section are required-proof summaries, not yet
+implementation-ready packages. Before an entry gate, the owning agent must
+expand the summary into all ten section 5 fields, name exact prerequisite
+commits and owner decisions, and receive an independent review. The lighter
+format here deliberately avoids freezing downstream interfaces before Phase 1D.
+
 ### 8.1 Phase 2A — Yield withdrawal
 
 Add withdrawal as a separate action ID and fixed settlement recipe.
+
+**Primary invariants:** S31, S37–S39, S45–S46, and S51, plus regression of
+every Phase 1 invariant exercised by withdrawal.
 
 Required proof:
 
@@ -784,6 +1132,9 @@ Required proof:
 Treat rebalance as one wallet action and one capability consumption. The
 reviewed Lego may perform multiple protocol calls.
 
+**Primary invariants:** S26–S27, S31, S37–S45, and S47–S52, plus regression of
+the Phase 1 session and authority invariants.
+
 Required proof:
 
 - source position reduction;
@@ -798,6 +1149,8 @@ Required proof:
 ### 8.3 AUTH — Named external operator authority
 
 **Entry:** Phase 0 inventory and owner-selected authority shapes.
+
+**Primary invariants:** S53–S56.
 
 **Question:** Can required protocol operator access replace the generic
 target-and-ABI raw call without creating arbitrary authority?
@@ -824,6 +1177,9 @@ Phase 0 are implemented.
 
 Move the lower-risk debt spend actions first.
 
+**Primary invariants:** S13–S21, S28–S31, S40–S47, and S53–S56 where the
+selected protocol requires operator authority.
+
 Required proof:
 
 - named operator authority where the protocol requires it;
@@ -839,6 +1195,9 @@ Required proof:
 These expand wallet exposure and therefore require stronger observed-settlement
 and limits evidence.
 
+**Primary invariants:** S13–S21, S28–S31, S40–S47, and S53–S56 where the
+selected protocol requires operator authority.
+
 Required proof:
 
 - debt/collateral changes independently observed;
@@ -851,6 +1210,9 @@ Required proof:
 ### 8.6 Phase 3C — Deleverage
 
 One action ID may represent the reviewed multi-step workflow:
+
+**Primary invariants:** S11–S31, S40–S48, and S53–S56 where the selected
+protocol requires operator authority.
 
 ```text
 release collateral
@@ -881,6 +1243,11 @@ Candidate order:
 6. other actions that fit existing permission, authority, and settlement
    vocabularies.
 
+**Primary invariants:** Determined when each summary becomes a full package.
+At minimum, action/consumer identity and lifecycle reprove S7–S12 and S37–S45;
+any verifier proposal first activates S34; policy-context admission reproves
+S59–S60.
+
 Every new action:
 
 - gets a new immutable action ID when meaning, schema, or extender changes;
@@ -894,6 +1261,9 @@ Every new action:
 
 Existing direct payment, payee, cheque, Billing, and `preparePayment` paths stay
 unchanged. No payment action enters routing until a separate document compares:
+
+**Primary invariant:** S32 until a separately approved architecture replaces
+the direct-only boundary.
 
 - current direct behavior and gas;
 - required authorization lifetime;
@@ -1017,7 +1387,7 @@ addresses, Appraiser inputs, and any calibration mismatch as an evidence stop.
 3. Owner action-ID bypass behavior under `canOwnerManage`.
 4. ActionRegistry review delay.
 5. Action-ID implementation/version semantics.
-6. Initial `PreparedAction` and session bounds.
+6. Initial `PreparedAction`, `PolicyContextV1`, stage, and session bounds.
 7. Wallet and Config bytecode safety reserves.
 8. First yield-deposit settlement and valuation recipe.
 9. Pinned compiler optimizer and EVM target.
@@ -1110,6 +1480,7 @@ The visual website is explanatory and never overrides either Markdown document.
 | Date | Revision | Disposition |
 |---|---|---|
 | 2026-07-24 | Initial implementation roadmap | Added the reproduced catalog-strip budget; new-generation coexistence; thin immutable ActionDataProvider boundary; named operator-authority package; 0A/0B/1A/1B/1C/1D decomposition; no-partial-deployment rule; yield/debt expansion packages; artifact inventory; verification model; rollback rules; owner decisions; and uniform formal dispositions |
+| 2026-07-25 | Reviewer traceability and compatibility hardening | Added the package-status snapshot; defined action-agnostic `PolicyContextV1` and its fail-closed generation boundary; kept opaque provider extensions out of version one; separated Wallet v3 Prague and archived-PoC Cancun identities; added entry evidence and pending dispositions to Phase 0/1; classified section 8 as future summaries; mapped S1–S60 to packages; and required invariant-linked evidence at Phase 1D |
 
 Future material revisions append a row. A replacement marks this file
 `SUPERSEDED` rather than overwriting its history.
