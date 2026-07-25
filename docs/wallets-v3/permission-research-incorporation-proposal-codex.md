@@ -67,11 +67,11 @@ My recommended incorporation is:
    one permanent bit.
 7. Keep payments on the mature direct rails initially. `TRANSFER` means value
    moves now; `PAYMENT_COMMITMENT` means a bounded claim survives.
-8. Add `PAY_NETWORK_FEES` and `ENROLL_PAYEE` as distinct durable permissions,
-   but do not make either grantable before its bounded package exists. Keep
-   delegated administration, standing allowances, offchain signatures, and
-   cross-chain authority out of the initial implementation merely because the
-   research discussed them.
+8. Add `PAY_NETWORK_FEES`, `ENROLL_PAYEE`, and `REVOKE_CLAIMS` as distinct
+   durable permissions, but do not make any grantable before its bounded
+   package exists. Keep delegated administration, standing allowances,
+   offchain signatures, and cross-chain authority out of the initial
+   implementation merely because the research discussed them.
 9. Treat composite authorization as:
 
    ```text
@@ -116,9 +116,9 @@ repository. Its highest-value contributions are:
 
 Its broader 17-boundary recommendation should not be adopted wholesale. It
 introduces product capabilities that the current wallet does not need for the
-first routed architecture, including delegated claim revocation. This proposal
-adopts the network-fee and bounded payee-enrollment boundaries in the durable
-vocabulary without pretending either functionality already exists.
+first routed architecture. This proposal adopts the network-fee, bounded
+payee-enrollment, and claim-revocation boundaries in the durable vocabulary
+without pretending any of those functionalities already exists.
 
 The document also contains two unresolved reversals. This is not an inference
 from its source-attribution column: section 4.5 is explicitly titled
@@ -198,7 +198,7 @@ they do not automatically justify merging distinct categories of authority.
 | Defensive authority | One cross-family `POSITION_EXIT` | Separate strategy, debt, and liquidity exit permissions | Separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT`, each narrowed further by exact action IDs and postconditions |
 | Network fees | Reverses between a separate bit (§4.2), rejection as a permission (§4.5), and separate boundary (§10.3) | Fee policy under the parent action | Separate `PAY_NETWORK_FEES` permission, additive to the parent action and ungrantable until its package exists |
 | Payee enrollment | Reverses between a separate bit (§4.2), owner configuration (§4.5), and bounded delegated enrollment (§10.3) | Owner-controlled recipient enrollment | Separate `ENROLL_PAYEE`, ungrantable until its probationary enrollment package exists |
-| Delegated revocation | Initial defensive permission | Later, after inventory and anti-griefing | Later |
+| Delegated revocation | Initial defensive permission | Later, after inventory and anti-griefing | Owner-selected `REVOKE_CLAIMS`, ungrantable until inventory, scope, and anti-griefing rules exist |
 | Self-custody transforms | Use existing family axis and action IDs | Separate initial transform permission | Explicit action under `TRADE` |
 | Action implementation update | Same semantic action ID may receive a versioned implementation | Material code receives a new action ID | New extender receives a new action ID |
 | Persistent-effect metadata | Fixed type/flag | Generic closed `persistenceMask` | Existing position/exit fields first; add new metadata only for a concrete new effect |
@@ -389,7 +389,34 @@ ordinary policy checks. `ENROLL_PAYEE` remains outside
 `SUPPORTED_PERMISSION_MASK` until this complete lifecycle package is reviewed
 and authorized.
 
-### 4.6 Deliberately not initial permissions
+### 4.6 `REVOKE_CLAIMS` is reduction-only
+
+`REVOKE_CLAIMS` allows a separately authorized manager to cancel or reduce a
+tracked surviving claim without holding the permission that created it. It
+cannot:
+
+- create a claim;
+- increase its face value or remaining exposure;
+- extend its expiry or exercise window;
+- change its asset, beneficiary, spender, or recipient;
+- turn a revocable object into an irrevocable one; or
+- act on an unknown, unenumerated, or externally unverifiable authority type.
+
+Every revocation action requires an exact action ID and must bind the claim ID,
+claim type, manager/epoch attribution, beneficiary, pre-action exposure,
+requested reduction, and wallet-observed post-action exposure. Security-
+critical partial failure is not caught; the entire same-chain revocation
+reverts atomically.
+
+The package must also define cancellation notice, reliance versus unilateral-
+right semantics, cancellation fees, frequency limits, manager-ejection
+behavior, and whether a manager may revoke only its own attributed claims or a
+broader owner-approved scope. That last scope remains a separate owner
+decision. Until the inventory and anti-griefing package is ratified,
+`REVOKE_CLAIMS` remains outside `SUPPORTED_PERMISSION_MASK` and is not
+grantable.
+
+### 4.7 Deliberately not initial permissions
 
 #### Self-custody transforms
 
@@ -813,6 +840,12 @@ and lifecycle gate that effect; it does not consume
 satisfy every applicable inventory, attribution, expiry, suspension, ejection,
 and bounded-enumeration rule below.
 
+`REVOKE_CLAIMS` is the distinct reduction authority for tracked surviving
+claims. It does not require the claim-creation permission, because forcing the
+same compromised manager authority to cancel what it created would defeat the
+separation. Its eventual scope and anti-griefing rules remain independently
+owner-controlled.
+
 ### 8.3 Future persistent-authority package
 
 Before a new persistent type becomes manager-authorized, require:
@@ -995,6 +1028,9 @@ It proves:
   only the typed probationary object, and remains ungrantable until its complete
   lifecycle package is approved. Payment to that payee remains separate and
   requires `TRANSFER`.
+- Any future claim-revocation action requires `REVOKE_CLAIMS`, can only reduce
+  a typed inventoried claim under the approved attribution scope, and remains
+  ungrantable until reliance and anti-griefing rules are approved.
 - Payments map `TRANSFER` and `PAYMENT_COMMITMENT` onto direct rails before any
   routing comparison.
 - Later and reserved bits require their own owner-approved packages.
@@ -1022,7 +1058,7 @@ focused revision:
 8. Add mask fields to the `PolicyContextV1` definition.
 9. Record the rejected initial categories, the additive
    `PAY_NETWORK_FEES` boundary, the non-paying `ENROLL_PAYEE` boundary, and
-   future package boundaries.
+   the reduction-only `REVOKE_CLAIMS` boundary, plus future package boundaries.
 10. Add governing invariants and map each new invariant to implementation
     packages and tests.
 
@@ -1058,11 +1094,12 @@ The research narrows the permission problem to these decisions.
 | P5 | Direct-path fallback | **OWNER SELECTED 2026-07-25:** ETH/WETH transforms require `canBuyAndSell`; the unknown default fails closed; implementation and deployment remain separately gated |
 | P6 | Existing empty policy sets | Preserve current semantics for the first slice, make wildcard meaning explicit, and measure an explicit scope representation |
 | P7 | Price-independent exits | Permit only pure, non-converting, native-bounded exits with wallet-proven non-extraction and non-expansion |
-| P8 | First persistent additions | Keep the `ENROLL_PAYEE` package, delegated revocation, standing authority, signatures, bridges, and new commitment types out of Phase 1 despite assigning their reviewed vocabulary boundaries |
+| P8 | First persistent additions | Keep the `ENROLL_PAYEE` and `REVOKE_CLAIMS` packages, standing authority, signatures, bridges, and new commitment types out of Phase 1 despite assigning their reviewed vocabulary boundaries |
 | P9 | Network-fee authority | **OWNER SELECTED 2026-07-25:** use separate `PAY_NETWORK_FEES`, additive to the parent action and ungrantable until a bounded fee package exists |
 | P10 | Payee enrollment | **OWNER SELECTED 2026-07-25:** use separate `ENROLL_PAYEE`; it creates only bounded probationary enrollment and is ungrantable until its lifecycle package exists |
+| P11 | Claim revocation | **OWNER SELECTED 2026-07-25:** include separate reduction-only `REVOKE_CLAIMS`; keep it ungrantable until typed claim inventory, scope, reliance, and anti-griefing rules exist |
 
-P3, P5, P9, and P10 are owner-selected. P4 preserves an already governing
+P3, P5, and P9–P11 are owner-selected. P4 preserves an already governing
 action-identity rule. P1–P2 and P6–P8 remain open decisions this research most
 directly informs.
 
@@ -1110,6 +1147,9 @@ The independent reviewer should answer:
 18. Does every payment to a manager-enrolled payee independently require
     `TRANSFER`, the exact payment action ID, ordinary recipient policy, and the
     payee's remaining probationary limits?
+19. Does `REVOKE_CLAIMS` only reduce a typed inventoried claim, preserve
+    beneficiary and asset identity, fail atomically, and apply the
+    owner-selected attribution scope and anti-griefing rules?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -1127,3 +1167,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P3 | Replaced the proposed cross-family `POSITION_REDUCE` bit with separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; retained shared proof and AUTH machinery while keeping the owner grants distinct |
 | 2026-07-25 | Owner disposition P9 | Added `PAY_NETWORK_FEES` as a separate durable permission that is additive to the parent action and ungrantable until recipient binding and fee caps are implemented |
 | 2026-07-25 | Owner disposition P10 | Added `ENROLL_PAYEE` as a separate durable non-payment permission for attributable, expiring, exposure-bounded probationary enrollment; left it ungrantable until its lifecycle package exists |
+| 2026-07-25 | Owner disposition P11 | Confirmed separate reduction-only `REVOKE_CLAIMS`; left it ungrantable until typed inventory, attribution scope, reliance, cancellation-cost, and anti-griefing rules are approved |
