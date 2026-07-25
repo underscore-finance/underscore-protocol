@@ -55,7 +55,7 @@ My recommended incorporation is:
 3. Forward the manager and global routed masks through `PolicyContextV1` and
    check them in the new routed Sentinel entry point. Preserve the existing
    direct-policy ABI and meaning.
-4. Use eleven initial vocabulary categories, four later categories, and one
+4. Use twelve initial vocabulary categories, four later categories, and one
    reserved boundary. “Initial vocabulary” does not mean “enabled in the first
    release”; support is enabled only with a reviewed action-family package.
 5. Give each immutable `ActionSpec` one exact static permission mask. The
@@ -67,8 +67,8 @@ My recommended incorporation is:
    one permanent bit.
 7. Keep payments on the mature direct rails initially. `TRANSFER` means value
    moves now; `PAYMENT_COMMITMENT` means a bounded claim survives.
-8. Add `PAY_NETWORK_FEES` as a distinct durable permission, but do not make it
-   grantable before a bounded fee mechanism exists. Keep `ENROLL_PAYEE`,
+8. Add `PAY_NETWORK_FEES` and `ENROLL_PAYEE` as distinct durable permissions,
+   but do not make either grantable before its bounded package exists. Keep
    delegated administration, standing allowances, offchain signatures, and
    cross-chain authority out of the initial implementation merely because the
    research discussed them.
@@ -115,10 +115,10 @@ repository. Its highest-value contributions are:
   downgrade lane.
 
 Its broader 17-boundary recommendation should not be adopted wholesale. It
-introduces several product capabilities that the current wallet does not need
-for the first routed architecture, including delegated payee enrollment and
-delegated claim revocation. This proposal adopts the network-fee boundary in
-the durable vocabulary without pretending the functionality already exists.
+introduces product capabilities that the current wallet does not need for the
+first routed architecture, including delegated claim revocation. This proposal
+adopts the network-fee and bounded payee-enrollment boundaries in the durable
+vocabulary without pretending either functionality already exists.
 
 The document also contains two unresolved reversals. This is not an inference
 from its source-attribution column: section 4.5 is explicitly titled
@@ -138,7 +138,9 @@ than accept the proposed bit table as a unit. They do not make the underlying
 concerns frivolous. In particular, a fee recipient may not be enumerable in
 the same way as an ordinary payee. The owner therefore selected a distinct
 permission while requiring a future relayer/paymaster package to solve that
-recipient-binding problem before the bit becomes grantable.
+recipient-binding problem before the bit becomes grantable. The owner also
+selected bounded delegated payee enrollment, agreeing with the synthesis's
+later considered position while requiring a probationary package before use.
 
 For fairness, the Claude synthesis's later and more deliberate reconciliation
 in section 10.3 and Appendix A favors a separate `PAY_NETWORK_FEES` permission
@@ -192,10 +194,10 @@ they do not automatically justify merging distinct categories of authority.
 
 | Topic | Claude synthesis | Codex synthesis | This proposal |
 |---|---|---|---|
-| Documented boundaries | 17 | 16 | 16: 11 initial, 4 later, 1 reserved |
+| Documented boundaries | 17 | 16 | 17: 12 initial, 4 later, 1 reserved |
 | Defensive authority | One cross-family `POSITION_EXIT` | Separate strategy, debt, and liquidity exit permissions | Separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT`, each narrowed further by exact action IDs and postconditions |
 | Network fees | Reverses between a separate bit (§4.2), rejection as a permission (§4.5), and separate boundary (§10.3) | Fee policy under the parent action | Separate `PAY_NETWORK_FEES` permission, additive to the parent action and ungrantable until its package exists |
-| Payee enrollment | Reverses between a separate bit (§4.2), owner configuration (§4.5), and bounded delegated enrollment (§10.3) | Owner-controlled recipient enrollment | Keep owner/config-controlled initially |
+| Payee enrollment | Reverses between a separate bit (§4.2), owner configuration (§4.5), and bounded delegated enrollment (§10.3) | Owner-controlled recipient enrollment | Separate `ENROLL_PAYEE`, ungrantable until its probationary enrollment package exists |
 | Delegated revocation | Initial defensive permission | Later, after inventory and anti-griefing | Later |
 | Self-custody transforms | Use existing family axis and action IDs | Separate initial transform permission | Explicit action under `TRADE` |
 | Action implementation update | Same semantic action ID may receive a versioned implementation | Material code receives a new action ID | New extender receives a new action ID |
@@ -233,7 +235,7 @@ governing design.
 
 ## 4. Proposed permission taxonomy
 
-### 4.1 Why eleven initial-vocabulary categories are appropriate
+### 4.1 Why twelve initial-vocabulary categories are appropriate
 
 The exact `actionId` gate answers:
 
@@ -254,7 +256,9 @@ exact action selection and existing limits are considered**. The owner selected
 that finer control for yield exits, debt reduction, and liquidity exits. The
 owner also selected a separate network-fee boundary because it authorizes a
 purpose-specific wallet outflow to a recipient class that may not fit ordinary
-payee allowlisting.
+payee allowlisting. Finally, the owner selected `ENROLL_PAYEE` because expanding
+the recipient set is a distinct administrative authority that should never be
+hidden inside `TRANSFER`.
 
 ### 4.2 Recommended permanent bit assignment
 
@@ -266,20 +270,21 @@ reinterpreted as these bits.
 | 0 | `TRANSFER` | INITIAL | Existing direct `canTransfer`; future direct-mask compatibility package | Send approved value now to approved recipients within existing payment limits |
 | 1 | `PAYMENT_COMMITMENT` | INITIAL | Existing direct `canCreateCheque`; future payment package | Create a typed, bounded future payment claim through a direct wallet rail |
 | 2 | `PAY_NETWORK_FEES` | INITIAL | Future bounded network-fee package; ungrantable until then | Pay a bounded relayer, paymaster, or equivalent execution fee for an otherwise authorized parent action |
-| 3 | `TRADE` | INITIAL | Later routed trade/composite package | Convert approved assets through approved integrations within price and slippage limits |
-| 4 | `YIELD` | INITIAL | Phase 1C first routed action | Open or increase an approved non-debt strategy position; no exit authority |
-| 5 | `DEBT` | INITIAL | Later debt package, after AUTH when the selected integration/action requires operator authority | Open or increase debt, leverage, or collateral-withdrawal risk |
-| 6 | `LIQUIDITY` | INITIAL | Later liquidity package | Open or increase an approved liquidity position |
-| 7 | `REWARDS` | INITIAL | Rewards package, after AUTH when an integration requires operator authority | Claim accrued rewards to the wallet without selling, transferring, or redeploying them |
-| 8 | `YIELD_EXIT` | INITIAL | First yield-withdrawal package; AUTH first only when the selected integration/action requires operator authority | Withdraw, close, or reduce an approved yield position back to the wallet |
-| 9 | `DEBT_REDUCE` | INITIAL | First defensive-debt package; AUTH first when the selected integration/action requires operator authority | Repay or otherwise reduce an existing wallet debt obligation without increasing exposure |
-| 10 | `LIQUIDITY_EXIT` | INITIAL | First liquidity-removal package; AUTH first only when the selected integration/action requires operator authority | Remove or reduce an approved liquidity position back to the wallet |
-| 11 | `REVOKE_CLAIMS` | LATER | Separate revocation package | Cancel or reduce tracked persistent rights without creating or enlarging them |
-| 12 | `CROSS_CHAIN` | LATER | Separate cross-chain package | Create a typed, bounded cross-chain transfer or message |
-| 13 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create a tracked, bounded value-moving signature that may be used later |
-| 14 | `GOVERNANCE` | LATER | Separate governance package | Exercise protocol governance without wallet administration or value transfer |
-| 15 | `PERSISTENT_EXTERNAL_AUTHORITY` | RESERVED | Not grantable until an owner-approved authority package exists | Create a named standing spender or operator right that survives the action |
-| 16–255 | Unassigned | — | Not grantable | Unknown bits reject |
+| 3 | `ENROLL_PAYEE` | INITIAL | Future probationary payee-enrollment package; ungrantable until then | Add a bounded new payee under owner-defined probation, attribution, expiry, and exposure ceilings; no payment authority |
+| 4 | `TRADE` | INITIAL | Later routed trade/composite package | Convert approved assets through approved integrations within price and slippage limits |
+| 5 | `YIELD` | INITIAL | Phase 1C first routed action | Open or increase an approved non-debt strategy position; no exit authority |
+| 6 | `DEBT` | INITIAL | Later debt package, after AUTH when the selected integration/action requires operator authority | Open or increase debt, leverage, or collateral-withdrawal risk |
+| 7 | `LIQUIDITY` | INITIAL | Later liquidity package | Open or increase an approved liquidity position |
+| 8 | `REWARDS` | INITIAL | Rewards package, after AUTH when an integration requires operator authority | Claim accrued rewards to the wallet without selling, transferring, or redeploying them |
+| 9 | `YIELD_EXIT` | INITIAL | First yield-withdrawal package; AUTH first only when the selected integration/action requires operator authority | Withdraw, close, or reduce an approved yield position back to the wallet |
+| 10 | `DEBT_REDUCE` | INITIAL | First defensive-debt package; AUTH first when the selected integration/action requires operator authority | Repay or otherwise reduce an existing wallet debt obligation without increasing exposure |
+| 11 | `LIQUIDITY_EXIT` | INITIAL | First liquidity-removal package; AUTH first only when the selected integration/action requires operator authority | Remove or reduce an approved liquidity position back to the wallet |
+| 12 | `REVOKE_CLAIMS` | LATER | Separate revocation package | Cancel or reduce tracked persistent rights without creating or enlarging them |
+| 13 | `CROSS_CHAIN` | LATER | Separate cross-chain package | Create a typed, bounded cross-chain transfer or message |
+| 14 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create a tracked, bounded value-moving signature that may be used later |
+| 15 | `GOVERNANCE` | LATER | Separate governance package | Exercise protocol governance without wallet administration or value transfer |
+| 16 | `PERSISTENT_EXTERNAL_AUTHORITY` | RESERVED | Not grantable until an owner-approved authority package exists | Create a named standing spender or operator right that survives the action |
+| 17–255 | Unassigned | — | Not grantable | Unknown bits reject |
 
 `INITIAL` means part of the initial durable vocabulary. The separate
 “First enforcement package” column states when the authority first becomes
@@ -299,6 +304,7 @@ reserved bits reject rather than existing as inert grants.
 | `TransferPerms.canTransfer` | `TRANSFER` |
 | `TransferPerms.canCreateCheque` | `PAYMENT_COMMITMENT` |
 | No current manager equivalent | `PAY_NETWORK_FEES`; assigned in the durable vocabulary but ungrantable until its package exists |
+| Owner-side payee configuration | `ENROLL_PAYEE`; future bounded manager enrollment, ungrantable until its probationary package exists |
 | `LegoPerms.canBuyAndSell` | `TRADE` |
 | `LegoPerms.canManageYield` | `YIELD` for entry/increase; `YIELD_EXIT` for withdrawal |
 | `LegoPerms.canManageDebt` | `DEBT` for borrow/remove collateral; `DEBT_REDUCE` for a qualifying repay, collateral top-up, or close |
@@ -350,17 +356,40 @@ non-enumerable recipient. An ordinary payee allowlist must not be assumed
 sufficient. The bit remains outside `SUPPORTED_PERMISSION_MASK` and is not
 grantable until that complete package is reviewed and authorized.
 
-### 4.5 Deliberately not initial permissions
+### 4.5 `ENROLL_PAYEE` is enrollment, never payment
 
-#### Payee enrollment
+Adding a recipient expands where later value may flow, so it receives a
+separate permission rather than hiding inside `TRANSFER`.
 
-Adding or broadening a recipient is authority administration. Keep it on the
-existing owner/payee-configuration rail initially.
+`ENROLL_PAYEE` authorizes only a typed probationary enrollment action. It does
+not authorize a payment, and it cannot:
 
-If product evidence later requires manager-assisted enrollment, design a
-separate probation-class object with attribution, expiry, a lifetime cap, and
-owner-configured ceilings. Do not pre-allocate an initial bit for an unbuilt
-product.
+- pay the new recipient;
+- convert a probationary payee into an unrestricted or owner-trusted payee;
+- enlarge or reset an existing payee's exposure;
+- alter another manager's enrollment;
+- bypass recipient, asset, cooldown, transaction-count, or value limits; or
+- create an enrollment outside owner-configured ceilings.
+
+The future package must bind:
+
+- the exact enrollment action ID;
+- manager and manager-epoch attribution;
+- recipient identity and any allowed recipient class;
+- creation time and expiry;
+- per-payment, rolling, and lifetime exposure ceilings;
+- the maximum number of active probationary payees;
+- owner suspension and removal;
+- manager-ejection behavior; and
+- bounded enumeration and status visibility.
+
+Paying an enrolled recipient remains a separate action requiring `TRANSFER`,
+the exact payment action ID, the probationary payee's remaining limits, and all
+ordinary policy checks. `ENROLL_PAYEE` remains outside
+`SUPPORTED_PERMISSION_MASK` until this complete lifecycle package is reviewed
+and authorized.
+
+### 4.6 Deliberately not initial permissions
 
 #### Self-custody transforms
 
@@ -777,6 +806,13 @@ expiry, and cancellation behavior.
 
 No new commitment type is created merely by registering an extender.
 
+`ENROLL_PAYEE` creates a surviving wallet-internal recipient configuration, not
+an external spender/operator right and not a payment claim. Its own permission
+and lifecycle gate that effect; it does not consume
+`PERSISTENT_EXTERNAL_AUTHORITY` or `PAYMENT_COMMITMENT`. The package must still
+satisfy every applicable inventory, attribution, expiry, suspension, ejection,
+and bounded-enumeration rule below.
+
 ### 8.3 Future persistent-authority package
 
 Before a new persistent type becomes manager-authorized, require:
@@ -955,6 +991,10 @@ It proves:
 - Any future wallet-funded fee variant adds `PAY_NETWORK_FEES` to its parent
   mask, uses a distinct action ID from the non-fee variant, and remains
   ungrantable until the bounded fee package is approved.
+- Any future manager payee-enrollment action requires `ENROLL_PAYEE`, creates
+  only the typed probationary object, and remains ungrantable until its complete
+  lifecycle package is approved. Payment to that payee remains separate and
+  requires `TRANSFER`.
 - Payments map `TRANSFER` and `PAYMENT_COMMITMENT` onto direct rails before any
   routing comparison.
 - Later and reserved bits require their own owner-approved packages.
@@ -981,7 +1021,8 @@ focused revision:
    reused.
 8. Add mask fields to the `PolicyContextV1` definition.
 9. Record the rejected initial categories, the additive
-   `PAY_NETWORK_FEES` boundary, and future package boundaries.
+   `PAY_NETWORK_FEES` boundary, the non-paying `ENROLL_PAYEE` boundary, and
+   future package boundaries.
 10. Add governing invariants and map each new invariant to implementation
     packages and tests.
 
@@ -1010,17 +1051,18 @@ The research narrows the permission problem to these decisions.
 
 | # | Decision | Recommendation |
 |---:|---|---|
-| P1 | Durable taxonomy | Approve eleven initial-vocabulary, four later, and one reserved boundary; activate them only through reviewed enforcement packages |
+| P1 | Durable taxonomy | Approve twelve initial-vocabulary, four later, and one reserved boundary; activate them only through reviewed enforcement packages |
 | P2 | Representation | Use parallel `uint256` manager/global routed masks in the new Config; do not expand existing manager structs |
 | P3 | Family-specific reduction authority | **OWNER SELECTED 2026-07-25:** use separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; reuse proof/AUTH machinery without generalizing the grants |
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
 | P5 | Direct-path fallback | **OWNER SELECTED 2026-07-25:** ETH/WETH transforms require `canBuyAndSell`; the unknown default fails closed; implementation and deployment remain separately gated |
 | P6 | Existing empty policy sets | Preserve current semantics for the first slice, make wildcard meaning explicit, and measure an explicit scope representation |
 | P7 | Price-independent exits | Permit only pure, non-converting, native-bounded exits with wallet-proven non-extraction and non-expansion |
-| P8 | First persistent additions | Keep payee enrollment, delegated revocation, standing authority, signatures, bridges, and new commitment types out of Phase 1 |
+| P8 | First persistent additions | Keep the `ENROLL_PAYEE` package, delegated revocation, standing authority, signatures, bridges, and new commitment types out of Phase 1 despite assigning their reviewed vocabulary boundaries |
 | P9 | Network-fee authority | **OWNER SELECTED 2026-07-25:** use separate `PAY_NETWORK_FEES`, additive to the parent action and ungrantable until a bounded fee package exists |
+| P10 | Payee enrollment | **OWNER SELECTED 2026-07-25:** use separate `ENROLL_PAYEE`; it creates only bounded probationary enrollment and is ungrantable until its lifecycle package exists |
 
-P3, P5, and P9 are owner-selected. P4 preserves an already governing
+P3, P5, P9, and P10 are owner-selected. P4 preserves an already governing
 action-identity rule. P1–P2 and P6–P8 remain open decisions this research most
 directly informs.
 
@@ -1030,14 +1072,14 @@ directly informs.
 
 The independent reviewer should answer:
 
-1. Does the eleven-permission initial vocabulary omit an authority that cannot
+1. Does the twelve-permission initial vocabulary omit an authority that cannot
    be represented safely by action ID plus existing policy?
 2. Do `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` give meaningful
    family-specific owner control without duplicating procedural action IDs?
 3. Does keeping self-custody transforms under `TRADE` create unacceptable
    owner-consent ambiguity?
-4. Is keeping payee enrollment owner-side the safer incremental choice, or
-   would it predictably force operators to over-broaden payee sets?
+4. Does `ENROLL_PAYEE` remain strictly non-paying, probationary, attributable,
+   expiring, exposure-bounded, and separately removable?
 5. Does the parallel mask actually avoid the claimed ABI churn once exact
    Config/provider/Sentinel interfaces are sketched?
 6. Are any mask fields missing from `PolicyContextV1`?
@@ -1065,6 +1107,9 @@ The independent reviewer should answer:
 17. Does every fee-paying action require both its complete parent mask and
     `PAY_NETWORK_FEES`, use a distinct action ID, bind the fee mechanism and
     recipient, and enforce absolute/proportional caps?
+18. Does every payment to a manager-enrolled payee independently require
+    `TRANSFER`, the exact payment action ID, ordinary recipient policy, and the
+    payee's remaining probationary limits?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -1081,3 +1126,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P5 | Owner classified ETH/WETH wrapping and unwrapping as exchanges requiring `canBuyAndSell`; unknown direct actions fail closed; contract implementation and deployment remain separately gated |
 | 2026-07-25 | Owner disposition P3 | Replaced the proposed cross-family `POSITION_REDUCE` bit with separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; retained shared proof and AUTH machinery while keeping the owner grants distinct |
 | 2026-07-25 | Owner disposition P9 | Added `PAY_NETWORK_FEES` as a separate durable permission that is additive to the parent action and ungrantable until recipient binding and fee caps are implemented |
+| 2026-07-25 | Owner disposition P10 | Added `ENROLL_PAYEE` as a separate durable non-payment permission for attributable, expiring, exposure-bounded probationary enrollment; left it ungrantable until its lifecycle package exists |
