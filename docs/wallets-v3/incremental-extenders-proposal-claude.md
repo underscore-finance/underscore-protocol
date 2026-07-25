@@ -19,9 +19,9 @@ wallet creation. Migration paths are explicitly out of scope. Gas savings
 are explicitly a secondary goal — the primary goal is a smaller, safer,
 more extensible change.
 
-**Inputs:** [Lean PoC Architecture](user-wallet.md) ·
-[PoC Results](POC_RESULTS.md) ·
-[Production Design Plan](production-design-plan.md) ·
+**Inputs:** [Lean PoC Architecture](../poc/user-wallet/user-wallet.md) ·
+[PoC Results](../poc/user-wallet/POC_RESULTS.md) ·
+[Production Design Plan](../poc/user-wallet/production-design-plan.md) ·
 current `UserWallet.vy` / `UserWalletConfig.vy` / walletBackpack contracts.
 
 **Revision 2** — after cross-review against the independent Codex proposal

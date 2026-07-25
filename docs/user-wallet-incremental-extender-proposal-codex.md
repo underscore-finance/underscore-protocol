@@ -331,7 +331,7 @@ envelope, one pinned `LEGO` or `CORE` consumer consumes it once, and the wallet
 settles it. The rejected item above is the broader generalized framework, not
 the open/consume/settle pattern.
 
-The PoC measured an empty routed session at `117,497` tx-equivalent gas and a minimal routed yield deposit at `292,025`, versus a `123,126` direct control. Its own disposition was to redesign routed-session cost. See [`POC_RESULTS.md`](wallets-v3/POC_RESULTS.md#L171).
+The PoC measured an empty routed session at `117,497` tx-equivalent gas and a minimal routed yield deposit at `292,025`, versus a `123,126` direct control. Its own disposition was to redesign routed-session cost. See [`POC_RESULTS.md`](poc/user-wallet/POC_RESULTS.md#L171).
 
 The incremental architecture should not knowingly reintroduce the whole measured framework around every existing action.
 
@@ -1861,9 +1861,9 @@ incremental delta. But the proposed engine does not make its own dispatch,
 codehash checks, transient frame, capability hashes, calls, and settlement free.
 
 The PoC measured
-[`117,497`](wallets-v3/POC_RESULTS.md#L181) tx-equivalent gas for the empty
+[`117,497`](poc/user-wallet/POC_RESULTS.md#L181) tx-equivalent gas for the empty
 session and
-[`292,025`](wallets-v3/POC_RESULTS.md#L183) for minimal routed yield versus a
+[`292,025`](poc/user-wallet/POC_RESULTS.md#L183) for minimal routed yield versus a
 `123,126` direct control. Those numbers do not predict the existing-wallet
 candidate, but they do require measurement before calling the overhead low
 single digits. Section 12.3 therefore retains a decomposed profile rather
