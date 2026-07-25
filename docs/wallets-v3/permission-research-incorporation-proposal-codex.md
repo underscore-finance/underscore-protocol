@@ -455,15 +455,15 @@ The direct `else: return True` fallback in
 fail-open behavior, but fixing it requires an explicit legacy disposition
 because the presently reachable fallthroughs include the direct ETH/WETH
 transforms. Treat it as an immediate, independent hardening workstream rather
-than waiting for the Wallet v3 release:
-the minimum behavior-preserving candidate is to add explicit approved branches
-for those known transforms and change the final default to `False`. A second
-choice—making the transforms consume `canBuyAndSell`—is a policy change and
-must not be smuggled into the fallback fix.
+than waiting for the Wallet v3 release. The owner has classified wrapping and
+unwrapping as exchanges and selected `canBuyAndSell` for both known transforms.
+The final unknown-action default becomes `False`.
 
-No contract change is authorized by this proposal. The legacy package needs
-owner approval plus direct regression tests for every current `ActionType`.
-Wallet v3 routed authorization always rejects an unknown action or mask.
+This disposition authorizes the product semantics in the decision record; it
+does not by itself authorize a contract edit or deployment. The legacy
+hardening package still needs explicit implementation authorization plus direct
+regression tests for every current `ActionType`. Wallet v3 routed authorization
+always rejects an unknown action or mask.
 
 ---
 
@@ -781,21 +781,18 @@ unknown-action fallback. Open a separately authorized, narrowly scoped legacy
 hardening package:
 
 1. enumerate every current `ActionType` and its intended direct permission;
-2. use the recommended fast path: preserve current ETH/WETH transform behavior
-   with explicit branches that return `True`, then change the unknown default
-   to `False`;
-3. treat any later proposal to make those transforms consume `canBuyAndSell`
-   as a separate policy-semantics change that cannot block the fail-closed
-   fallback;
+2. add explicit ETH-to-WETH and WETH-to-ETH branches that require
+   `canBuyAndSell`, as selected by the owner;
+3. change the unknown default to `False`;
 4. add positive and negative regression tests for every current action type,
-   including an unknown or future value; and
-5. ship the behavior-preserving hardening after its own owner approval.
+   including both transforms with and without `canBuyAndSell` and an unknown or
+   future value; and
+5. request separate authorization before editing or deploying the legacy
+   contract.
 
 This workstream is independent of the Wallet v3 routed implementation and does
-not authorize a contract edit in this documentation task. Choosing “preserve
-current ETH/WETH behavior” is the narrow owner decision that unblocks the
-critical default-deny change immediately; the broader `canBuyAndSell` product
-question can take longer without extending the fail-open period.
+not authorize a contract edit in this documentation task. The product question
+is closed: both transforms are exchanges and require `canBuyAndSell`.
 
 ### 9.1 Phase 0A — add evidence, not contract behavior
 
@@ -969,7 +966,7 @@ The research narrows the permission problem to these decisions.
 | P2 | Representation | Use parallel `uint256` manager/global routed masks in the new Config; do not expand existing manager structs |
 | P3 | Defensive authority | Use one cross-family `POSITION_REDUCE`, gated by exact action IDs, argument binding, wallet-verifiable non-expansion, and any separately approved integration/action-specific AUTH prerequisite |
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
-| P5 | Direct-path fallback | Authorize the behavior-preserving fast path now: explicitly allow the current ETH/WETH transforms, make the unknown default fail closed, and evaluate `canBuyAndSell` semantics separately |
+| P5 | Direct-path fallback | **OWNER SELECTED 2026-07-25:** ETH/WETH transforms require `canBuyAndSell`; the unknown default fails closed; implementation and deployment remain separately gated |
 | P6 | Existing empty policy sets | Preserve current semantics for the first slice, make wildcard meaning explicit, and measure an explicit scope representation |
 | P7 | Price-independent exits | Permit only pure, non-converting, native-bounded exits with wallet-proven non-extraction and non-expansion |
 | P8 | First persistent additions | Keep payee enrollment, delegated revocation, standing authority, signatures, bridges, and new commitment types out of Phase 1 |
@@ -1030,3 +1027,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Initial proposal | Synthesized the two permission-research reports into a smaller, non-governing recommendation |
 | 2026-07-25 | Reviewer-feedback revision | Renamed `POSITION_EXIT` to `POSITION_REDUCE`; separated recovery and obligation-reduction fund flows; added grant-time supported-mask checks, reward/AUTH sequencing, explicit one-way `YIELD` consent, an immediate independent Sentinel hardening workstream, clearer vocabulary-versus-enforcement status, and document provenance |
 | 2026-07-25 | Re-review AUTH and fast-path clarification | Added integration/action-specific AUTH prerequisites for `DEBT` and `POSITION_REDUCE`; distinguished transaction-scoped versus pre-established named operator authority; documented Ripe's dependency; made the behavior-preserving Sentinel fix the recommended independent fast path; and stated the Claude synthesis's considered network-fee position fairly |
+| 2026-07-25 | Owner disposition P5 | Owner classified ETH/WETH wrapping and unwrapping as exchanges requiring `canBuyAndSell`; unknown direct actions fail closed; contract implementation and deployment remain separately gated |
