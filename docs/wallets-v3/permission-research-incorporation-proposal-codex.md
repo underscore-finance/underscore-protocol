@@ -837,18 +837,28 @@ Sentinel representation before implementation proceeds.
 
 ## 8. Persistent effects and payments
 
-### 8.1 Phase 1 creates no new persistent external authority
+### 8.1 Phase 1 creates no new delegated authority or administrative object
 
 The first yield deposit creates a wallet-owned position represented through the
-fixed yield settlement and entry/exit metadata. It does not create:
+fixed yield settlement and entry/exit metadata. The owner selected a hard
+Phase 1 boundary: it does not create or activate:
 
 - a standing token allowance;
 - an offchain signature;
 - a bridge message;
 - a third-party pull;
 - a new payee;
+- delegated claim-revocation scope;
+- a new payment-commitment type;
 - a stream or subscription; or
 - a reusable external operator right.
+
+`ENROLL_PAYEE`, `REVOKE_CLAIMS`, `PAY_NETWORK_FEES`, `CROSS_CHAIN`,
+`OFFCHAIN_SIGNATURE`, and `PERSISTENT_EXTERNAL_AUTHORITY` remain outside the
+Phase 1 `SUPPORTED_PERMISSION_MASK`. Assignment in the durable vocabulary does
+not make a bit grantable. After the core Phase 1 action is integrated and
+ratified, each deferred capability still requires its own owner-approved
+package and evidence gate.
 
 The named operator-authority package remains separate and adds only confirmed,
 fixed call shapes.
@@ -1173,15 +1183,15 @@ The research narrows the permission problem to these decisions.
 | P5 | Direct-path fallback | **OWNER SELECTED 2026-07-25:** ETH/WETH transforms require `canBuyAndSell`; the unknown default fails closed; implementation and deployment remain separately gated |
 | P6 | Empty policy sets | **OWNER SELECTED 2026-07-25:** Wallet v3 uses `NONE=0`, `SET=1`, and `ANY=2` for manager/global asset, Lego, and payee scopes; action IDs remain exact-only; legacy direct behavior is unchanged |
 | P7 | Price-independent exits | **OWNER SELECTED 2026-07-25:** allow exact `NATIVE_BOUNDED_RECOVERY` recipes only for eligible pure no-conversion `YIELD_EXIT`/`LIQUIDITY_EXIT` actions; default remains `PRICE_REQUIRED` |
-| P8 | First persistent additions | Keep the `ENROLL_PAYEE` and `REVOKE_CLAIMS` packages, standing authority, signatures, bridges, and new commitment types out of Phase 1 despite assigning their reviewed vocabulary boundaries |
+| P8 | First persistent additions | **OWNER SELECTED 2026-07-25:** Phase 1 creates only the expected wallet-owned yield position; keep `ENROLL_PAYEE`, `REVOKE_CLAIMS`, network fees, standing authority, signatures, bridges, and new commitment types ungrantable until later packages |
 | P9 | Network-fee authority | **OWNER SELECTED 2026-07-25:** use separate `PAY_NETWORK_FEES`, additive to the parent action and ungrantable until a bounded fee package exists |
 | P10 | Payee enrollment | **OWNER SELECTED 2026-07-25:** use separate `ENROLL_PAYEE`; it creates only bounded probationary enrollment and is ungrantable until its lifecycle package exists |
 | P11 | Claim revocation | **OWNER SELECTED 2026-07-25:** include separate reduction-only `REVOKE_CLAIMS`; keep it ungrantable until typed claim inventory, reliance, and anti-griefing rules exist |
 | P12 | Revocation scope | **OWNER SELECTED 2026-07-25:** each revoker receives a bounded owner-designated set of source-manager/epoch pairs; owner/system claims remain unreachable |
 
-P3, P5–P7, and P9–P12 are owner-selected. P4 preserves an already governing
-action-identity rule. P1–P2 and P8 remain open decisions this research most
-directly informs.
+P3, P5–P12 are owner-selected. P4 preserves an already governing
+action-identity rule. P1–P2 remain open decisions this research most directly
+informs.
 
 ---
 
@@ -1207,8 +1217,9 @@ The independent reviewer should answer:
    the first yield, debt, and liquidity integrations?
 9. Does rejecting a generic `persistenceMask` leave any first-phase effect
    unclassified?
-10. Are the deferred payment, persistence, and dual-control packages separated
-    at the right boundaries?
+10. Are every deferred payment, enrollment, revocation, network-fee,
+    persistence, signature, bridge, and dual-control package absent from the
+    Phase 1 supported mask and separated behind its own evidence gate?
 11. Do any recommendations accidentally change current direct-wallet behavior?
 12. Which owner decisions must be settled before Phase 0B rather than at a
     later family gate?
@@ -1259,3 +1270,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P12 | Scoped delegated claim revocation to bounded owner-designated source-manager/epoch pairs per revoker/epoch; excluded owner, security, and system claims and stale authority after manager re-addition |
 | 2026-07-25 | Owner disposition P6 | Selected explicit Wallet v3 scope codes `NONE=0`, `SET=1`, and `ANY=2` for manager/global assets, Legos, and payees; kept routed action IDs exact-only and legacy direct semantics unchanged |
 | 2026-07-25 | Owner disposition P7 | Selected exact immutable `NATIVE_BOUNDED_RECOVERY` recipes for eligible pure no-conversion `YIELD_EXIT` and `LIQUIDITY_EXIT` actions; retained `PRICE_REQUIRED` as the default and prohibited zero-USD fallback accounting |
+| 2026-07-25 | Owner disposition P8 | Kept Phase 1 limited to the core routed architecture and expected wallet-owned yield position; left enrollment, revocation, network fees, standing authority, signatures, bridges, and new commitment types ungrantable until separate later packages |
