@@ -82,7 +82,10 @@ My recommended incorporation is:
    ```
 
    A swap cannot launder value around an asset, recipient, or value ceiling.
-10. Admit new persistent authority only through a separate, typed,
+10. Require valid prices by default. Admit price-independent execution only
+    through an exact immutable `NATIVE_BOUNDED_RECOVERY` recipe for an eligible
+    pure yield/liquidity exit.
+11. Admit new persistent authority only through a separate, typed,
     owner-approved package with inventory, attribution, exposure accounting,
     expiry, and revocation. Phase 1 creates no new persistent external
     authority.
@@ -205,7 +208,7 @@ they do not automatically justify merging distinct categories of authority.
 | Persistent-effect metadata | Fixed type/flag | Generic closed `persistenceMask` | Existing position/exit fields first; add new metadata only for a concrete new effect |
 | Empty policy sets | Prefer explicit `NONE / SET / ANY` | Prefer explicit `NONE / SET / ANY` | Owner-selected `NONE=0 / SET=1 / ANY=2` for Wallet v3 assets, Legos, and payees; legacy direct behavior unchanged |
 | Dual control | New two-manager co-signature design | Use for high-risk changes without fixing one mechanism | No new authentication system in Phase 1 |
-| Price-free defensive actions | Broad exemption after monotonicity proof | Fail closed or use native-unit bounds | Exempt only pure non-converting exits whose native-unit and postcondition proof is independently sufficient |
+| Price-free defensive actions | Broad exemption after monotonicity proof | Fail closed or use native-unit bounds | Owner-selected closed `NATIVE_BOUNDED_RECOVERY` recipes only for eligible pure yield/liquidity exits; default remains `PRICE_REQUIRED` |
 
 ---
 
@@ -230,7 +233,7 @@ governing design.
 | Payments remain direct initially | **ADOPT** | Research refines permission meaning without forcing routing |
 | Persistent effects require attribution and enumeration | **ADOPT FOR NEW EFFECTS** | No new persistent type ships without its lifecycle package |
 | Same-chain composites are atomic or separate actions | **ADOPT** | No caught security-critical partial failure |
-| Missing or invalid prices cannot silently reduce charged value to zero | **ADOPT** | Define fixed failure or independent native-unit bounds per recipe |
+| Missing or invalid prices cannot silently reduce charged value to zero | **ADOPT WITH OWNER DISPOSITION** | Default `PRICE_REQUIRED`; only exact owner-approved `NATIVE_BOUNDED_RECOVERY` recipes may use native limits and distinct accounting |
 
 ---
 
@@ -754,19 +757,41 @@ Removing collateral is not a reduction action. It requires `DEBT`.
 Missing, zero, stale, unsupported, or invalid price data must never make a
 charged action look free.
 
-The fixed settlement recipe chooses one of:
+Each compiled settlement recipe has one closed price code:
 
-1. reject without a valid price;
-2. enforce a conservative valuation; or
-3. enforce an independent native-unit ceiling that still bounds loss.
+```text
+PRICE_REQUIRED          = 0
+NATIVE_BOUNDED_RECOVERY = 1
+```
 
-A pure, non-converting exit may be price-independent only when wallet-observed
-postconditions and native-unit bounds prove that it cannot extract value or
-increase risk. A deleverage action containing a trade is not categorically
-price-exempt merely because debt decreases.
+`PRICE_REQUIRED` is the default. Missing, zero, stale, unsupported, or invalid
+price data rejects.
 
-The exact rule is an owner decision per first settlement recipe, informed by
-Phase 0A evidence.
+The owner selected `NATIVE_BOUNDED_RECOVERY` only for specifically reviewed
+recovery recipes. Eligibility requires all of the following:
+
+- the action is a pure `YIELD_EXIT` or `LIQUIDITY_EXIT`;
+- no `TRADE`, `TRANSFER`, `PAY_NETWORK_FEES`, `PAYMENT_COMMITMENT`, or
+  risk-increasing permission is present;
+- no conversion, bridge, third-party payment, debt spend, or new persistent
+  effect occurs;
+- every receiver, beneficiary, and residual destination is wallet-bound;
+- manager/global action- and asset-specific native-unit ceilings apply;
+- wallet-observed source-position reduction and returned-asset deltas prove the
+  fixed recovery postconditions;
+- same-asset minimum-return and frequency/fee-destruction rules bound bad
+  execution and griefing; and
+- settlement and events use the explicit native-bounded recipe rather than
+  recording a zero USD value as if valuation succeeded.
+
+Changing an existing action from `PRICE_REQUIRED` to
+`NATIVE_BOUNDED_RECOVERY`, or the reverse, changes its meaning and requires a
+new action ID. The extender cannot select the price code at runtime.
+
+`DEBT_REDUCE`, deleverage, swaps, fee-paying variants, and any action whose
+proof depends on USD valuation remain `PRICE_REQUIRED` unless a later owner
+decision approves a different exact recipe. If any eligibility proof is
+missing, the recovery action rejects.
 
 ### 7.4 Explicit Wallet v3 scope codes
 
@@ -973,6 +998,8 @@ Before the first implementation disposition:
 - define the supported-mask constant and unknown-bit failure;
 - define the exact initial action mask;
 - define the first composite charge bases;
+- compile and measure the closed price codes plus manager/global native-unit
+  recovery ceilings and distinct accounting/event behavior;
 - define the shared recovery-exit and obligation-reduction proof templates,
   while preserving separate permission checks for `YIELD_EXIT`,
   `DEBT_REDUCE`, and `LIQUIDITY_EXIT`;
@@ -988,6 +1015,8 @@ Add tests that:
 - unknown bits reject;
 - different permission variants use different action IDs;
 - a new extender uses a new action ID;
+- each action's compiled settlement recipe fixes its price code, and changing
+  that code requires a new action ID;
 - a new action never expands an existing manager grant; and
 - no generic persistence or runtime permission field exists.
 
@@ -1052,14 +1081,16 @@ It proves:
   any later family action. A nonempty requirement must pass AUTH first; an
   action that needs no external operator access does not wait for unrelated
   AUTH work.
-- Yield withdrawal uses `YIELD_EXIT`.
+- Yield withdrawal uses `YIELD_EXIT`; an exact eligible no-conversion variant
+  may use `NATIVE_BOUNDED_RECOVERY`.
 - Yield rebalance uses `YIELD_EXIT | YIELD`, plus `TRADE` when applicable.
 - Debt repayment and collateral top-up use `DEBT_REDUCE` only when they
   bind an existing wallet obligation and the action-specific postcondition
   proof passes; a fresh or expanding collateral position requires `DEBT`.
   Ripe variants also wait for the approved one-argument Ripe AUTH shape.
 - Borrow and collateral removal use `DEBT`.
-- Liquidity removal uses `LIQUIDITY_EXIT`.
+- Liquidity removal uses `LIQUIDITY_EXIT`; an exact eligible no-conversion
+  variant may use `NATIVE_BOUNDED_RECOVERY`.
 - Claim-only uses `REWARDS`, but any integration-required operator setup must
   first pass the AUTH/persistent-authority package; claim-and-sell adds
   `TRADE`; claim-and-redeposit adds `YIELD`.
@@ -1095,7 +1126,9 @@ focused revision:
    and integration/action-specific AUTH prerequisites.
 5. Strengthen composite policy from permission union to permission union plus
    cumulative limits.
-6. Add the price-independent exit boundary.
+6. Add the closed `PRICE_REQUIRED` and `NATIVE_BOUNDED_RECOVERY` recipe codes,
+   exact eligibility rules, native ceilings, distinct accounting/events, and
+   new-action-ID requirement for a code change.
 7. State that permission meanings and bit positions are immutable and never
    reused.
 8. Add mask and manager/global scope-code fields to the `PolicyContextV1`
@@ -1117,9 +1150,10 @@ Update the implementation roadmap in the same revision:
 5. add the family-specific exit/reduction permission, proof, and
    integration-specific AUTH gates before withdrawals, liquidity removal, or
    defensive debt;
-6. add composite charge-basis evidence;
-7. keep payment/persistence and dual control in separate future packages; and
-8. extend invariant traceability and drift tests.
+6. add price-code, native-recovery-limit, and no-zero-USD-accounting evidence;
+7. add composite charge-basis evidence;
+8. keep payment/persistence and dual control in separate future packages; and
+9. extend invariant traceability and drift tests.
 
 The website should be updated only after the governing Markdown changes. Until
 then, this proposal remains a review input rather than presented architecture.
@@ -1138,15 +1172,15 @@ The research narrows the permission problem to these decisions.
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
 | P5 | Direct-path fallback | **OWNER SELECTED 2026-07-25:** ETH/WETH transforms require `canBuyAndSell`; the unknown default fails closed; implementation and deployment remain separately gated |
 | P6 | Empty policy sets | **OWNER SELECTED 2026-07-25:** Wallet v3 uses `NONE=0`, `SET=1`, and `ANY=2` for manager/global asset, Lego, and payee scopes; action IDs remain exact-only; legacy direct behavior is unchanged |
-| P7 | Price-independent exits | Permit only pure, non-converting, native-bounded exits with wallet-proven non-extraction and non-expansion |
+| P7 | Price-independent exits | **OWNER SELECTED 2026-07-25:** allow exact `NATIVE_BOUNDED_RECOVERY` recipes only for eligible pure no-conversion `YIELD_EXIT`/`LIQUIDITY_EXIT` actions; default remains `PRICE_REQUIRED` |
 | P8 | First persistent additions | Keep the `ENROLL_PAYEE` and `REVOKE_CLAIMS` packages, standing authority, signatures, bridges, and new commitment types out of Phase 1 despite assigning their reviewed vocabulary boundaries |
 | P9 | Network-fee authority | **OWNER SELECTED 2026-07-25:** use separate `PAY_NETWORK_FEES`, additive to the parent action and ungrantable until a bounded fee package exists |
 | P10 | Payee enrollment | **OWNER SELECTED 2026-07-25:** use separate `ENROLL_PAYEE`; it creates only bounded probationary enrollment and is ungrantable until its lifecycle package exists |
 | P11 | Claim revocation | **OWNER SELECTED 2026-07-25:** include separate reduction-only `REVOKE_CLAIMS`; keep it ungrantable until typed claim inventory, reliance, and anti-griefing rules exist |
 | P12 | Revocation scope | **OWNER SELECTED 2026-07-25:** each revoker receives a bounded owner-designated set of source-manager/epoch pairs; owner/system claims remain unreachable |
 
-P3, P5–P6, and P9–P12 are owner-selected. P4 preserves an already governing
-action-identity rule. P1–P2 and P7–P8 remain open decisions this research most
+P3, P5–P7, and P9–P12 are owner-selected. P4 preserves an already governing
+action-identity rule. P1–P2 and P8 remain open decisions this research most
 directly informs.
 
 ---
@@ -1200,6 +1234,10 @@ The independent reviewer should answer:
 20. Do `NONE`, `SET`, and `ANY` validate their list shapes, combine manager and
     global scopes cumulatively, reject unknown codes, and remain unavailable
     for routed action-ID grants?
+21. Does every `NATIVE_BOUNDED_RECOVERY` action use an immutable eligible
+    no-conversion yield/liquidity-exit recipe, enforce native ceilings and
+    wallet-observed recovery postconditions, avoid zero-USD accounting, and
+    receive a new action ID if its price code changes?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -1220,3 +1258,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P11 | Confirmed separate reduction-only `REVOKE_CLAIMS`; left it ungrantable until typed inventory, attribution scope, reliance, cancellation-cost, and anti-griefing rules are approved |
 | 2026-07-25 | Owner disposition P12 | Scoped delegated claim revocation to bounded owner-designated source-manager/epoch pairs per revoker/epoch; excluded owner, security, and system claims and stale authority after manager re-addition |
 | 2026-07-25 | Owner disposition P6 | Selected explicit Wallet v3 scope codes `NONE=0`, `SET=1`, and `ANY=2` for manager/global assets, Legos, and payees; kept routed action IDs exact-only and legacy direct semantics unchanged |
+| 2026-07-25 | Owner disposition P7 | Selected exact immutable `NATIVE_BOUNDED_RECOVERY` recipes for eligible pure no-conversion `YIELD_EXIT` and `LIQUIDITY_EXIT` actions; retained `PRICE_REQUIRED` as the default and prohibited zero-USD fallback accounting |
