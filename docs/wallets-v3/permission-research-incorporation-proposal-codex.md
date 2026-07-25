@@ -69,11 +69,12 @@ My recommended incorporation is:
    one permanent bit.
 7. Keep payments on the mature direct rails initially. `TRANSFER` means value
    moves now; `PAYMENT_COMMITMENT` means a bounded claim survives.
-8. Add `PAY_NETWORK_FEES`, `ENROLL_PAYEE`, `REVOKE_CLAIMS`, and `CROSS_CHAIN`
-   as distinct durable permissions, but do not make any grantable before its
-   bounded package exists. Keep delegated administration, standing allowances,
-   offchain signatures, and cross-chain execution out of the initial
-   implementation merely because the research discussed them.
+8. Add `PAY_NETWORK_FEES`, `ENROLL_PAYEE`, `REVOKE_CLAIMS`, `CROSS_CHAIN`, and
+   `OFFCHAIN_SIGNATURE` as distinct durable permissions, but do not make any
+   grantable before its bounded package exists. Keep delegated administration,
+   standing allowances, offchain-signature execution, and cross-chain
+   execution out of the initial implementation merely because the research
+   discussed them.
 9. Treat composite authorization as:
 
    ```text
@@ -286,7 +287,7 @@ reinterpreted as these bits.
 | 11 | `LIQUIDITY_EXIT` | INITIAL | First liquidity-removal package; AUTH first only when the selected integration/action requires operator authority | Remove or reduce an approved liquidity position back to the wallet |
 | 12 | `REVOKE_CLAIMS` | LATER | Separate revocation package | Cancel or reduce tracked persistent rights without creating or enlarging them |
 | 13 | `CROSS_CHAIN` | LATER | Separate cross-chain package | Create a typed, bounded cross-chain transfer or message |
-| 14 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create a tracked, bounded value-moving signature that may be used later |
+| 14 | `OFFCHAIN_SIGNATURE` | LATER | Separate signature package | Create an enumerated, typed, tracked, and bounded signature that may be exercised later |
 | 15 | `GOVERNANCE` | LATER | Separate governance package | Exercise protocol governance without wallet administration or value transfer |
 | 16 | `PERSISTENT_EXTERNAL_AUTHORITY` | RESERVED | Not grantable until an owner-approved authority package exists | Create a named standing spender or operator right that survives the action |
 | 17–255 | Unassigned | — | Not grantable | Unknown bits reject |
@@ -491,6 +492,40 @@ bounded message shape, expiry, replay domain, failure and retry behavior,
 finality assumptions, and settlement/accounting rules. It must also define
 whether and how pending remote effects consume limits. Until that package is
 reviewed and owner-approved, `CROSS_CHAIN` remains outside
+`SUPPORTED_PERMISSION_MASK` and is not grantable.
+
+### 4.9 `OFFCHAIN_SIGNATURE` is typed, distinct, and cumulative
+
+The owner selected a separate `OFFCHAIN_SIGNATURE` permission. Authority to
+perform an immediate wallet action does not imply authority to create a
+signature that leaves the wallet and may be exercised later. Every routed
+signature action requires:
+
+```text
+exact approved actionId
+    AND
+OFFCHAIN_SIGNATURE
+    AND
+every category required by the authority the signature creates
+```
+
+A signed payment claim also requires `PAYMENT_COMMITMENT`; a signed trade or
+order requires `TRADE` and any additional commitment authority its exact shape
+creates; a signed governance instruction requires `GOVERNANCE`; and a standing
+spender or operator authorization requires
+`PERSISTENT_EXTERNAL_AUTHORITY`. `OFFCHAIN_SIGNATURE` alone cannot transfer
+value, create a payment commitment, trade, govern, approve a spender, or
+authorize arbitrary remote behavior.
+
+The future package must enumerate exact EIP-712 or otherwise typed message
+schemas. It must bind the domain and chain, verifying contract, signer purpose,
+beneficiary or counterparty, assets, amounts or other exposure, nonce, expiry,
+exercise count, cancellation path, replay behavior, and post-exercise
+accounting. Arbitrary bytes, arbitrary hashes, unknown schemas, and generic
+`eth_sign`-style authority are prohibited.
+
+Until the typed-signature inventory, exposure, cancellation, and replay package
+is reviewed and owner-approved, `OFFCHAIN_SIGNATURE` remains outside
 `SUPPORTED_PERMISSION_MASK` and is not grantable.
 
 ---
@@ -1227,8 +1262,9 @@ The research narrows the permission problem to these decisions.
 | P11 | Claim revocation | **OWNER SELECTED 2026-07-25:** include separate reduction-only `REVOKE_CLAIMS`; keep it ungrantable until typed claim inventory, reliance, and anti-griefing rules exist |
 | P12 | Revocation scope | **OWNER SELECTED 2026-07-25:** each revoker receives a bounded owner-designated set of source-manager/epoch pairs; owner/system claims remain unreachable |
 | P13 | Cross-chain authority | **OWNER SELECTED 2026-07-25:** keep `CROSS_CHAIN` distinct and cumulative with every category required by the underlying local effects; keep it ungrantable until a bounded cross-chain package exists |
+| P14 | Offchain-signature authority | **OWNER SELECTED 2026-07-25:** keep `OFFCHAIN_SIGNATURE` distinct and cumulative with every category required by the authority created; prohibit arbitrary signing and keep it ungrantable until a typed-signature package exists |
 
-P2–P3 and P5–P13 are owner-selected. P4 preserves an already governing
+P2–P3 and P5–P14 are owner-selected. P4 preserves an already governing
 action-identity rule. P1 remains the open decision this research most directly
 informs.
 
@@ -1291,6 +1327,10 @@ The independent reviewer should answer:
     no-conversion yield/liquidity-exit recipe, enforce native ceilings and
     wallet-observed recovery postconditions, avoid zero-USD accounting, and
     receive a new action ID if its price code changes?
+23. Does every signature action use an enumerated typed schema, require
+    `OFFCHAIN_SIGNATURE` cumulatively with the authority it creates, account
+    for surviving exposure, provide bounded expiry and cancellation, and
+    prohibit arbitrary bytes, hashes, and generic signing?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -1315,3 +1355,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P8 | Kept Phase 1 limited to the core routed architecture and expected wallet-owned yield position; left enrollment, revocation, network fees, standing authority, signatures, bridges, and new commitment types ungrantable until separate later packages |
 | 2026-07-25 | Owner disposition P2 | Selected parallel Wallet v3 routed masks and scope-code fields beside unchanged legacy direct-wallet structs; made any future storage consolidation a separate compatibility package and owner decision |
 | 2026-07-25 | Owner disposition P13 | Kept `CROSS_CHAIN` as a distinct cumulative permission; required underlying local-effect categories as applicable and deferred activation to a separately approved bounded bridge/messaging package |
+| 2026-07-25 | Owner disposition P14 | Kept `OFFCHAIN_SIGNATURE` as a distinct cumulative permission; prohibited arbitrary signing and deferred activation to a typed, inventoried, exposure-accounted signature package |
