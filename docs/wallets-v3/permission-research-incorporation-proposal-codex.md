@@ -50,11 +50,12 @@ My recommended incorporation is:
    - explicit manager approval of the exact `actionId`; and
    - every categorical permission required by that action.
 2. Add one `uint256` routed-permission mask beside the existing manager
-   structures in the new Wallet v3 Config. Do not add more booleans to the
+   structures in the new Wallet v3 Config, plus explicit `NONE / SET / ANY`
+   codes for asset, Lego, and payee scopes. Do not add more booleans to the
    existing `ManagerSettings`, `LegoPerms`, or `TransferPerms` structures.
-3. Forward the manager and global routed masks through `PolicyContextV1` and
-   check them in the new routed Sentinel entry point. Preserve the existing
-   direct-policy ABI and meaning.
+3. Forward the manager/global routed masks and scope codes through
+   `PolicyContextV1` and check them in the new routed Sentinel entry point.
+   Preserve the existing direct-policy ABI and meaning.
 4. Use twelve initial vocabulary categories, four later categories, and one
    reserved boundary. “Initial vocabulary” does not mean “enabled in the first
    release”; support is enabled only with a reviewed action-family package.
@@ -202,7 +203,7 @@ they do not automatically justify merging distinct categories of authority.
 | Self-custody transforms | Use existing family axis and action IDs | Separate initial transform permission | Explicit action under `TRADE` |
 | Action implementation update | Same semantic action ID may receive a versioned implementation | Material code receives a new action ID | New extender receives a new action ID |
 | Persistent-effect metadata | Fixed type/flag | Generic closed `persistenceMask` | Existing position/exit fields first; add new metadata only for a concrete new effect |
-| Empty policy sets | Prefer explicit `NONE / SET / ANY` | Prefer explicit `NONE / SET / ANY` | Preserve existing meanings for the first slice; make them explicit in consent and measure a future encoding |
+| Empty policy sets | Prefer explicit `NONE / SET / ANY` | Prefer explicit `NONE / SET / ANY` | Owner-selected `NONE=0 / SET=1 / ANY=2` for Wallet v3 assets, Legos, and payees; legacy direct behavior unchanged |
 | Dual control | New two-manager co-signature design | Use for high-risk changes without fixing one mechanism | No new authentication system in Phase 1 |
 | Price-free defensive actions | Broad exemption after monotonicity proof | Fail closed or use native-unit bounds | Exempt only pure non-converting exits whose native-unit and postcondition proof is independently sufficient |
 
@@ -477,9 +478,12 @@ managerRoutedPermissionMask[manager] -> uint256
 globalRoutedPermissionMask          -> uint256
 allowedRoutedActionIds[manager]     -> bounded set of bytes32
 globalAllowedRoutedActionIds        -> optional bounded ceiling
+managerPolicyScopeCodes[manager]    -> asset / Lego / payee ScopeCode
+globalPolicyScopeCodes              -> asset / Lego / payee ScopeCode
 ```
 
-The exact encoding and bounds remain Phase 0B measurement outputs.
+The exact packing and bounds remain Phase 0B measurement outputs. The semantic
+codes are fixed by §7.4 and cannot be reinterpreted to save storage.
 
 ### 5.2 Fixed checks
 
@@ -521,6 +525,8 @@ must carry:
 - the global routed-permission mask;
 - the supported-mask constant or generation identity needed to interpret
   them; and
+- the manager and global asset, Lego, and payee scope codes, paired with the
+  existing bounded policy-set data; and
 - the exact action ID and immutable required mask.
 
 Those fields are fixed before the provider/Config generation is compiled. The
@@ -762,28 +768,45 @@ price-exempt merely because debt decreases.
 The exact rule is an owner decision per first settlement recipe, informed by
 Phase 0A evidence.
 
-### 7.4 Existing empty-set semantics
+### 7.4 Explicit Wallet v3 scope codes
 
-For routed action IDs:
+Wallet v3 does not infer authority from an empty asset, Lego, or payee list.
+Each manager and global policy set carries a closed scope code:
 
 ```text
-empty == no routed actions
+NONE = 0
+SET  = 1
+ANY  = 2
 ```
 
-For existing allowed assets, Legos, and payees, the current policy often treats
-an empty list as unrestricted. Reversing that meaning inside the first slice
-would be a broader policy-engine change.
+The rules are fixed:
 
-The incremental recommendation is:
+- `NONE` requires an empty list and admits nothing;
+- `SET` requires a nonempty bounded list and admits only exact members;
+- `ANY` requires an empty list and deliberately admits any member at that
+  policy dimension;
+- unknown codes reject;
+- transitions clear or populate the associated list atomically; and
+- manager and global scopes apply cumulatively, so one `ANY` never overrides
+  the other layer's `NONE` or `SET`.
 
-- preserve current onchain semantics for the first candidate;
-- display empty-as-unrestricted explicitly in every owner-facing Config
-  expansion and test fixture; and
-- measure an explicit `NONE / SET / ANY` representation in Phase 0B without
-  making it a prerequisite for the yield-deposit slice.
+Requiring empty lists for `NONE` and `ANY` prevents hidden stale entries from
+becoming live after a mode change. Owner-facing Config expansion and events
+must display the code and exact `SET` members.
 
-No implementation may silently assume empty means the same thing across action
-IDs and existing policy sets.
+Routed action IDs deliberately do not use these codes:
+
+```text
+empty action-ID set == no routed actions
+no ANY action-ID mode
+```
+
+This preserves the rule that a newly registered action never enters an existing
+manager grant automatically.
+
+Existing deployed-wallet direct behavior remains unchanged. Phase 0B must
+compile and measure the new Wallet v3 Config, provider, `PolicyContextV1`, and
+Sentinel representation before implementation proceeds.
 
 ---
 
@@ -942,7 +965,9 @@ Before the first implementation disposition:
 - owner approves or amends this taxonomy;
 - compile the parallel manager/global `uint256` routed masks;
 - compile the bounded manager action-ID set;
-- include both masks and the exact required mask in `PolicyContextV1`;
+- compile and measure manager/global asset, Lego, and payee scope-code storage;
+- include both masks, the exact required mask, and all six manager/global scope
+  codes in `PolicyContextV1`;
 - keep existing manager structs and direct policy entry points unchanged;
 - measure Config, provider, Sentinel, and HighCommand size and gas;
 - define the supported-mask constant and unknown-bit failure;
@@ -973,6 +998,8 @@ Implement and measure:
 - the bounded manager action-ID set;
 - the parallel routed manager mask;
 - the routed global mask;
+- manager/global asset, Lego, and payee scope codes with structural validation
+  (`NONE`/`ANY` require empty; `SET` requires nonempty);
 - duplicate and unknown-bit rejection at every grant create/update path;
 - rejection of manager/global masks outside `SUPPORTED_PERMISSION_MASK`, so
   dormant pre-granted bits cannot activate in a later release;
@@ -985,8 +1012,9 @@ Implement and measure:
 Implement and measure:
 
 - cumulative manager/global routed-mask checks;
+- cumulative manager/global scope-code and exact-`SET` membership checks;
 - exact action-ID gate coordination;
-- unknown-bit and unsupported-action failure;
+- unknown-bit, unknown-scope-code, and unsupported-action failure;
 - separate direct and routed entry points;
 - no first-match `if / elif` behavior for masks; and
 - no new generic policy evaluator.
@@ -1007,7 +1035,8 @@ It proves:
 
 - exact action-ID approval;
 - manager and global mask checks;
-- existing allowed asset/Lego/opportunity policy;
+- explicit manager/global asset and Lego scope-code checks plus existing
+  opportunity policy;
 - approved opportunity is checked before capability activation on the routed
   path even though the current direct path can safely revert after an atomic
   deposit;
@@ -1057,8 +1086,8 @@ If this decision record is approved, update the governing architecture in one
 focused revision:
 
 1. Replace section 5.1's provisional list with the approved bit table.
-2. Add the parallel routed-mask representation and direct/routed compatibility
-   boundary.
+2. Add the parallel routed-mask and explicit asset/Lego/payee scope-code
+   representation plus the direct/routed compatibility boundary.
 3. State that `ActionSpec.requiredPermissionMask` is exact and solely
    registry-defined.
 4. Add the separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT`
@@ -1069,7 +1098,8 @@ focused revision:
 6. Add the price-independent exit boundary.
 7. State that permission meanings and bit positions are immutable and never
    reused.
-8. Add mask fields to the `PolicyContextV1` definition.
+8. Add mask and manager/global scope-code fields to the `PolicyContextV1`
+   definition.
 9. Record the rejected initial categories, the additive
    `PAY_NETWORK_FEES` boundary, the non-paying `ENROLL_PAYEE` boundary, and
    the reduction-only `REVOKE_CLAIMS` boundary, plus future package boundaries.
@@ -1081,7 +1111,8 @@ Update the implementation roadmap in the same revision:
 1. replace the generic Phase 0B permission decision with this exact decision
    record and its disposition;
 2. add Phase 0A permission and price baselines;
-3. add mask measurements and fields to Packages 0B, 1B1, and 1B2;
+3. add mask and scope-code measurements and fields to Packages 0B, 1B1, and
+   1B2;
 4. set the first yield action's exact mask;
 5. add the family-specific exit/reduction permission, proof, and
    integration-specific AUTH gates before withdrawals, liquidity removal, or
@@ -1106,7 +1137,7 @@ The research narrows the permission problem to these decisions.
 | P3 | Family-specific reduction authority | **OWNER SELECTED 2026-07-25:** use separate `YIELD_EXIT`, `DEBT_REDUCE`, and `LIQUIDITY_EXIT` permissions; reuse proof/AUTH machinery without generalizing the grants |
 | P4 | Action permission semantics | One immutable exact static mask per action ID; no runtime extender permission declaration |
 | P5 | Direct-path fallback | **OWNER SELECTED 2026-07-25:** ETH/WETH transforms require `canBuyAndSell`; the unknown default fails closed; implementation and deployment remain separately gated |
-| P6 | Existing empty policy sets | Preserve current semantics for the first slice, make wildcard meaning explicit, and measure an explicit scope representation |
+| P6 | Empty policy sets | **OWNER SELECTED 2026-07-25:** Wallet v3 uses `NONE=0`, `SET=1`, and `ANY=2` for manager/global asset, Lego, and payee scopes; action IDs remain exact-only; legacy direct behavior is unchanged |
 | P7 | Price-independent exits | Permit only pure, non-converting, native-bounded exits with wallet-proven non-extraction and non-expansion |
 | P8 | First persistent additions | Keep the `ENROLL_PAYEE` and `REVOKE_CLAIMS` packages, standing authority, signatures, bridges, and new commitment types out of Phase 1 despite assigning their reviewed vocabulary boundaries |
 | P9 | Network-fee authority | **OWNER SELECTED 2026-07-25:** use separate `PAY_NETWORK_FEES`, additive to the parent action and ungrantable until a bounded fee package exists |
@@ -1114,8 +1145,8 @@ The research narrows the permission problem to these decisions.
 | P11 | Claim revocation | **OWNER SELECTED 2026-07-25:** include separate reduction-only `REVOKE_CLAIMS`; keep it ungrantable until typed claim inventory, reliance, and anti-griefing rules exist |
 | P12 | Revocation scope | **OWNER SELECTED 2026-07-25:** each revoker receives a bounded owner-designated set of source-manager/epoch pairs; owner/system claims remain unreachable |
 
-P3, P5, and P9–P12 are owner-selected. P4 preserves an already governing
-action-identity rule. P1–P2 and P6–P8 remain open decisions this research most
+P3, P5–P6, and P9–P12 are owner-selected. P4 preserves an already governing
+action-identity rule. P1–P2 and P7–P8 remain open decisions this research most
 directly informs.
 
 ---
@@ -1132,9 +1163,10 @@ The independent reviewer should answer:
    owner-consent ambiguity?
 4. Does `ENROLL_PAYEE` remain strictly non-paying, probationary, attributable,
    expiring, exposure-bounded, and separately removable?
-5. Does the parallel mask actually avoid the claimed ABI churn once exact
-   Config/provider/Sentinel interfaces are sketched?
-6. Are any mask fields missing from `PolicyContextV1`?
+5. Do the parallel mask and scope codes avoid unacceptable ABI/bytecode churn
+   once exact Config/provider/Sentinel interfaces are sketched?
+6. Are any mask or manager/global scope-code fields missing from
+   `PolicyContextV1`?
 7. Is the composite gross-charge rule precise enough to prevent swap-mediated
    limit laundering without a general effect language?
 8. Are the family-specific exit/reduction postconditions wallet-observable for
@@ -1165,6 +1197,9 @@ The independent reviewer should answer:
 19. Does `REVOKE_CLAIMS` only reduce a typed inventoried claim, preserve
     beneficiary and asset identity, fail atomically, and require the exact
     owner-designated revoker/source manager epochs plus anti-griefing rules?
+20. Do `NONE`, `SET`, and `ANY` validate their list shapes, combine manager and
+    global scopes cumulatively, reject unknown codes, and remain unavailable
+    for routed action-ID grants?
 
 The reviewer should verify claims against the live contracts and the governing
 architecture, not treat either research synthesis as authority.
@@ -1184,3 +1219,4 @@ architecture, not treat either research synthesis as authority.
 | 2026-07-25 | Owner disposition P10 | Added `ENROLL_PAYEE` as a separate durable non-payment permission for attributable, expiring, exposure-bounded probationary enrollment; left it ungrantable until its lifecycle package exists |
 | 2026-07-25 | Owner disposition P11 | Confirmed separate reduction-only `REVOKE_CLAIMS`; left it ungrantable until typed inventory, attribution scope, reliance, cancellation-cost, and anti-griefing rules are approved |
 | 2026-07-25 | Owner disposition P12 | Scoped delegated claim revocation to bounded owner-designated source-manager/epoch pairs per revoker/epoch; excluded owner, security, and system claims and stale authority after manager re-addition |
+| 2026-07-25 | Owner disposition P6 | Selected explicit Wallet v3 scope codes `NONE=0`, `SET=1`, and `ANY=2` for manager/global assets, Legos, and payees; kept routed action IDs exact-only and legacy direct semantics unchanged |
