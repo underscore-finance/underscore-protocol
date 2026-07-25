@@ -42,6 +42,7 @@ This README intentionally does not list live contract addresses. For current dep
 - [Website](https://underscore.finance)
 - [Documentation](https://docs.underscore.finance/)
 - [Technical documentation](https://underscore-1.gitbook.io/developers)
+- [Repository documentation map](docs/README.md)
 
 ## Community
 

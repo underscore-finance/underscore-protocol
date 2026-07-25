@@ -27,7 +27,6 @@ try:
         RPC_DELAY,
         LEGO_BOOK_ID,
         ZERO_ADDRESS,
-        get_token_name,
         format_address,
         format_percent,
         format_blocks_to_time,
@@ -44,7 +43,6 @@ except ImportError:
         RPC_DELAY,
         LEGO_BOOK_ID,
         ZERO_ADDRESS,
-        get_token_name,
         format_address,
         format_percent,
         format_blocks_to_time,
@@ -209,7 +207,12 @@ def fetch_lego_book_data():
         ("numAddrs (legos)", num_addrs - 1 if num_addrs > 0 else 0),
         ("registryChangeTimeLock", format_blocks_to_time(lb.registryChangeTimeLock())),
     ]
-    print_table("Registry Config (AddressRegistry Module)", ["Parameter", "Value"], rows)
+    print_table(
+        "Registry Config (AddressRegistry Module)",
+        ["Parameter", "Value"],
+        rows,
+        anchor="registry-config",
+    )
 
     # LocalGov settings
     time.sleep(RPC_DELAY)
@@ -232,7 +235,12 @@ def fetch_lego_book_data():
     else:
         gov_rows.append(("pendingGov", "None"))
 
-    print_table("Governance Settings (LocalGov Module)", ["Parameter", "Value"], gov_rows)
+    print_table(
+        "Governance Settings (LocalGov Module)",
+        ["Parameter", "Value"],
+        gov_rows,
+        anchor="governance-settings",
+    )
 
     # List registered legos
     if state.legos:

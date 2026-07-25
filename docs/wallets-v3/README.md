@@ -33,7 +33,3 @@ the PoC. They now mean the opposite: they are reserved for the new
 implementation. In-flight branches and open pull requests based on the older
 tree should treat this as a semantic rename conflict and must not merge the
 archived PoC back into the reserved paths.
-
-The other documents directly under `docs/` describe the existing production
-system or cross-cutting repository concerns. They intentionally remain outside
-both the PoC archive and this new Wallet v3 architecture directory.

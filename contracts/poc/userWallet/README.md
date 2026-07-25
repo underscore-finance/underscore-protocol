@@ -11,7 +11,7 @@ folder boundary—not a source-code rename—separates this experiment from new
 Wallet v3 work. Renaming these symbols would be a separate owner-directed
 evidence rewrite.
 
-Repository-wide production build or deployment globs must exclude
+Future repository-wide production build or deployment globs should exclude
 `contracts/poc/` unless the archived experiment is being validated explicitly.
 
 New Wallet v3 contracts belong in [`contracts/walletsV3/`](../../walletsV3/).

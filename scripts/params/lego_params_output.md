@@ -40,12 +40,16 @@
 # LegoBook - Lego Registry
 Address: 0x2fD67d572806Fc43B55aFE2ad032702d826450EB
 
+<a id="registry-config"></a>
+
 ### Registry Config (AddressRegistry Module)
 | Parameter | Value |
 | --- | --- |
 | legoTools | None |
 | numAddrs (legos) | 17 |
 | registryChangeTimeLock | 0 blocks (~0s) |
+
+<a id="governance-settings"></a>
 
 ### Governance Settings (LocalGov Module)
 | Parameter | Value |
