@@ -20,6 +20,16 @@ This directory contains the new Wallet v3 architecture work.
   plan.
 - [`permission-action-taxonomy-research-prompt-codex.md`](permission-action-taxonomy-research-prompt-codex.md)
   is a research instrument, not an architecture proposal.
+- [`perms-research-summary-claude.md`](perms-research-summary-claude.md)
+  synthesizes the four independent responses to that research prompt and
+  reconciles them against the current contracts. It is analysis and
+  recommendation only; it does not decide the taxonomy or authorize contract
+  changes, and where it disagrees with the governing architecture it says so and
+  leaves the call to the owner.
+- [`perms-research-summary-codex.md`](perms-research-summary-codex.md)
+  is a separate Codex synthesis of the same four responses. It is supporting
+  analysis and owner-decision input only; it does not replace the governing
+  architecture or authorize implementation.
 
 ## Separate proof of concept
 

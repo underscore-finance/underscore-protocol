@@ -305,17 +305,29 @@ yield-deposit-shaped projection. Phase 0B must define the smallest complete
 context that includes:
 
 - wallet, Config, caller, and action identity;
-- the complete existing action-data/manager-policy bundle needed by routed
-  checks, rather than a hand-picked subset for the first action;
+- every field of the current `ws.ActionData`, `wcs.ManagerData`,
+  `wcs.ManagerSettings`, and `wcs.GlobalManagerSettings` structures on every
+  routed stage, using the same empty/default values current code uses when a
+  signer has no manager record, rather than a hand-picked subset for the first
+  action;
 - an explicit stage discriminator;
 - bounded prepared asset and Lego sets for stage two; and
 - the wallet-bound registry identities required to interpret those fields.
 
-The provider only gathers and forwards these mechanically. Action-specific
-classifications use only the fixed typed fields already admitted by ActionSpec,
-the replaceable Sentinel, or another already-approved bounded source. This does
-not add generic policy parameters, and those classifications do not become new
-provider branches.
+This is an unconditional field-set guarantee, not a claim that every field
+governs every action. The provider forwards the same complete base context at
+both stages; Sentinel decides which fields are relevant. The provider only
+gathers and forwards these mechanically.
+
+The `V1` suffix identifies the context shape frozen into one wallet/Config/
+provider generation. It does not imply an in-place V1-to-V2 upgrade path. A
+different context shape requires a reviewed provider, Config, and wallet
+generation.
+
+Action-specific classifications use only the fixed typed fields already
+admitted by ActionSpec, the replaceable Sentinel, or another already-approved
+bounded source. This does not add generic policy parameters, and those
+classifications do not become new provider branches.
 
 Version one deliberately does not include an opaque reserved extension blob.
 An untyped blob cannot manufacture future Config data that the immutable
@@ -2432,6 +2444,8 @@ should not be infinitely extensible.
 | `incremental-extenders-proposal-claude.md` | Preserved independent analysis and provenance | **SUPERSEDED as a plan; useful sequencing and measurement constraints folded into sections 17–18** |
 | `user-wallet-incremental-extender-proposal-codex.md` | Preserved earlier Codex incremental proposal | **SUPERSEDED as a plan** |
 | `permission-action-taxonomy-research-prompt-codex.md` | Research instrument | Not an architecture proposal |
+| `perms-research-summary-claude.md` | Independent synthesis of the permission-taxonomy research | Supporting analysis and recommendations only; not governing |
+| `perms-research-summary-codex.md` | Codex synthesis of the permission-taxonomy research | Supporting analysis and owner-decision input only; not governing |
 | `docs/poc/user-wallet/` | Archived PoC contracts, results, visual explanations, and superseded PoC-derived production track | Evidence and background only; PoC is on hold |
 
 An implementation may claim conformance to “the plan” only by naming this
@@ -2453,6 +2467,7 @@ contract edits, deployment, migration, or live transactions.
 | 2026-07-24 | Separation review correction | Moved the earlier Codex proposal into this directory; corrected stale archived runtime evidence; disclosed archive path, node-ID, and source-hash rewrites; and documented fork/gas reproduction and path-history constraints |
 | 2026-07-24 | Implementation-readiness clarification | Reproduced the 8,461-byte catalog-stripped feasibility bound; made ActionDataProvider a thin immutable adapter to replaceable Sentinel policy; specified transient-lock build pinning; added a closed named external-operator authority boundary; made routed execution explicitly new-generation-only; and split Phase 0/1 into measurement, provisional design, isolated/shared candidates, one yield slice, and a formal no-deployment-before-ratification gate |
 | 2026-07-25 | Implementation-plan traceability revision | Defined the bounded, versioned, action-agnostic `PolicyContextV1` boundary; rejected opaque provider-extension semantics; required unsupported policy inputs to fail before action enablement; added S59–S60; distinguished Wallet v3's Prague build from the archived PoC's Cancun evidence identity; and aligned package/invariant traceability with the implementation roadmap |
+| 2026-07-25 | Context-schema and research-provenance clarification | Made `PolicyContextV1` field-complete for the current action-data and manager-policy structures at both routed stages; clarified that `V1` names a frozen wallet-generation schema rather than an in-place upgrade path; and registered both permission-research syntheses as non-governing inputs |
 
 Future material revisions append a row here. A future replacement uses a new
 file and marks this document `SUPERSEDED` in its header rather than rewriting

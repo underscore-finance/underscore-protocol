@@ -319,17 +319,27 @@ so Phase 0B must design an action-agnostic, versioned `PolicyContextV1` rather
 than a projection tailored to yield deposit. The bounded context must carry:
 
 - wallet, Config, caller, and action identity;
-- the complete existing action-data/manager-policy bundle required by routed
-  checks;
+- every field of the current `ws.ActionData`, `wcs.ManagerData`,
+  `wcs.ManagerSettings`, and `wcs.GlobalManagerSettings` structures on every
+  routed stage, using the same empty/default values current code uses when a
+  signer has no manager record;
 - an explicit stage discriminator;
 - bounded stage-two prepared asset and Lego sets; and
 - the wallet-bound registry identities needed to interpret the context.
 
-The provider mechanically gathers and forwards those fields. It contains no
-per-action branches. New action-specific classifications use only fixed typed
-fields already admitted by the immutable ActionSpec, the replaceable Sentinel,
-or another already-approved bounded source. This does not add generic policy
-parameters.
+This is an unconditional field-set guarantee, not a promise that every field
+controls every action. The provider forwards the same complete base context at
+both stages; Sentinel decides which fields are relevant. The provider contains
+no per-action projection or branch.
+
+The `V1` suffix identifies the context shape frozen into one wallet/Config/
+provider generation. It does not imply an in-place V1-to-V2 upgrade path. A
+different context shape requires a reviewed provider, Config, and wallet
+generation.
+
+New action-specific classifications use only fixed typed fields already
+admitted by the immutable ActionSpec, the replaceable Sentinel, or another
+already-approved bounded source. This does not add generic policy parameters.
 
 There is no opaque reserved extension blob in version one. Such a blob would
 not let an immutable provider gather a future Config datum it does not know
@@ -615,7 +625,9 @@ interfaces fit with explicit safety reserves?
 - capability-aware Yield Lego ABI;
 - Config action-ID set representation;
 - ActionDataProvider stage-one/stage-two forwarding ABI;
-- versioned, action-agnostic `PolicyContextV1` and a future-action fit test;
+- versioned, action-agnostic `PolicyContextV1`, including every field of the
+  current action-data and manager-policy structures at both stages, and a
+  future-action fit test;
 - Sentinel routed-policy entry points;
 - LegoBook protected-ID rule;
 - first fixed settlement recipe; and
@@ -775,7 +787,8 @@ without creating a second policy engine?
 - starter manager begins with no routed action IDs;
 - immutable thin ActionDataProvider with stage-one/stage-two forwarding;
 - versioned, action-agnostic `PolicyContextV1`, with no per-action branch or
-  opaque extension semantics; and
+  opaque extension semantics and with its `V1` suffix naming a frozen
+  generation schema rather than an in-place upgrade path; and
 - exact Wallet v3 Config/ActionDataProvider interfaces.
 
 **Untouched:**
@@ -802,8 +815,11 @@ Sentinel.
 - direct Config regression suite; and
 - proof that ActionDataProvider contains forwarding/data assembly rather than
   new policy decisions;
-- field-by-field proof that the full existing routed-policy bundle is forwarded,
-  not a yield-deposit projection; and
+- field-by-field proof that every field of the current `ws.ActionData`,
+  `wcs.ManagerData`, `wcs.ManagerSettings`, and `wcs.GlobalManagerSettings`
+  structures is forwarded at both routed stages, with current empty/default
+  semantics where applicable, rather than an action- or stage-specific
+  projection; and
 - at least one plausible future action scenario whose caller and prepared-policy
   requirements fit `PolicyContextV1` without an ActionDataProvider change, plus
   a negative scenario that fails before enablement because it requires data or
@@ -1481,6 +1497,7 @@ The visual website is explanatory and never overrides either Markdown document.
 |---|---|---|
 | 2026-07-24 | Initial implementation roadmap | Added the reproduced catalog-strip budget; new-generation coexistence; thin immutable ActionDataProvider boundary; named operator-authority package; 0A/0B/1A/1B/1C/1D decomposition; no-partial-deployment rule; yield/debt expansion packages; artifact inventory; verification model; rollback rules; owner decisions; and uniform formal dispositions |
 | 2026-07-25 | Reviewer traceability and compatibility hardening | Added the package-status snapshot; defined action-agnostic `PolicyContextV1` and its fail-closed generation boundary; kept opaque provider extensions out of version one; separated Wallet v3 Prague and archived-PoC Cancun identities; added entry evidence and pending dispositions to Phase 0/1; classified section 8 as future summaries; mapped S1–S60 to packages; and required invariant-linked evidence at Phase 1D |
+| 2026-07-25 | Context-schema and research-provenance clarification | Defined `PolicyContextV1` as the unconditional, field-complete current action-data and manager-policy envelope at both routed stages; clarified that `V1` freezes a wallet-generation schema rather than promising in-place upgrades; and registered both independent permission-research syntheses as non-governing inputs |
 
 Future material revisions append a row. A replacement marks this file
 `SUPERSEDED` rather than overwriting its history.

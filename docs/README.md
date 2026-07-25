@@ -22,6 +22,13 @@ Run the repository link checker after moving or renaming documentation:
 python tools/check_doc_links.py
 ```
 
-The checker scans repository Markdown and HTML files, validates relative file
-targets, verifies GitHub-style Markdown heading anchors and HTML element IDs,
-and checks `#L123` source-line anchors.
+By default, the checker scans Git-tracked Markdown and HTML files, so its result
+is reproducible from a clean checkout. It validates relative file targets,
+verifies GitHub-style Markdown heading anchors and HTML element IDs, and checks
+`#L123` source-line anchors.
+
+To include non-ignored, untracked documentation while drafting:
+
+```sh
+python tools/check_doc_links.py --include-untracked
+```

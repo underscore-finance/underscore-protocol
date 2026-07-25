@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
+import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -43,31 +45,49 @@ def skipped_path_message(path: Path | str, error: OSError) -> str:
     return f"{display_path}: {type(error).__name__}: {error}"
 
 
-def documentation_files(skipped: list[str] | None = None) -> list[Path]:
+def git_documentation_candidates(include_untracked: bool = False) -> list[Path]:
+    command = ["git", "ls-files", "-z", "--cached"]
+    if include_untracked:
+        command.extend(["--others", "--exclude-standard"])
+
+    result = subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode:
+        detail = result.stderr.decode(errors="replace").strip()
+        message = "git ls-files failed"
+        if detail:
+            message = f"{message}: {detail}"
+        raise RuntimeError(message)
+
+    return [
+        REPO_ROOT / os.fsdecode(raw_path)
+        for raw_path in result.stdout.split(b"\0")
+        if raw_path and Path(os.fsdecode(raw_path)).suffix.lower() in DOC_SUFFIXES
+    ]
+
+
+def documentation_files(
+    skipped: list[str] | None = None,
+    *,
+    include_untracked: bool = False,
+) -> list[Path]:
     skipped_paths = skipped if skipped is not None else []
     files: list[Path] = []
 
-    def record_walk_error(error: OSError) -> None:
-        skipped_paths.append(skipped_path_message(error.filename or REPO_ROOT, error))
-
-    for root, dirs, filenames in os.walk(
-        REPO_ROOT,
-        topdown=True,
-        onerror=record_walk_error,
-        followlinks=False,
-    ):
-        dirs[:] = sorted(
-            directory for directory in dirs if directory not in EXCLUDED_DIRS
-        )
-        for filename in sorted(filenames):
-            path = Path(root, filename)
-            if path.suffix.lower() not in DOC_SUFFIXES:
-                continue
-            try:
-                if path.is_file():
-                    files.append(path)
-            except OSError as error:
-                skipped_paths.append(skipped_path_message(path, error))
+    for path in git_documentation_candidates(include_untracked):
+        if path.suffix.lower() not in DOC_SUFFIXES:
+            continue
+        if any(part in EXCLUDED_DIRS for part in path.relative_to(REPO_ROOT).parts):
+            continue
+        try:
+            if path.is_file():
+                files.append(path)
+        except OSError as error:
+            skipped_paths.append(skipped_path_message(path, error))
 
     return sorted(files)
 
@@ -96,7 +116,11 @@ def github_slug(heading: str) -> str:
     heading = re.sub(r"\[([^\]]+)]\([^)]*\)", r"\1", heading)
     heading = heading.replace("`", "")
     heading = heading.strip().lower()
-    heading = re.sub(r"""[!\"#$%&'()*+,./:;<=>?@\[\\\]^{}|~]""", "", heading)
+    heading = re.sub(
+        r"""[!\"#$%&'()*+,./:;<=>?@\[\\\]^{}|~\u2000-\u206f\u2e00-\u2e7f]""",
+        "",
+        heading,
+    )
     return re.sub(r"\s", "-", heading)
 
 
@@ -186,9 +210,25 @@ def validate_anchor(destination: Path, fragment: str) -> str | None:
     return f"anchor #{fragment} does not exist"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--include-untracked",
+        action="store_true",
+        help="also validate non-ignored, untracked Markdown and HTML files",
+    )
+    args = parser.parse_args(argv)
+
     skipped: list[str] = []
-    files = documentation_files(skipped)
+    try:
+        files = documentation_files(
+            skipped,
+            include_untracked=args.include_untracked,
+        )
+    except RuntimeError as error:
+        print(f"Documentation link validation failed: {error}", file=sys.stderr)
+        return 2
+
     failures: list[str] = []
     local_links = 0
     anchor_links = 0
@@ -256,7 +296,8 @@ def main() -> int:
         return 1
 
     print(
-        "Documentation links valid: "
+        "Documentation links valid "
+        f"({'tracked + untracked' if args.include_untracked else 'tracked'} files): "
         f"{len(files)} files, {local_links} relative links, "
         f"{anchor_links} anchor links."
     )

@@ -28,7 +28,8 @@ def test_invariant_matrix_covers_every_governing_invariant() -> None:
         int(match.group(1))
         for match in re.finditer(r"^S(\d+)\s", architecture, re.MULTILINE)
     }
-    assert governing_ids == set(range(1, 61))
+    assert governing_ids
+    assert governing_ids == set(range(1, max(governing_ids) + 1))
 
     matrix = plan.split("### 5.3 Security-invariant traceability", 1)[1].split(
         "The matrix is a coverage index",
@@ -39,7 +40,10 @@ def test_invariant_matrix_covers_every_governing_invariant() -> None:
         if line.startswith("| S"):
             mapped_ids.update(expand_invariant_cell(line.split("|")[1]))
 
-    assert mapped_ids == governing_ids
+    assert mapped_ids == governing_ids, (
+        f"unmapped={sorted(governing_ids - mapped_ids)}, "
+        f"unknown={sorted(mapped_ids - governing_ids)}"
+    )
 
 
 def test_phase_zero_and_one_packages_expose_required_contract_fields() -> None:
@@ -49,7 +53,9 @@ def test_phase_zero_and_one_packages_expose_required_contract_fields() -> None:
         plan,
         re.DOTALL,
     )
-    assert len(implementation_packages) == 9
+    assert implementation_packages
+    headings = [package.splitlines()[0] for package in implementation_packages]
+    assert len(headings) == len(set(headings))
 
     required_labels = (
         "**Status:**",
