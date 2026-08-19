@@ -10,7 +10,9 @@ from boa.environment import Env
 from scripts.utils.mock_account import MockAccount
 # from scripts.utils.safe_account import SafeAccount
 # from scripts.utils.ledger_account import LedgerAccount
+import json
 import os
+import urllib.request
 
 
 MIGRATION_SCRIPTS_DIR = "./migrations"
@@ -98,6 +100,81 @@ ETHERSCAN_URLS = {
     "base-goerli": "https://api-goerli.basescan.org/api",
     "base-sepolia": "https://api-sepolia.basescan.org/api",
 }
+
+
+ETH_MAINNET_CHAIN_ID = 1
+ALLOW_ETH_MAINNET_ENV = "ALLOW_ETH_MAINNET_DEPLOY"
+
+
+def resolve_chain_id(rpc_url, attempts=2):
+    """`eth_chainId` lookup. Returns None if it cannot be determined.
+
+    Sends an explicit User-Agent: some public RPC providers reject urllib's
+    default one with a 403, which would otherwise look like an unreachable node.
+    """
+    payload = json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "method": "eth_chainId", "params": []}).encode()
+    request = urllib.request.Request(rpc_url, data=payload, headers={
+        "Content-Type": "application/json",
+        "User-Agent": "underscore-migrate/1.0",
+    })
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                return int(json.load(response)["result"], 16)
+        except Exception:
+            if attempt == attempts - 1:
+                return None
+    return None
+
+
+def assert_eth_mainnet_allowed(chain, rpc_url, fork):
+    """Refuse to run a live migration against Ethereum mainnet by accident.
+
+    A Hightop user wallet address is `CREATE(hatchery, nonce)`, and a hatchery
+    address is `CREATE(deployer, nonce)`. When a user sends a deposit to their
+    wallet address on Ethereum mainnet instead of Base, the only way to recover
+    it is to reproduce that exact CREATE chain on mainnet -- which requires the
+    deployer account to still be at the right mainnet nonce. Any real mainnet
+    transaction from a deployer account burns nonces and permanently destroys
+    that recovery path for every affected user.
+
+    Deploying to Ethereum mainnet must therefore be a deliberate, reviewed act.
+    Set `ALLOW_ETH_MAINNET_DEPLOY=1` to override once the nonce impact on
+    outstanding recoveries has been signed off.
+    """
+    if fork or chain == "local" or rpc_url == "boa":
+        return
+
+    if chain == "eth-mainnet":
+        chain_id = ETH_MAINNET_CHAIN_ID
+    else:
+        chain_id = resolve_chain_id(rpc_url)
+        if chain_id is None and os.environ.get(ALLOW_ETH_MAINNET_ENV) != "1":
+            # Fail closed: a blocked deploy costs minutes, but an unnoticed
+            # mainnet deploy permanently destroys user recovery. `--chain` alone
+            # is not trustworthy here, since `--rpc` overrides where we connect.
+            raise click.ClickException(
+                f"Could not verify the chain id of `{rpc_url}`, so this run "
+                "cannot rule out Ethereum mainnet.\n"
+                f"Re-run with {ALLOW_ETH_MAINNET_ENV}=1 once you have confirmed "
+                "the target chain.")
+    if chain_id != ETH_MAINNET_CHAIN_ID:
+        return
+
+    if os.environ.get(ALLOW_ETH_MAINNET_ENV) == "1":
+        log.error(
+            f"{ALLOW_ETH_MAINNET_ENV}=1 -- proceeding on Ethereum mainnet. "
+            "This burns deployer nonces and may permanently destroy "
+            "misdirected-deposit recovery for existing users.")
+        return
+
+    raise click.ClickException(
+        "Refusing to migrate against Ethereum mainnet (chainId 1).\n"
+        "Deployer nonces on mainnet are the only recovery lever for deposits "
+        "misdirected to a user wallet address, and this run would burn them "
+        "irreversibly.\n"
+        f"If this is intended and signed off, re-run with {ALLOW_ETH_MAINNET_ENV}=1.")
 
 
 def param_prompt(ctx, param, value):
@@ -269,6 +346,8 @@ def cli(
 
     final_rpc = rpc if rpc else (
         'boa' if chain == 'local' else f"https://{chain}.g.alchemy.com/v2/{os.environ.get('WEB3_ALCHEMY_API_KEY')}")
+
+    assert_eth_mainnet_allowed(chain, final_rpc, fork)
 
     if safe != "":
         if fork:
