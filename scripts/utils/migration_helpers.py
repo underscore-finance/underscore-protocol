@@ -1,14 +1,22 @@
 import json
 import os
+import sys
 import time
+import boa
 from scripts.utils import log
 from eth_account import Account
 import subprocess
 from eth_abi.abi import encode
+from eth_utils import keccak
 from eth_utils.abi import collapse_if_tuple
-import dotenv
-
-dotenv.load_dotenv()
+try:
+    import dotenv
+except ImportError:
+    # Loading a local .env file is a convenience, not a runtime requirement.
+    # Production and CI provide deployment settings in the environment.
+    pass
+else:
+    dotenv.load_dotenv()
 
 # Define constants for directories
 CONTRACTS_DIR = "./contracts"
@@ -58,9 +66,9 @@ def execute_transaction(transaction, *args, **kwargs):
     if "max_attempts" in kwargs:
         max_attempts = kwargs["max_attempts"]
         kwargs.pop("max_attempts")
-    if "no_retry" in kwargs:
+    no_retry = kwargs.pop("no_retry", False)
+    if no_retry:
         max_attempts = 1
-        kwargs.pop("no_retry")
 
     while attempts < max_attempts:
         attempts += 1
@@ -68,7 +76,7 @@ def execute_transaction(transaction, *args, **kwargs):
             return transaction(*args, **kwargs)
 
         except Exception as exception:
-            if "NoneType" in str(exception):
+            if not no_retry and "NoneType" in str(exception):
                 return None
 
             log.info(
@@ -82,19 +90,21 @@ def execute_transaction(transaction, *args, **kwargs):
             log.error(f"\tException: {str(exception)}\n")
             if attempts == max_attempts:
                 log.error(f"\tMax attempts reached. Exiting.\n")
+                if no_retry:
+                    raise
                 break
 
             time.sleep(3)
 
 
 def execute_vyper_json_command(file_path, command):
-    cmd = f"vyper {file_path} -f {command}"
+    cmd = [sys.executable, "-m", "vyper", file_path, "-f", command]
     try:
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            shell=True
+            check=False,
         )
         if result.returncode == 0:
             # Parse the JSON output immediately
@@ -177,8 +187,15 @@ def deployed_contracts_manifest(contracts: dict, contract_files: dict, args: dic
                 "address": contracts[contract_name],
             }
         else:
+            runtime = boa.env.get_code(contracts[contract_name].address)
+            if not runtime:
+                raise RuntimeError(
+                    f"cannot write manifest for {contract_name}: deployed "
+                    "address has no runtime code"
+                )
             manifest[contract_name] = {
                 "address": contracts[contract_name].address,
+                "runtime_codehash": "0x" + keccak(runtime).hex(),
                 "abi": get_vyper_abi(files[contract_files[contract_name]]),
                 "solc_json": contracts[contract_name].deployer.solc_json,
                 "args": encode_constructor_args(get_vyper_abi(files[contract_files[contract_name]]), args[contract_name]),

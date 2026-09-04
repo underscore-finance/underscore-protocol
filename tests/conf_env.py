@@ -25,7 +25,16 @@ FORKS = {
         "etherscan_url": "https://api.etherscan.io/v2/api?chainid=8453",
         "etherscan_api_key": os.environ["ETHERSCAN_API_KEY"],
         "anvil": True,
-    }
+    },
+    "robinhood": {
+        "rpc_url": os.environ.get("ROBINHOOD_MAINNET_RPC_URL"),
+        # Stable predeployment rehearsal state; the dedicated core migration
+        # test additionally authenticates this block by hash.
+        "block": 54_618_507,
+        "etherscan_url": None,
+        "etherscan_api_key": None,
+        "anvil": False,
+    },
 }
 
 
@@ -79,7 +88,7 @@ def pytest_addoption(parser):
         "--fork",
         action="store",
         default="local",
-        choices=["local", "mainnet", "base"],
+        choices=["local", "mainnet", "base", "robinhood"],
         help="Specify the fork to run tests against"
     )
     parser.addoption(
@@ -107,7 +116,8 @@ def set_etherscan(fork):
     api_key = config["etherscan_api_key"]
     uri = config["etherscan_url"]
 
-    boa.set_etherscan(api_key=api_key, uri=uri)
+    if api_key and uri:
+        boa.set_etherscan(api_key=api_key, uri=uri)
 
 
 @pytest.fixture(scope="session")
@@ -199,6 +209,8 @@ def env(fork, pytestconfig, anvil, set_etherscan):
 
     # Handle forked testing
     fork_config = FORKS[fork]
+    if not fork_config["rpc_url"]:
+        pytest.skip(f"RPC URL is not configured for the {fork} fork")
     block_number = fork_config.get("block")
     use_anvil = force_anvil or fork_config.get("anvil", False)
 
