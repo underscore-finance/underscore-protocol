@@ -94,6 +94,22 @@
     "type": "event"
   },
   {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "initialize",
+    "inputs": [
+      {
+        "name": "_wethAddr",
+        "type": "address"
+      },
+      {
+        "name": "_walletConfig",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
     "stateMutability": "view",
     "type": "function",
     "name": "onERC721Received",
@@ -2110,6 +2126,18 @@
   {
     "stateMutability": "view",
     "type": "function",
+    "name": "initialized",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
     "name": "assetData",
     "inputs": [
       {
@@ -2215,20 +2243,7 @@
   {
     "stateMutability": "nonpayable",
     "type": "constructor",
-    "inputs": [
-      {
-        "name": "_wethAddr",
-        "type": "address"
-      },
-      {
-        "name": "_ethAddr",
-        "type": "address"
-      },
-      {
-        "name": "_walletConfig",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "outputs": []
   }
 ]

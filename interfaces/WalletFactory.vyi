@@ -1,0 +1,48 @@
+# @version 0.4.3
+
+from interfaces import WalletConfigStructs as wcs
+
+
+struct WalletCreationParams:
+    owner: address
+    groupId: uint256
+    starterAgentTier: uint256
+    globalManagerSettings: wcs.GlobalManagerSettings
+    globalPayeeSettings: wcs.GlobalPayeeSettings
+    chequeSettings: wcs.ChequeSettings
+    startingAgent: address
+    starterAgentSettings: wcs.ManagerSettings
+    kernel: address
+    sentinel: address
+    highCommand: address
+    paymaster: address
+    chequeBook: address
+    migrator: address
+    actionDataProvider: address
+    weth: address
+    eth: address
+    minTimeLock: uint256
+    maxTimeLock: uint256
+    instantActionSettings: wcs.InstantActionSettings
+
+
+@external
+def setUndyHq(_undyHq: address):
+    ...
+
+
+@view
+@external
+def isUserWalletConfig(_config: address, _salt: bytes32) -> bool:
+    ...
+
+
+@external
+def createUserWallet(_params: WalletCreationParams) -> (address, address):
+    ...
+
+
+@view
+@external
+def undyHq() -> address:
+    ...

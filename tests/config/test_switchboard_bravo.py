@@ -51,6 +51,7 @@ def _deploy_hatchery_like(hatchery, undy_hq, settings, name):
         hatchery.stagingStarterAgentConfig(),
         hatchery.devStarterAgentConfig(),
         hatchery.nonProdCreator(),
+        hatchery.WALLET_FACTORY(),
         name=name,
     )
 

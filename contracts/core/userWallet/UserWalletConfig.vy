@@ -26,7 +26,10 @@
 # pragma optimize codesize
 
 initializes: ownership
+
 exports: ownership.__interface__
+
+import contracts.modules.Create2ProxyGuard as create2ProxyGuard
 import contracts.modules.Ownership as ownership
 
 from interfaces import WalletStructs as ws
@@ -60,9 +63,6 @@ interface Sentinel:
 interface LootDistributor:
     def updateDepositPointsWithNewValue(_user: address, _newUsdValue: uint256): nonpayable
 
-interface Registry:
-    def getAddr(_regId: uint256) -> address: view
-
 event EjectionModeSet:
     inEjectMode: bool
 
@@ -81,6 +81,8 @@ event MigrationConfigApplied:
 
 # core
 wallet: public(address)
+walletSalt: public(bytes32)
+initialized: public(bool)
 
 # wallet backpack contracts
 kernel: public(address)
@@ -137,21 +139,40 @@ startingAgent: public(address)
 
 MAX_ASSETS: constant(uint256) = 10
 MAX_LEGOS: constant(uint256) = 10
+# This must equal the fixed V1 CREATE2 address derived from the finalized
+# UserWallet creation bytecode. Update it and the release-manifest drift vector
+# together if UserWallet changes before V1 is frozen.
+USER_WALLET_IMPLEMENTATION: constant(address) = 0x9dF73483F644C30cF53E3687A63C3b313416E39B
 
-UNDY_HQ: immutable(address)
-WETH: immutable(address)
-ETH: immutable(address)
-ACTION_DATA_PROVIDER: immutable(address)
+UNDY_HQ: address
+WETH: address
+ETH: address
+ACTION_DATA_PROVIDER: address
 
-MIN_TIMELOCK: public(immutable(uint256))
-MAX_TIMELOCK: public(immutable(uint256))
+MIN_TIMELOCK: public(uint256)
+MAX_TIMELOCK: public(uint256)
 
 
 @deploy
-def __init__(
+def __init__():
+    # Lock the implementation contract itself. Minimal proxies have independent
+    # storage and are initialized atomically by the deterministic factory.
+    ownership.__init__(
+        0x0000000000000000000000000000000000000001,
+        0x0000000000000000000000000000000000000001,
+        1,
+        2,
+    )
+    self.initialized = True
+
+
+@external
+def initialize(
+    _wallet: address,
     _undyHq: address,
     _owner: address,
     _groupId: uint256,
+    _starterAgentTier: uint256,
     # manager / payee settings
     _globalManagerSettings: wcs.GlobalManagerSettings,
     _globalPayeeSettings: wcs.GlobalPayeeSettings,
@@ -173,9 +194,28 @@ def __init__(
     _maxTimeLock: uint256,
     _instantActionSettings: wcs.InstantActionSettings,
 ):
+    assert not self.initialized # dev: already initialized
+    # Keep this as the first storage write. Any future external call added to
+    # initialization must observe the guard closed to prevent reentrant init.
+    self.initialized = True
+
+    # authenticate and bind the paired wallet before writing config state
+    assert _wallet != empty(address) # dev: invalid wallet
+    assert _wallet.is_contract # dev: invalid wallet
+    # Bind the address to exactly three ABI words; packed encoding would derive
+    # a different counterfactual address.
+    walletSalt: bytes32 = keccak256(abi_encode(_owner, _groupId, _starterAgentTier))
+    # The reciprocal wallet must be the fixed implementation's clone produced
+    # by this same CREATE2 deployer with this same identity salt.
+    create2ProxyGuard._assertCreate2ProxyPair(_wallet, USER_WALLET_IMPLEMENTATION, walletSalt)
+    self.walletSalt = walletSalt
+
     # initialize ownership
-    ownership.__init__(_undyHq, _owner, _minTimeLock, _maxTimeLock)
-    UNDY_HQ = _undyHq
+    ownership._initializeOwnership(_undyHq, _owner, _minTimeLock, _maxTimeLock)
+    self.UNDY_HQ = _undyHq
+
+    # paired wallet
+    self.wallet = _wallet
 
     # wallet backpack addrs
     self.kernel = _kernel
@@ -184,11 +224,11 @@ def __init__(
     self.paymaster = _paymaster
     self.chequeBook = _chequeBook
     self.migrator = _migrator
-    ACTION_DATA_PROVIDER = _actionDataProvider
+    self.ACTION_DATA_PROVIDER = _actionDataProvider
 
     # eth addrs
-    WETH = _wethAddr
-    ETH = _ethAddr
+    self.WETH = _wethAddr
+    self.ETH = _ethAddr
 
     # not using 0 index
     self.numManagers = 1
@@ -199,8 +239,8 @@ def __init__(
     self.groupId = _groupId
 
     # timelock
-    MIN_TIMELOCK = _minTimeLock
-    MAX_TIMELOCK = _maxTimeLock
+    self.MIN_TIMELOCK = _minTimeLock
+    self.MAX_TIMELOCK = _maxTimeLock
     self.timeLock = _minTimeLock
 
     # manager / payee settings
@@ -216,16 +256,6 @@ def __init__(
         self.managers[1] = _startingAgent
         self.indexOfManager[_startingAgent] = 1
         self.numManagers = 2
-
-
-@external
-def setWallet(_wallet: address):
-    assert msg.sender == staticcall Registry(UNDY_HQ).getAddr(5) # dev: no perms
-    assert self.wallet == empty(address) # dev: wallet already set
-    assert _wallet != empty(address) # dev: invalid wallet
-    self.wallet = _wallet
-
-
 #############
 # Time Lock #
 #############
@@ -234,7 +264,7 @@ def setWallet(_wallet: address):
 @external
 def setTimeLock(_numBlocks: uint256):
     assert msg.sender == ownership.owner # dev: no perms
-    assert _numBlocks >= MIN_TIMELOCK and _numBlocks <= MAX_TIMELOCK # dev: invalid time lock
+    assert _numBlocks >= self.MIN_TIMELOCK and _numBlocks <= self.MAX_TIMELOCK # dev: invalid time lock
 
     currentTimeLock: uint256 = self.timeLock
     pendingConfirmBlock: uint256 = self.pendingTimeLock.confirmBlock
@@ -267,7 +297,7 @@ def confirmPendingTimeLock():
     assert pending.confirmBlock != 0 # dev: no pending time lock
     assert block.number >= pending.confirmBlock # dev: time delay not reached
     assert pending.currentOwner == ownership.owner # dev: owner must match
-    assert pending.newTimeLock >= MIN_TIMELOCK and pending.newTimeLock <= MAX_TIMELOCK # dev: pending time lock out of bounds
+    assert pending.newTimeLock >= self.MIN_TIMELOCK and pending.newTimeLock <= self.MAX_TIMELOCK # dev: pending time lock out of bounds
 
     self.timeLock = pending.newTimeLock
     self.pendingTimeLock = empty(wcs.PendingTimeLock)
@@ -377,7 +407,7 @@ def applyMigratedConfigSettings(
     assert msg.sender == self.migrator # dev: no perms
     assert _fromConfig != empty(address) # dev: invalid source config
 
-    self.timeLock = max(MIN_TIMELOCK, min(_timeLock, MAX_TIMELOCK))
+    self.timeLock = max(self.MIN_TIMELOCK, min(_timeLock, self.MAX_TIMELOCK))
     self.instantActionSettings = _instantSettings
     self.globalManagerSettings = _globalManagerSettings
     self.globalPayeeSettings = _globalPayeeSettings
@@ -406,13 +436,13 @@ def checkSignerPermissionsAndGetBundle(
     _legoIds: DynArray[uint256, MAX_LEGOS] = [],
     _transferRecipient: address = empty(address),
 ) -> ws.ActionData:
-    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).checkSignerPermissionsAndGetBundle(
+    return staticcall ActionDataProvider(self.ACTION_DATA_PROVIDER).checkSignerPermissionsAndGetBundle(
         self,
         _signer,
         _action,
-        UNDY_HQ,
-        ETH,
-        WETH,
+        self.UNDY_HQ,
+        self.ETH,
+        self.WETH,
         self.sentinel,
         _assets,
         _legoIds,
@@ -606,7 +636,7 @@ def confirmWhitelistAddr(_addr: address):
 def addWhitelistAddrViaMigrator(_addr: address):
     assert msg.sender == self.migrator # dev: no perms
     assert _addr != empty(address) # dev: invalid address
-    assert not staticcall ActionDataProvider(ACTION_DATA_PROVIDER).isPrivilegedUndyAddr(_addr, UNDY_HQ) # dev: invalid address
+    assert not staticcall ActionDataProvider(self.ACTION_DATA_PROVIDER).isPrivilegedUndyAddr(_addr, self.UNDY_HQ) # dev: invalid address
     assert self.indexOfPayee[_addr] == 0 and not self.cheques[_addr].active and self.indexOfManager[_addr] == 0 # dev: payee, manager, or active cheque
     self._registerWhitelistAddr(_addr)
 
@@ -962,7 +992,7 @@ def setLegoAccessForAction(_legoId: uint256, _action: ws.ActionType):
 @view
 @internal
 def _isValidRegistryAddr(_addr: address) -> bool:
-    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).isValidRegistryAddr(_addr, UNDY_HQ)
+    return staticcall ActionDataProvider(self.ACTION_DATA_PROVIDER).isValidRegistryAddr(_addr, self.UNDY_HQ)
 
 
 # is signer switchboard
@@ -972,7 +1002,7 @@ def _isValidRegistryAddr(_addr: address) -> bool:
 @view
 @internal
 def _isSwitchboardAddr(_signer: address) -> bool:
-    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).isSwitchboardAddr(_signer, UNDY_HQ)
+    return staticcall ActionDataProvider(self.ACTION_DATA_PROVIDER).isSwitchboardAddr(_signer, self.UNDY_HQ)
 
 
 # can perform security action
@@ -981,7 +1011,7 @@ def _isSwitchboardAddr(_signer: address) -> bool:
 @view
 @internal
 def _canPerformSecurityAction(_addr: address) -> bool:
-    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).canPerformSecurityAction(_addr, UNDY_HQ)
+    return staticcall ActionDataProvider(self.ACTION_DATA_PROVIDER).canPerformSecurityAction(_addr, self.UNDY_HQ)
 
 
 # is agent sender
@@ -990,7 +1020,7 @@ def _canPerformSecurityAction(_addr: address) -> bool:
 @view
 @external
 def isAgentSender(_addr: address) -> bool:
-    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).isAgentSender(_addr, self.startingAgent)
+    return staticcall ActionDataProvider(self.ACTION_DATA_PROVIDER).isAgentSender(_addr, self.startingAgent)
 
 
 ###################
@@ -1041,7 +1071,7 @@ def setMigrator(_migrator: address):
 @view
 @internal
 def _canSetBackpackItem(_newBackpackAddr: address, _caller: address) -> bool:
-    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).canSetBackpackItem(_newBackpackAddr, _caller, ownership.owner, UNDY_HQ)
+    return staticcall ActionDataProvider(self.ACTION_DATA_PROVIDER).canSetBackpackItem(_newBackpackAddr, _caller, ownership.owner, self.UNDY_HQ)
 
 
 ######################
@@ -1058,4 +1088,4 @@ def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
 @view
 @internal
 def _getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData:
-    return staticcall ActionDataProvider(ACTION_DATA_PROVIDER).getActionDataBundle(self, _legoId, _signer, UNDY_HQ, ETH, WETH)
+    return staticcall ActionDataProvider(self.ACTION_DATA_PROVIDER).getActionDataBundle(self, _legoId, _signer, self.UNDY_HQ, self.ETH, self.WETH)

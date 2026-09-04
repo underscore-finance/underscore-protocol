@@ -3,7 +3,7 @@ import boa
 
 from constants import EIGHTEEN_DECIMALS, ZERO_ADDRESS
 from contracts.core.userWallet import UserWallet, UserWalletConfig
-from conf_utils import filter_logs, set_live_cheque_settings
+from conf_utils import filter_logs, fresh_user_wallet, set_live_cheque_settings
 from config.BluePrint import TOKENS, PARAMS
 
 
@@ -119,10 +119,9 @@ def _create_wallet_without_starter_agent(hatchery, owner, mission_control, switc
     assert creation_config.isCreatorAllowed
     mission_control.setStarterAgent(ZERO_ADDRESS, sender=switchboard_alpha.address)
     try:
-        fresh_wallet = UserWallet.at(hatchery.createUserWallet(owner, ZERO_ADDRESS, 1, sender=owner))
+        fresh_wallet, fresh_config = fresh_user_wallet(hatchery, owner)
     finally:
         mission_control.setStarterAgent(previous_starter_agent, sender=switchboard_alpha.address)
-    fresh_config = UserWalletConfig.at(fresh_wallet.walletConfig())
     assert fresh_config.startingAgent() == ZERO_ADDRESS
     return fresh_wallet, fresh_config
 
@@ -2897,8 +2896,7 @@ def test_agent_remove_self_as_manager_starter_agent_reverts(
     charlie,
 ):
     mission_control.setStarterAgent(starter_agent, sender=switchboard_alpha.address)
-    fresh_wallet = UserWallet.at(hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, sender=bob))
-    fresh_config = UserWalletConfig.at(fresh_wallet.walletConfig())
+    fresh_wallet, fresh_config = fresh_user_wallet(hatchery, bob)
     assert fresh_config.startingAgent() == starter_agent.address
     num_managers_before = fresh_config.numManagers()
     assert num_managers_before == 2  # sentinel index + starter agent

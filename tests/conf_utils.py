@@ -1,6 +1,14 @@
+from itertools import count
+
 import pytest
 import boa
 from constants import HUNDRED_PERCENT, EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ONE_YEAR_IN_BLOCKS, ZERO_ADDRESS
+
+
+# Helpers that promise a fresh wallet must allocate a fresh deterministic
+# identity. Keep these well outside the small explicit group IDs used by tests
+# that exercise group semantics.
+_FRESH_USER_WALLET_GROUP_IDS = count(1_000_000)
 
 
 def filter_logs(contract, event_name, _strict=False):
@@ -23,7 +31,15 @@ def set_live_cheque_settings(cheque_book, user_wallet, *settings, sender):
 def fresh_user_wallet(hatchery, owner):
     from contracts.core.userWallet import UserWallet, UserWalletConfig
 
-    wallet = UserWallet.at(hatchery.createUserWallet(sender=owner))
+    group_id = next(_FRESH_USER_WALLET_GROUP_IDS)
+    wallet = UserWallet.at(
+        hatchery.createUserWallet(
+            owner,
+            ZERO_ADDRESS,
+            group_id,
+            sender=owner,
+        )
+    )
     return wallet, UserWalletConfig.at(wallet.walletConfig())
 
 

@@ -1,0 +1,667 @@
+[
+  {
+    "name": "UndyHqSet",
+    "inputs": [
+      {
+        "name": "undyHq",
+        "type": "address",
+        "indexed": true
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "name": "UserWalletPairCreated",
+    "inputs": [
+      {
+        "name": "wallet",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "walletConfig",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "groupId",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "starterAgentTier",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "walletSalt",
+        "type": "bytes32",
+        "indexed": false
+      }
+    ],
+    "anonymous": false,
+    "type": "event"
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "setUndyHq",
+    "inputs": [
+      {
+        "name": "_undyHq",
+        "type": "address"
+      }
+    ],
+    "outputs": []
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "isUserWalletConfig",
+    "inputs": [
+      {
+        "name": "_config",
+        "type": "address"
+      },
+      {
+        "name": "_salt",
+        "type": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ]
+  },
+  {
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "createUserWallet",
+    "inputs": [
+      {
+        "name": "_params",
+        "type": "tuple",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "name": "groupId",
+            "type": "uint256"
+          },
+          {
+            "name": "starterAgentTier",
+            "type": "uint256"
+          },
+          {
+            "name": "globalManagerSettings",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "managerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "startDelay",
+                "type": "uint256"
+              },
+              {
+                "name": "activationLength",
+                "type": "uint256"
+              },
+              {
+                "name": "canOwnerManage",
+                "type": "bool"
+              },
+              {
+                "name": "limits",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "maxUsdValuePerTx",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "maxUsdValuePerPeriod",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "maxUsdValueLifetime",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "maxNumTxsPerPeriod",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "txCooldownBlocks",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "failOnZeroPrice",
+                    "type": "bool"
+                  }
+                ]
+              },
+              {
+                "name": "legoPerms",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "canManageYield",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canBuyAndSell",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canManageDebt",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canManageLiq",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canClaimRewards",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "onlyApprovedYieldOpps",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "allowedLegos",
+                    "type": "uint256[]"
+                  }
+                ]
+              },
+              {
+                "name": "swapPerms",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "mustHaveUsdValue",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "maxNumSwapsPerPeriod",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "maxSlippage",
+                    "type": "uint256"
+                  }
+                ]
+              },
+              {
+                "name": "whitelistPerms",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "canConfirm",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canCancel",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canRemove",
+                    "type": "bool"
+                  }
+                ]
+              },
+              {
+                "name": "transferPerms",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "canTransfer",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canCreateCheque",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "allowedPayees",
+                    "type": "address[]"
+                  }
+                ]
+              },
+              {
+                "name": "allowedAssets",
+                "type": "address[]"
+              }
+            ]
+          },
+          {
+            "name": "globalPayeeSettings",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "defaultPeriodLength",
+                "type": "uint256"
+              },
+              {
+                "name": "startDelay",
+                "type": "uint256"
+              },
+              {
+                "name": "activationLength",
+                "type": "uint256"
+              },
+              {
+                "name": "maxNumTxsPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "txCooldownBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "failOnZeroPrice",
+                "type": "bool"
+              },
+              {
+                "name": "usdLimits",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "perTxCap",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "perPeriodCap",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "lifetimeCap",
+                    "type": "uint256"
+                  }
+                ]
+              },
+              {
+                "name": "canPull",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "chequeSettings",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "maxNumActiveCheques",
+                "type": "uint256"
+              },
+              {
+                "name": "maxChequeUsdValue",
+                "type": "uint256"
+              },
+              {
+                "name": "instantUsdThreshold",
+                "type": "uint256"
+              },
+              {
+                "name": "perPeriodPaidUsdCap",
+                "type": "uint256"
+              },
+              {
+                "name": "maxNumChequesPaidPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "payCooldownBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "perPeriodCreatedUsdCap",
+                "type": "uint256"
+              },
+              {
+                "name": "maxNumChequesCreatedPerPeriod",
+                "type": "uint256"
+              },
+              {
+                "name": "createCooldownBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "periodLength",
+                "type": "uint256"
+              },
+              {
+                "name": "expensiveDelayBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "defaultExpiryBlocks",
+                "type": "uint256"
+              },
+              {
+                "name": "allowedAssets",
+                "type": "address[]"
+              },
+              {
+                "name": "canManagersCreateCheques",
+                "type": "bool"
+              },
+              {
+                "name": "canManagerPay",
+                "type": "bool"
+              },
+              {
+                "name": "canBePulled",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "startingAgent",
+            "type": "address"
+          },
+          {
+            "name": "starterAgentSettings",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "startBlock",
+                "type": "uint256"
+              },
+              {
+                "name": "expiryBlock",
+                "type": "uint256"
+              },
+              {
+                "name": "limits",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "maxUsdValuePerTx",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "maxUsdValuePerPeriod",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "maxUsdValueLifetime",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "maxNumTxsPerPeriod",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "txCooldownBlocks",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "failOnZeroPrice",
+                    "type": "bool"
+                  }
+                ]
+              },
+              {
+                "name": "legoPerms",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "canManageYield",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canBuyAndSell",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canManageDebt",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canManageLiq",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canClaimRewards",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "onlyApprovedYieldOpps",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "allowedLegos",
+                    "type": "uint256[]"
+                  }
+                ]
+              },
+              {
+                "name": "swapPerms",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "mustHaveUsdValue",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "maxNumSwapsPerPeriod",
+                    "type": "uint256"
+                  },
+                  {
+                    "name": "maxSlippage",
+                    "type": "uint256"
+                  }
+                ]
+              },
+              {
+                "name": "whitelistPerms",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "canConfirm",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canCancel",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canRemove",
+                    "type": "bool"
+                  }
+                ]
+              },
+              {
+                "name": "transferPerms",
+                "type": "tuple",
+                "components": [
+                  {
+                    "name": "canTransfer",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "canCreateCheque",
+                    "type": "bool"
+                  },
+                  {
+                    "name": "allowedPayees",
+                    "type": "address[]"
+                  }
+                ]
+              },
+              {
+                "name": "allowedAssets",
+                "type": "address[]"
+              },
+              {
+                "name": "canClaimLoot",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "kernel",
+            "type": "address"
+          },
+          {
+            "name": "sentinel",
+            "type": "address"
+          },
+          {
+            "name": "highCommand",
+            "type": "address"
+          },
+          {
+            "name": "paymaster",
+            "type": "address"
+          },
+          {
+            "name": "chequeBook",
+            "type": "address"
+          },
+          {
+            "name": "migrator",
+            "type": "address"
+          },
+          {
+            "name": "actionDataProvider",
+            "type": "address"
+          },
+          {
+            "name": "weth",
+            "type": "address"
+          },
+          {
+            "name": "eth",
+            "type": "address"
+          },
+          {
+            "name": "minTimeLock",
+            "type": "uint256"
+          },
+          {
+            "name": "maxTimeLock",
+            "type": "uint256"
+          },
+          {
+            "name": "instantActionSettings",
+            "type": "tuple",
+            "components": [
+              {
+                "name": "canInstantAddManager",
+                "type": "bool"
+              },
+              {
+                "name": "canInstantAddPayee",
+                "type": "bool"
+              },
+              {
+                "name": "canInstantSetGlobalPayeeSettings",
+                "type": "bool"
+              },
+              {
+                "name": "canInstantSetChequeSettings",
+                "type": "bool"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      },
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "WALLET_FACTORY_ADMIN",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "USER_WALLET_IMPLEMENTATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "USER_WALLET_IMPLEMENTATION_CODEHASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "USER_WALLET_CONFIG_IMPLEMENTATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "USER_WALLET_CONFIG_IMPLEMENTATION_CODEHASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32"
+      }
+    ]
+  },
+  {
+    "stateMutability": "view",
+    "type": "function",
+    "name": "undyHq",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ]
+  }
+]

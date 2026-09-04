@@ -2015,7 +2015,7 @@ def test_pending_cheque_settings_are_isolated_per_wallet(
     bob, hatchery, user_wallet, cheque_book, createChequeSettings
 ):
     """Pending cheque settings for one wallet should not affect another wallet"""
-    new_wallet = UserWallet.at(hatchery.createUserWallet(sender=bob))
+    new_wallet, _ = fresh_user_wallet(hatchery, bob)
 
     baseline = restrictive_cheque_settings(createChequeSettings)
     set_live_cheque_settings(cheque_book, user_wallet.address, *baseline, sender=bob)

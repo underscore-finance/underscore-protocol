@@ -1,5 +1,7 @@
 import pytest
 import boa
+from eth_abi import encode
+from eth_utils import keccak, to_checksum_address
 
 from contracts.core.userWallet import UserWallet, UserWalletConfig
 from contracts.core.agent import AgentWrapper
@@ -21,6 +23,26 @@ WALLET_BACKPACK_CORE_ADDR_ARGS = (
     ("migrator", 5),
     ("action_data_provider", 6),
 )
+
+VYPER_PROXY_INITCODE_PREFIX = bytes.fromhex(
+    "602d3d8160093d39f3363d3d373d3d3d363d73"
+)
+VYPER_PROXY_INITCODE_SUFFIX = bytes.fromhex("5af43d82803e903d91602b57fd5bf3")
+
+
+def predict_vyper_proxy(factory, implementation, salt):
+    initcode = (
+        VYPER_PROXY_INITCODE_PREFIX
+        + bytes.fromhex(str(implementation)[2:])
+        + VYPER_PROXY_INITCODE_SUFFIX
+    )
+    digest = keccak(
+        b"\xff"
+        + bytes.fromhex(str(factory)[2:])
+        + salt
+        + keccak(initcode)
+    )
+    return to_checksum_address(digest[-20:])
 
 
 def wallet_config_for(wallet_addr):
@@ -77,6 +99,61 @@ def test_create_user_wallet_basic(hatchery, alice):
     # Verify wallet config
     wallet_config = UserWalletConfig.at(wallet.walletConfig())
     assert wallet_config.owner() == alice
+
+
+def test_prefunded_counterfactual_wallet_deploys_through_hatchery(
+    hatchery,
+    user_wallet_factory,
+    user_wallet_implementation,
+    user_wallet_config_implementation,
+    alice,
+    alpha_token,
+    alpha_token_whale,
+):
+    group_id = 987_654
+    tier = STARTER_AGENT_TYPE.PROD
+    salt = keccak(
+        encode(
+            ["address", "uint256", "uint256"],
+            [str(alice), group_id, tier],
+        )
+    )
+    expected_wallet = predict_vyper_proxy(
+        user_wallet_factory.address,
+        user_wallet_implementation.address,
+        salt,
+    )
+    expected_config = predict_vyper_proxy(
+        user_wallet_factory.address,
+        user_wallet_config_implementation.address,
+        salt,
+    )
+    native_amount = 7 * 10**18
+    token_amount = 3 * 10**18
+    native_holder = boa.env.generate_address("hatchery_prefund_native_holder")
+
+    assert boa.env.get_code(expected_wallet) == b""
+    assert boa.env.get_code(expected_config) == b""
+    boa.env.set_balance(native_holder, native_amount)
+    boa.env.raw_call(expected_wallet, sender=native_holder, value=native_amount)
+    alpha_token.transfer(expected_wallet, token_amount, sender=alpha_token_whale)
+
+    deployed_wallet = hatchery.createUserWallet(
+        alice,
+        ZERO_ADDRESS,
+        group_id,
+        tier,
+        sender=alice,
+    )
+
+    assert deployed_wallet == expected_wallet
+    wallet = UserWallet.at(deployed_wallet)
+    config = UserWalletConfig.at(wallet.walletConfig())
+    assert config.address == expected_config
+    assert config.owner() == alice
+    assert config.walletSalt() == salt
+    assert boa.env.get_balance(expected_wallet) == native_amount
+    assert alpha_token.balanceOf(expected_wallet) == token_amount
 
 
 def test_fresh_wallet_inherits_hatchery_default_instant_settings(hatchery, alice):
@@ -183,6 +260,7 @@ def test_hatchery_constructor_rejects_whitelisted_non_prod_creator(
             (ZERO_ADDRESS, 0),
             (ZERO_ADDRESS, 0),
             alice,
+            hatchery.WALLET_FACTORY(),
             name="hatchery_bad_non_prod_creator",
         )
 
@@ -233,6 +311,7 @@ def test_create_user_wallet_rejects_zero_eth_addresses(undy_hq, hatchery, weth, 
         (ZERO_ADDRESS, 0),
         (ZERO_ADDRESS, 0),
         ZERO_ADDRESS,
+        hatchery.WALLET_FACTORY(),
         name=f"hatchery_zero_{'weth' if zero_weth else 'eth'}",
     )
 
@@ -240,11 +319,19 @@ def test_create_user_wallet_rejects_zero_eth_addresses(undy_hq, hatchery, weth, 
         bad_hatchery.createUserWallet(sender=alice)
 
 
-def test_create_user_wallet_rejects_invalid_templates(hatchery, setUserWalletConfig, alice):
-    setUserWalletConfig(_walletTemplate=alice)
+def test_create_user_wallet_does_not_consume_legacy_templates(
+    hatchery,
+    setUserWalletConfig,
+    alice,
+    bob,
+):
+    # The deterministic factory pins both implementations. MissionControl's
+    # legacy blueprint fields remain nonzero for cutover compatibility, but
+    # changing them cannot select the code used for a newly created wallet.
+    setUserWalletConfig(_walletTemplate=alice, _configTemplate=bob)
 
-    with boa.reverts():
-        hatchery.createUserWallet(sender=alice)
+    wallet = UserWallet.at(hatchery.createUserWallet(sender=alice))
+    assert UserWalletConfig.at(wallet.walletConfig()).owner() == alice
 
 
 def test_create_user_wallet_rejects_invalid_timelock_bounds(hatchery, setUserWalletConfig, alice):

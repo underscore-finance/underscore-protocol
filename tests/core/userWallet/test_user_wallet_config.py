@@ -1,5 +1,9 @@
 import pytest
 import boa
+from eth_abi import encode
+from eth_utils import keccak
+
+from contracts.core.userWallet import UserWallet, UserWalletConfig
 from constants import EIGHTEEN_DECIMALS, ONE_DAY_IN_BLOCKS, ONE_MONTH_IN_BLOCKS, ZERO_ADDRESS
 from conf_utils import (
     confirm_pending_instant_action_settings,
@@ -102,9 +106,10 @@ def test_remove_whitelist_access(user_wallet_config, alice, bob):
         user_wallet_config.removeWhitelistAddr(alice, sender=bob)
 
 
-def test_set_wallet_requires_registered_hatchery_for_unbound_config(
+def test_wallet_binding_is_factory_initialized_and_permanently_one_shot(
     undy_hq,
     hatchery,
+    user_wallet_factory,
     alice,
     bob,
     weth,
@@ -120,42 +125,59 @@ def test_set_wallet_requires_registered_hatchery_for_unbound_config(
     createChequeSettings,
     createManagerSettings,
 ):
-    config = boa.load(
-        "contracts/core/userWallet/UserWalletConfig.vy",
-        undy_hq,
-        alice,
-        1,
-        createGlobalManagerSettings(),
-        createGlobalPayeeSettings(),
-        createChequeSettings(),
-        ZERO_ADDRESS,
-        createManagerSettings(),
-        kernel.address,
-        sentinel.address,
-        high_command.address,
-        paymaster.address,
-        cheque_book.address,
-        migrator.address,
-        action_data_provider.address,
-        weth.address,
-        hatchery.ETH(),
-        ONE_DAY_IN_BLOCKS,
-        ONE_MONTH_IN_BLOCKS,
-        (True, True, True, True),
-        name="unbound_user_wallet_config",
+    group_id = 97
+    tier = 1
+    wallet = UserWallet.at(
+        hatchery.createUserWallet(
+            alice,
+            ZERO_ADDRESS,
+            group_id,
+            tier,
+            sender=alice,
+        )
+    )
+    config = UserWalletConfig.at(wallet.walletConfig())
+    wallet_salt = keccak(
+        encode(
+            ["address", "uint256", "uint256"],
+            [str(alice), group_id, tier],
+        )
     )
 
-    with boa.reverts("no perms"):
-        config.setWallet(bob, sender=bob)
+    assert config.initialized() is True
+    assert config.wallet() == wallet.address
+    assert config.walletSalt() == wallet_salt
+    assert user_wallet_factory.isUserWalletConfig(config.address, wallet_salt)
+    assert not hasattr(config, "setWallet")
 
-    with boa.reverts("invalid wallet"):
-        config.setWallet(ZERO_ADDRESS, sender=hatchery.address)
-
-    config.setWallet(bob, sender=hatchery.address)
-    assert config.wallet() == bob
-
-    with boa.reverts("wallet already set"):
-        config.setWallet(alice, sender=hatchery.address)
+    # Binding now occurs inside the factory's atomic initializer path. Once the
+    # canonical config is paired, no caller (including Hatchery) can rebind it.
+    with boa.reverts("already initialized"):
+        config.initialize(
+            wallet.address,
+            undy_hq.address,
+            alice,
+            group_id,
+            tier,
+            createGlobalManagerSettings(),
+            createGlobalPayeeSettings(),
+            createChequeSettings(),
+            ZERO_ADDRESS,
+            createManagerSettings(),
+            kernel.address,
+            sentinel.address,
+            high_command.address,
+            paymaster.address,
+            cheque_book.address,
+            migrator.address,
+            action_data_provider.address,
+            weth.address,
+            hatchery.ETH(),
+            ONE_DAY_IN_BLOCKS,
+            ONE_MONTH_IN_BLOCKS,
+            (True, True, True, True),
+            sender=bob,
+        )
 
 
 def test_add_whitelist_via_migrator_access(user_wallet_config, alice, bob):
