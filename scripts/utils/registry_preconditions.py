@@ -8,6 +8,7 @@ DEFAULT_REGISTRY_DESCRIPTIONS = {
     "LegoBook": "Lego Book",
     "LootDistributor": "Loot Distributor",
     "WalletBackpack": "Wallet Backpack",
+    "VaultRegistry": "Vault Registry",
 }
 
 def _address(value):

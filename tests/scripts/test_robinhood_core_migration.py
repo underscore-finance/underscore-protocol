@@ -371,6 +371,69 @@ def test_robinhood_core_registries_deploy_end_to_end(
         ]
 
 
+def test_robinhood_empty_registries_keep_appraiser_non_earn_path_operational(
+    robinhood_fork,
+    tmp_path,
+):
+    fork_env, rpc_url = robinhood_fork
+
+    with fork_env.anchor():
+        deployed = _run_core_migration(
+            tmp_path,
+            rpc_url,
+            end_timestamp="0011",
+        )
+        hq = boa.load_partial("contracts/registries/UndyHq.vy").at(
+            EXPECTED_UNDY_HQ
+        )
+        vault_registry = boa.load_partial(
+            "contracts/registries/VaultRegistry.vy"
+        ).at(deployed["VaultRegistry"])
+        helpers = boa.load_partial("contracts/registries/Helpers.vy").at(
+            deployed["Helpers"]
+        )
+
+        assert hq.numAddrs() == 12
+        assert str(hq.getAddr(10)) == deployed["VaultRegistry"]
+        assert str(hq.getAddr(11)) == deployed["Helpers"]
+        for registry in (vault_registry, helpers):
+            assert str(registry.governance()) == (
+                "0x0000000000000000000000000000000000000000"
+            )
+            assert [str(governor) for governor in registry.getGovernors()] == [
+                DEPLOYER
+            ]
+            assert registry.numAddrs() == 1
+            assert registry.getNumAddrs() == 0
+
+        assert "LegoTools" not in deployed
+        assert "LevgVaultTools" not in deployed
+        ripe_token = _deploy_args(rpc_url).blueprint.TOKENS["RIPE"]
+        assert vault_registry.isBasicEarnVault(ripe_token) is False
+        assert helpers.isHelpersAddr(DEPLOYER) is False
+
+        appraiser = boa.load_partial("contracts/core/Appraiser.vy").at(
+            deployed["Appraiser"]
+        )
+        assert appraiser.updatePriceAndGetUsdValue(
+            ripe_token,
+            10**18,
+            sender=deployed["Ledger"],
+        ) == 0
+        usd_value, is_yield_asset = (
+            appraiser.updatePriceAndGetUsdValueAndIsYieldAsset(
+                ripe_token,
+                10**18,
+                sender=deployed["Ledger"],
+            )
+        )
+        # RIPE intentionally has no Robinhood price at launch. The important
+        # property is that the ordinary non-earn path reaches the empty ID-10
+        # registry and returns fail-closed instead of reverting on address(0).
+        assert usd_value == 0
+        assert is_yield_asset is False
+
+
 def test_switchboard_migration_resumes_every_registry_boundary(
     robinhood_fork,
     tmp_path,

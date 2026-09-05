@@ -105,6 +105,14 @@ parity requirements to migrations `0001` and later. Normal dependency ordering
 still matters, and every migration verifies the exact existing registry prefix
 before its first transaction.
 
+Do not use `migration_history/base-mainnet/v1/current-manifest.json` as evidence
+of live Base parity: that generation stopped in November 2025. The checked-in
+`v1.1/current-manifest.json` matches live Base through HQ ID 11; live IDs 12 and
+13 are later payments work on a separate branch and are out of this release.
+Robinhood authenticates its own manifest continuity against pinned
+source-derived runtime hashes and live constructor state; this runbook does not
+claim byte-for-byte or registry-tail equivalence with current Base.
+
 The intended initial sequence is:
 
 | Migration | Deployment and registration |
@@ -118,12 +126,20 @@ The intended initial sequence is:
 | `0007` | `Appraiser` at ID 7, pinned to the live RH Ripe registry |
 | `0008` | `WalletBackpack` at ID 8, with Kernel, Sentinel, HighCommand, Paymaster, ChequeBook, Migrator, and ActionDataProvider wired |
 | `0009` | `Billing` at ID 9 |
+| `0010` | empty `VaultRegistry` at ID 10; no earn vaults or vault configuration |
+| `0011` | empty `Helpers` registry at ID 11; no `LegoTools` or `LevgVaultTools` |
 | `1000` | lock setup-time registries/actions, grant Switchboard the ID-4 token-blacklist permission, and hand UndyHq to the approved RH governance contract |
 
 SwitchboardCharlie is deliberately absent. Its current entry points administer
 vaults, vault allowlists, and Lego/yield configuration; nothing in the initial
 no-vault core path resolves Switchboard child ID 3. Register it later, before
 vault support, through the timelocked Switchboard registry.
+
+`LegoTools` is also deferred rather than deployed empty. Its constructor fixes
+two router tokens and eleven LegoBook IDs as immutables and rejects an empty
+LegoBook, so deploying it before the RH Lego set is approved would permanently
+encode placeholder routing data. Deploy and register it under Helpers only with
+the later Lego rollout; `LevgVaultTools` remains part of the deferred vault set.
 
 Run the post-HQ sequence only after every release blocker below is resolved:
 
@@ -160,11 +176,11 @@ registry events and reconcile that exact pending entry first; otherwise an
 unknown pending write can survive until governance handoff.
 
 Immediately before `1000`, scan registry events for unresolved pending add,
-update, or disable actions in UndyHq, Switchboard, and LegoBook. AddressRegistry
-does not expose an enumerable pending-action list, so exact address prefixes and
-empty known action IDs cannot prove the absence of every pending registry write.
-Treat this event scan as a mandatory manual precondition before the irreversible
-timelock and governance handoff.
+update, or disable actions in UndyHq, Switchboard, LegoBook, VaultRegistry, and
+Helpers. AddressRegistry does not expose an enumerable pending-action list, so
+exact address prefixes and empty known action IDs cannot prove the absence of
+every pending registry write. Treat this event scan as a mandatory manual
+precondition before the irreversible timelock and governance handoff.
 
 Also scan every `SwitchboardBravo.LockedSignerSet` event since MissionControl
 deployment, collect each signer address that ever appeared, and require
@@ -191,15 +207,15 @@ checks cannot prove that it is empty without event-derived keys.
 - `DefaultsRobinhood` intentionally has no starter agent, creator, or security
   signer. Finish setup does not invent them. Wallet creation remains fail-closed
   until governance approves and installs the operational identities.
-- HQ ID 10 is intentionally absent because vault deployment is out of scope.
-  This is not operationally neutral: both Appraiser update entry points
-  unconditionally call `VaultRegistry(getAddr(10)).isBasicEarnVault`, so ordinary
-  priced wallet transfer/wrap/cheque paths revert while ID 10 is zero. An empty
-  VaultRegistry needs no EarnVault, but deploying it is a scope decision and is
-  not done by these migrations. It must be registered and locked before any
-  future Lego; otherwise Sentinel's zero-registry guard can bypass the
-  only-approved-yield-opportunity check.
+- HQ ID 10 is an empty, locked `VaultRegistry`. Both Appraiser update entry
+  points unconditionally call `VaultRegistry(getAddr(10)).isBasicEarnVault`, so
+  registering the empty department keeps ordinary non-earn-asset pricing paths
+  operational without pulling earn vaults into this release. No vault address,
+  vault token, allowlist, or yield configuration is installed. SwitchboardCharlie
+  remains deferred until that separately approved vault/Lego rollout.
+- HQ ID 11 is an empty, locked `Helpers` registry. `LegoTools` and
+  `LevgVaultTools` are not deployed or registered in this core release.
 
-Until governance and the ID-10 decision are resolved, migrations `0000` through
-`0009` form a deployable prefix but `1000` cannot complete the irreversible
-handoff. Do not describe that prefix as a working wallet protocol.
+Until governance is resolved, migrations `0000` through `0011` form a deployable
+prefix but `1000` cannot complete the irreversible handoff. Do not describe that
+prefix as a working wallet protocol.

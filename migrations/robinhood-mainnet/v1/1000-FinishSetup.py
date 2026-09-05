@@ -15,8 +15,16 @@ CORE_REGISTRY = (
     (7, "Appraiser"),
     (8, "WalletBackpack"),
     (9, "Billing"),
+    (10, "VaultRegistry"),
+    (11, "Helpers"),
 )
 
+# Alpha and Bravo are the complete initial core control plane. Charlie is the
+# entirely deferred vault/yield subsystem: earn-vault administration,
+# leveraged-vault configuration and operations, YieldLego registration and
+# snapshots, and rewards addresses. Leave child ID 3 empty until that
+# separately approved rollout; do not infer or auto-register Charlie merely
+# because the contract source exists.
 SWITCHBOARD_REGISTRY = (
     (1, "SwitchboardAlpha"),
     (2, "SwitchboardBravo"),
@@ -267,6 +275,8 @@ def migrate(migration: Migration):
     switchboard_bravo = migration.get_contract("SwitchboardBravo")
     wallet_backpack = migration.get_contract("WalletBackpack")
     lego_book = migration.get_contract("LegoBook")
+    vault_registry = migration.get_contract("VaultRegistry")
+    helpers = migration.get_contract("Helpers")
     _require_wallet_backpack_items(migration, wallet_backpack)
     _require_child_governance(
         migration.blueprint.CONSTANTS.ZERO_ADDRESS,
@@ -276,6 +286,8 @@ def migrate(migration: Migration):
             ("WalletBackpack", wallet_backpack),
             ("SwitchboardAlpha", switchboard_alpha),
             ("SwitchboardBravo", switchboard_bravo),
+            ("VaultRegistry", vault_registry),
+            ("Helpers", helpers),
         ),
     )
     _require_switchboard_actions_pristine(
@@ -292,6 +304,8 @@ def migrate(migration: Migration):
         _lock_state(wallet_backpack, "action", "WalletBackpack"),
         _lock_state(switchboard, "registry", "Switchboard registry"),
         _lock_state(lego_book, "registry", "LegoBook registry"),
+        _lock_state(vault_registry, "registry", "VaultRegistry registry"),
+        _lock_state(helpers, "registry", "Helpers registry"),
     )
     hq_lock_state = _lock_state(hq, "registry", "UndyHq registry")
     config_state, final_hq_config = _classify_hq_config(hq)
