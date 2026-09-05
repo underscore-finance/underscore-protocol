@@ -25,9 +25,6 @@
 # pragma optimize codesize
 
 implements: wi
-
-import contracts.modules.Create2ProxyGuard as create2ProxyGuard
-
 from interfaces import Wallet as wi
 from interfaces import LegoPartner as Lego
 from interfaces import WalletStructs as ws
@@ -36,16 +33,11 @@ from ethereum.ercs import IERC20
 from ethereum.ercs import IERC721
 
 interface WalletConfig:
-    def wallet() -> address: view
-    def walletSalt() -> bytes32: view
     def checkSignerPermissionsAndGetBundle(_signer: address, _action: ws.ActionType, _assets: DynArray[address, MAX_ASSETS] = [], _legoIds: DynArray[uint256, MAX_LEGOS] = [], _transferRecipient: address = empty(address)) -> ws.ActionData: view
     def checkManagerLimitsPostTx(_manager: address, _txUsdValue: uint256, _underlyingAsset: address, _vaultToken: address, _shouldCheckSwap: bool, _fromAssetUsdValue: uint256, _toAssetUsdValue: uint256, _vaultRegistry: address): nonpayable
     def checkRecipientLimitsAndUpdateData(_recipient: address, _txUsdValue: uint256, _asset: address, _amount: uint256): nonpayable
     def validateCheque(_recipient: address, _asset: address, _amount: uint256, _txUsdValue: uint256, _signer: address): nonpayable
     def getActionDataBundle(_legoId: uint256, _signer: address) -> ws.ActionData: view
-
-interface WalletFactory:
-    def isUserWalletConfig(_config: address, _salt: bytes32) -> bool: view
 
 interface LootDistributor:
     def addLootFromYieldProfit(_asset: address, _feeAmount: uint256, _yieldRealized: uint256, _missionControl: address = empty(address), _appraiser: address = empty(address), _legoBook: address = empty(address)): nonpayable
@@ -93,7 +85,6 @@ event WalletActionExt:
 
 # data 
 walletConfig: public(address)
-initialized: public(bool)
 
 # asset data
 assetData: public(HashMap[address, ws.WalletAssetData]) # asset -> data
@@ -114,36 +105,22 @@ MAX_PROOFS: constant(uint256) = 25
 ERC721_RECEIVE_DATA: constant(Bytes[1024]) = b"UE721"
 MAX_DELEVERAGE_WALLET_ASSETS: constant(uint256) = 10
 
-WETH: public(address)
-ETH: public(constant(address)) = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
+WETH: public(immutable(address))
+ETH: public(immutable(address))
 
 
 @deploy
-def __init__():
-    # Lock the implementation contract itself. Minimal proxies have independent
-    # storage and are initialized atomically by the deterministic factory.
-    self.initialized = True
-
-
-@external
-def initialize(
+def __init__(
     _wethAddr: address,
+    _ethAddr: address,
     _walletConfig: address,
 ):
-    assert not self.initialized # dev: already initialized
-    # Keep this as the first storage write. Any future external call added to
-    # initialization must observe the guard closed to prevent reentrant init.
-    self.initialized = True
-    assert empty(address) not in [_wethAddr, _walletConfig] # dev: inv addr
-    assert _walletConfig.is_contract # dev: invalid wallet config
-    assert staticcall WalletConfig(_walletConfig).wallet() == self # dev: invalid wallet config
-    walletSalt: bytes32 = staticcall WalletConfig(_walletConfig).walletSalt()
-    create2ProxyGuard._assertCreate2Proxy(walletSalt)
-    assert staticcall WalletFactory(msg.sender).isUserWalletConfig(_walletConfig, walletSalt) # dev: invalid proxy pair
+    assert empty(address) not in [_wethAddr, _ethAddr, _walletConfig] # dev: inv addr
     self.walletConfig = _walletConfig
     self.numAssets = 1
 
-    self.WETH = _wethAddr
+    WETH = _wethAddr
+    ETH = _ethAddr
 
 
 @view
@@ -761,7 +738,7 @@ def claimIncentives(
 @nonreentrant
 @external
 def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):
-    weth: address = self.WETH
+    weth: address = WETH
     eth: address = ETH
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.WETH_TO_ETH, False, [weth, eth], [], empty(address))
 
@@ -783,7 +760,7 @@ def convertWethToEth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256
 @external
 def convertEthToWeth(_amount: uint256 = max_value(uint256)) -> (uint256, uint256):
     eth: address = ETH
-    weth: address = self.WETH
+    weth: address = WETH
     ad: ws.ActionData = self._performPreActionTasks(msg.sender, ws.ActionType.ETH_TO_WETH, False, [eth, weth], [], empty(address))
 
     # convert eth to weth

@@ -32,7 +32,6 @@ import contracts.modules.DeptBasics as deptBasics
 
 from interfaces import Department
 from interfaces import WalletConfigStructs as wcs
-from interfaces import WalletFactory as walletFactory
 import interfaces.ConfigStructs as cs
 
 interface WalletBackpack:
@@ -67,6 +66,9 @@ interface Paymaster:
 interface MissionControl:
     def getUserWalletCreationConfig(_creator: address) -> UserWalletCreationConfig: view
     def creatorWhitelist(_creator: address) -> bool: view
+
+interface WalletConfig:
+    def setWallet(_wallet: address): nonpayable
 
 struct UserWalletCreationConfig:
     numUserWalletsAllowed: uint256
@@ -117,7 +119,6 @@ event HatcheryDefaultInstantActionSettingsSet:
 
 WETH: public(immutable(address))
 ETH: public(immutable(address))
-WALLET_FACTORY: public(immutable(address))
 
 # default configs
 defaultInstantActionSettings: public(wcs.InstantActionSettings)
@@ -136,14 +137,9 @@ def __init__(
     _stagingStarterAgentConfig: cs.AgentConfig,
     _devStarterAgentConfig: cs.AgentConfig,
     _nonProdCreator: address,
-    _walletFactory: address,
 ):
     addys.__init__(_undyHq)
     deptBasics.__init__(False, False) # no minting
-
-    assert _walletFactory != empty(address) and _walletFactory.is_contract # dev: invalid wallet factory
-    assert staticcall walletFactory(_walletFactory).undyHq() == _undyHq # dev: invalid wallet factory
-    WALLET_FACTORY = _walletFactory
 
     WETH = _wethAddr
     ETH = _ethAddr
@@ -232,33 +228,33 @@ def createUserWallet(
     globalPayeeSettings: wcs.GlobalPayeeSettings = staticcall Paymaster(paymaster).createDefaultGlobalPayeeSettings(config.payeePeriod, config.minKeyActionTimeLock, config.payeeActivationLength)
     chequeSettings: wcs.ChequeSettings = staticcall ChequeBook(chequeBook).createDefaultChequeSettings(config.chequeMaxNumActiveCheques, config.chequeInstantUsdThreshold, config.chequePeriodLength, config.chequeExpensiveDelayBlocks, config.chequeDefaultExpiryBlocks)
 
-    # create and initialize both deterministic proxies atomically
-    factoryParams: walletFactory.WalletCreationParams = walletFactory.WalletCreationParams(
-        owner=_owner,
-        groupId=_groupId,
-        starterAgentTier=_starterAgentType,
-        globalManagerSettings=globalManagerSettings,
-        globalPayeeSettings=globalPayeeSettings,
-        chequeSettings=chequeSettings,
-        startingAgent=starterConfig.startingAgent,
-        starterAgentSettings=starterAgentSettings,
-        kernel=kernel,
-        sentinel=sentinel,
-        highCommand=highCommand,
-        paymaster=paymaster,
-        chequeBook=chequeBook,
-        migrator=migrator,
-        actionDataProvider=actionDataProvider,
-        weth=WETH,
-        eth=ETH,
-        minTimeLock=config.minKeyActionTimeLock,
-        maxTimeLock=config.maxKeyActionTimeLock,
-        instantActionSettings=self.defaultInstantActionSettings,
+    # create wallet contracts
+    walletConfigAddr: address = create_from_blueprint(
+        config.configTemplate,
+        a.hq,
+        _owner,
+        _groupId,
+        globalManagerSettings,
+        globalPayeeSettings,
+        chequeSettings,
+        starterConfig.startingAgent,
+        starterAgentSettings,
+        kernel,
+        sentinel,
+        highCommand,
+        paymaster,
+        chequeBook,
+        migrator,
+        actionDataProvider,
+        WETH,
+        ETH,
+        config.minKeyActionTimeLock,
+        config.maxKeyActionTimeLock,
+        self.defaultInstantActionSettings,
     )
-    mainWalletAddr: address = empty(address)
-    walletConfigAddr: address = empty(address)
-    mainWalletAddr, walletConfigAddr = extcall walletFactory(WALLET_FACTORY).createUserWallet(factoryParams)
-    assert empty(address) not in [mainWalletAddr, walletConfigAddr] # dev: invalid setup
+    assert walletConfigAddr != empty(address) # dev: invalid setup
+    mainWalletAddr: address = create_from_blueprint(config.walletTemplate, WETH, ETH, walletConfigAddr)
+    extcall WalletConfig(walletConfigAddr).setWallet(mainWalletAddr)
 
     # update ledger
     extcall Ledger(a.ledger).createUserWallet(mainWalletAddr, ambassador)

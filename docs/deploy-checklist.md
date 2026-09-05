@@ -33,40 +33,9 @@ Monitor these AgentSender and ownership signals after deployment:
 
 ## Wallet Creation Config
 
-- Normal wallet creation starts at the registered Hatchery. Hatchery validates nonzero core setup, backpack item addresses, WETH, ETH, wallet time-lock bounds, creator policy, and starter-agent tier before calling the deterministic wallet factory.
+- Hatchery validates nonzero core setup, wallet/config templates, backpack item addresses, WETH, ETH, and wallet time-lock bounds before deploying a new user wallet.
 - Hatchery delegates global manager, starter-agent manager, payee, and cheque default-setting construction and validation to the configured HighCommand, Paymaster, and ChequeBook contracts.
-- The deterministic factory, not MissionControl's legacy `walletTemplate` or `configTemplate`, selects the fixed `UserWallet` and `UserWalletConfig` implementations. Leave the MissionControl template fields on a matched legacy pair and treat them as deprecated after cutover.
-- Before enabling creation, verify the factory's pinned chain-local UndyHq and confirm UndyHq registry ID `5` resolves to the exact approved Hatchery. The normal factory path must reject every caller other than that current registered Hatchery.
-- The normal Hatchery path continues to enforce `MissionControl.numUserWalletsAllowed` against the chain-local Ledger. Do not silently move or remove that check as part of the deterministic deployment cutover.
 - `nonProdCreator` must not also be present in `MissionControl.creatorWhitelist`. If both controls drift together, the non-prod creation lane and production creator policy conflict; deployment scripts should assert the intended creator posture before unpausing Hatchery.
-
-## Deterministic Wallet Pair Invariants
-
-- The wallet salt is `keccak256(abi.encode(owner, groupId, starterAgentTier))`. It contains exactly three 32-byte ABI words and does not include the creator.
-- Chain-varying values are absent from implementation immutables. Factory-only initialization writes UserWallet WETH; UserWalletConfig UndyHq, WETH, ETH, ActionDataProvider, and min/max time locks; and Ownership UndyHq plus min/max ownership time locks into one-shot storage. The shared implementation bytecode must remain identical across chains.
-- The factory creates the config proxy and wallet proxy with the same salt and Vyper 0.4.3's 54-byte minimal-proxy initcode. Their addresses differ because each initcode embeds a different implementation.
-- The canonical factory must be deployed directly as immutable code, never through a proxy. In the current design its `isUserWalletConfig(config, salt)` predicate derives the expected address from a true compile-time config-implementation constant in that runtime, with no setter, mutable override, or one-shot implementation-initialization path. Verify the exact factory runtime before trusting the predicate.
-- Both proxies must be created before either is exposed. Initialize `UserWalletConfig` before `UserWallet`; wallet initialization reads the completed config's reciprocal wallet pointer and verified salt.
-- `UserWalletConfig` derives the tuple salt internally, authenticates its own exact EIP-1167 runtime and CREATE2 factory namespace, verifies `_wallet` is code-bearing, and checks `_wallet` is the same-salt CREATE2 proxy for the hardcoded wallet implementation. It then stores the salt and wallet pointer once.
-- `UserWallet` receives only WETH and the config address. It requires a code-bearing config whose `wallet()` points back to it and reads `walletSalt()` from that config. It first authenticates its own exact runtime and CREATE2 deployer, then staticcalls that proven direct factory's `isUserWalletConfig(config, salt)` predicate to authenticate the config as the factory's same-salt proxy.
-- The factory must perform both CREATE2 deployments and both one-shot initializations atomically, with no path that leaves an uninitialized proxy behind. Any failed validation must revert the entire transaction, including both deployments.
-- There is no `UserWalletConfig.setWallet` step. Deployment scripts, interfaces, and monitoring must not call or wait for that removed entry point.
-
-## Recovery Creation Invariants
-
-- Recovery uses the same owner/group/tier salt and canonical factory address even when it initializes with no starter agent and no managers. Removing the starter agent does not change the tier committed into the address.
-- Recovery must bypass the normal `Ledger.numUserWallets()` / `MissionControl.numUserWalletsAllowed` gate. Legacy wallet counts can legitimately differ across chains; applying a chain-local count cap could strand funds at an already published counterfactual address.
-- Keep the existing normal-creation cap behavior unchanged for this release. Separately review whether that cap should count deterministic-generation wallets only, and document any future semantic change before implementing it.
-- Do not approve the V1 release while one-wallet-per-owner/group/tier remains an unresolved product decision. The current Migrator requires a distinct destination with the same current owner and group ID, so an unchanged production owner cannot migrate between two V1 wallets in the same factory family. Record the accepted behavior against the [one-wallet-per-tuple migration gate](canonical-create2-deployment.md#one-wallet-per-tuple-and-migration-release-gate).
-- Ledger has no wallet-generation marker. APIs and deployment inventories must distinguish legacy CREATE wallets externally and must never advertise a legacy address as a cross-chain identity; only deterministic-generation addresses have the recovery guarantee.
-- Treat recovery as incomplete until the owner-authorized sweep path and its final runtime-size checks are implemented and tested. Do not advertise an unsupported chain as recoverable based only on address prediction.
-
-## Mixed-Generation Prohibition
-
-- Existing legacy wallets remain on their already deployed wallet/config bytecode and do not need conversion for the deterministic cutover.
-- Never combine a deterministic implementation with a legacy blueprint counterpart, and never register either deterministic implementation as a MissionControl wallet template.
-- Keep the two legacy MissionControl template fields as a matched pair. Do not update one field independently, even while the old Hatchery is paused.
-- New creation must flow exclusively through the new Hatchery and canonical deterministic factory after registry cutover. The old Hatchery must remain paused; do not run legacy and deterministic creation paths concurrently.
 
 ## New-Wallet Defaults
 
@@ -80,12 +49,13 @@ Monitor these AgentSender and ownership signals after deployment:
 - Deploy `ActionDataProvider` before final WalletBackpack setup.
 - Stage and confirm `WalletBackpack.addPendingActionDataProvider(provider)` before enabling wallet creation through Hatchery.
 - WalletBackpack stores the canonical provider address and governance can rotate it for future wallets.
-- Each `UserWalletConfig` captures the provider address in write-once storage during atomic initialization. There is no post-initialization provider setter: existing wallets keep their original provider, and a provider bug fix for an existing V1 wallet with an unchanged identity requires migration to a pair from a new versioned factory family. V1 cannot create a second wallet for the same `(initial owner, groupId, tier)` tuple.
+- Each `UserWalletConfig` captures the provider address as an immutable constructor value. Existing wallets keep their original provider; a provider bug fix for existing wallets requires migration to a new wallet template.
 - Action-data reads now cross a read-only provider and make additional staticcalls back into `UserWalletConfig`. Budget extra gas on wallet action paths that call `checkSignerPermissionsAndGetBundle` or `getActionDataBundle`.
 - Helper checks moved to `ActionDataProvider` add one additional read-only external call on affected registry/security helper paths. Budget roughly 2,600 gas of extra staticcall/CALL-frame overhead per helper use before calldata/returndata and the original inner lookup.
 - `ActionDataProvider.isAgentSender` is a deployed-contract helper. It intentionally returns `false` for an empty starter agent, EOAs, and contracts still in construction where `EXTCODESIZE` is zero. Non-empty starter agents are validated as contracts when configured; contracts with a bad or reverting `isSender(address)` implementation still revert through the normal staticcall path.
-- As of 2026-09-04, the implementation runtimes are `24,155` bytes for `UserWallet` (`421` bytes of EIP-170 headroom) and `23,739` bytes for `UserWalletConfig` (`837` bytes of headroom). This snapshot includes deterministic-proxy initializers, exact CREATE2/minimal-proxy self-authentication before factory trust, the immutable factory predicate for reciprocal same-salt counterpart authentication, and write-once config salt binding; it precedes the pending recovery sweep. Further code-relocation and recovery-sweep prototypes have not landed and are excluded from these figures. The former `19,986`-byte `UserWalletConfig` runtime figure was stale; see [the runtime byte-budget note](user-wallet-config-byte-budget.md).
-- Treat both implementation buffers as constrained. Remeasure both runtimes after the recovery sweep and after any later growth; include an extraction plan before merge if either approaches the `24,576`-byte EIP-170 limit.
+- Current Boa-measured `UserWalletConfig` blueprint size: `23,856` bytes, leaving `720` bytes under the `24,576` byte EIP-170 gate. Runtime size is `19,986` bytes, under the `23,000` byte soft target.
+- Treat the blueprint buffer as exhausted. Any future `UserWalletConfig` growth should include a size check and an extraction plan before merge.
+- Hatchery binds each new `UserWalletConfig` by calling `UserWalletConfig.setWallet(wallet)`. The config rejects non-Hatchery callers, so deployment scripts must keep the Hatchery registry entry current before wallet creation.
 
 ## SwitchboardAlpha Size
 
@@ -115,7 +85,7 @@ Monitor these AgentSender and ownership signals after deployment:
 - Pending global payee settings block migration on both source and destination wallets.
 - Pending whitelist entries on the source wallet are not migrated. They remain on the source wallet and could still be confirmed there if the source wallet continues to be used. To preserve them on the destination wallet, restage and confirm them there.
 - Config cloning emits paired events: `UserWalletConfig.MigrationConfigApplied` from the destination config log address with the source config address and applied time lock, and `Migrator.ConfigCloned` on the migrator with source/destination wallet addresses and copied counts.
-- The destination config event intentionally omits a settings hash: computing one inside `UserWalletConfig` consumes constrained EIP-170 implementation-runtime headroom, and a migrator-supplied hash would not be independently trustworthy.
+- The destination config event intentionally omits a settings hash: computing one inside `UserWalletConfig` exceeds the deploy-blueprint size limit, and a migrator-supplied hash would not be independently trustworthy.
 - Funds migration deregisters up to 25 migrated assets from the source wallet. If more than 25 assets move in one transaction, excess assets are transferred but remain tracked on the source wallet with zero balance; clean them up with later `deregisterAsset` calls if desired.
 - Funds migration refreshes destination asset accounting once per successfully transferred asset. Gas scales with the number of migrated assets, and duplicate destination asset entries are not added.
 - Payee and manager period/lifetime counters are not copied. Migration resets those accounting windows on the destination wallet.
@@ -138,27 +108,25 @@ Monitor these AgentSender and ownership signals after deployment:
 - Hatchery default instant settings are managed through `SwitchboardBravo`. Any false-to-true default transition is Bravo-timelocked against the staged Hatchery address, pure disables apply immediately, and wallets created during a pending window inherit the current confirmed Hatchery defaults.
 - Hatchery's setter remains gated to registered Switchboard addresses. Do not run concurrent Hatchery-default changes through multiple Switchboards; cancel/restage if the operational target changes.
 
-## Deterministic Wallet and Instant Defaults Cutover
+## Instant Defaults Cutover
 
-- Deploy and byte-verify the fixed `UserWallet` implementation, `UserWalletConfig` implementation, and factory through the canonical CREATE2 singleton before changing live registry state. The factory must contain the exact approved implementation addresses and runtime code hashes.
-- The deterministic implementations are not blueprints. Do not stage or execute `SwitchboardAlpha.setUserWalletTemplates` for them; leave MissionControl's legacy wallet/config template fields unchanged as a matched legacy pair.
-- Deploy and verify the new Hatchery with the intended default instant settings, staging/dev starter-agent configuration, non-prod creator, and deterministic factory integration. Do not reuse an older Hatchery deployment script or constructor layout.
-- Verify the factory's one-shot chain configuration is complete and points at the intended UndyHq. Confirm that its normal creation authorization resolves Hatchery from registry ID `5` rather than trusting a caller-supplied registry or Hatchery address.
-- Query live `WalletBackpack`, `SwitchboardAlpha`, `SwitchboardBravo`, and `UndyHq` timelocks before cutover. Stage the Hatchery registry update and any intended backpack/protocol-flag changes, but no deterministic implementation template update.
+- Deployment must separately redeploy the `UserWalletConfig` blueprint and stage/execute `SwitchboardAlpha.setUserWalletTemplates`.
+- Query live `WalletBackpack`, `SwitchboardAlpha`, and `UndyHq` timelocks before cutover.
+- Stage the template update and the Hatchery registry update.
 - Do not plan a staged protocol-flag-vs-Hatchery-default rollout for this cutover. The accepted release plan is simultaneous protocol flags plus all-true new-wallet defaults, with per-call instant bools controlling actual use.
-- Pause the old Hatchery before executing the ID `5` registry update. Keep it paused permanently after the deterministic path goes live; running both creation generations concurrently is prohibited.
-- Execute the Hatchery registry update, then run the manifest-backed exact-address/runtime cutover preflight in [Canonical CREATE2 Deployment](canonical-create2-deployment.md). A wrong factory, implementation, Hatchery, pinned UndyHq, or registry pointer is a hard stop.
-- Enable or unpause the new Hatchery only after preflight passes. Create a canary wallet through Hatchery and verify the expected wallet/config CREATE2 addresses, 45-byte proxy runtimes, reciprocal pointers, shared salt, owner/group/tier, WETH, ActionDataProvider, time-lock bounds, starter-agent state, and Ledger registration.
-- Spot-check the canary wallet's `instantActionSettings` and confirm the factory transaction emitted/recorded both members of the pair without any intermediate uninitialized deployment.
+- Do not reuse older Hatchery deploy scripts without updating constructor args. The active Hatchery constructor requires default instant settings, staging/dev starter-agent config, and non-prod creator.
+- Pause the old Hatchery before executing the template update. Do not skip this operational step; it is a deployment runbook guard and not an on-chain precondition.
+- Execute the template update.
+- Execute the Hatchery registry update.
+- Verify the new Hatchery is unpaused.
+- Spot-check a new wallet's `instantActionSettings`.
 - `SwitchboardBravo.HatcheryDefaultInstantActionSettingsSet` and `Hatchery.HatcheryDefaultInstantActionSettingsSet` share an event name but have different fields. Off-chain consumers should disambiguate by emitter address.
-- A creation-path rollback changes the UndyHq Hatchery registry entry; it never points MissionControl templates at deterministic implementations. Deterministic wallets already created remain on their immutable proxy targets and cannot be rolled back by registry changes.
+- Rollback must reverse both the config template and Hatchery registry, not only Hatchery.
 - Backpack-item rollback is a separate `WalletBackpack` staged rotation back to old HighCommand, Paymaster, ChequeBook, or Migrator items.
 - User wallet instant-setting methods intentionally emit no events, matching `setTimeLock`. Monitor explicit calls plus the Switchboard protocol flag events listed in [Instant Action Model](instant-action-model.md).
 
 ## ABI / SDK Hard Cutover
 
-- Regenerate the `Hatchery`, deterministic factory, `UserWallet`, and `UserWalletConfig` ABIs from the final sources. Remove every deployment-script or interface call to `UserWalletConfig.setWallet`; that entry point no longer exists.
-- Wallet/config initializers are factory plumbing, not public operational APIs. No script, EOA, Hatchery, or SDK should deploy a proxy and initialize it later; Hatchery makes one factory call and the factory completes the pair atomically.
 - Pending-payee compatibility fields were removed from the current struct layouts. Do not encode `TransferPerms.canAddPendingPayee`, `WhitelistPerms.canAddPending`, or `GlobalPayeeSettings.canPayOwner` in new calls.
 - This is a hard ABI cutover, not a rolling-compatible change. Off-chain encoders that still use the old struct layouts will revert against the new HighCommand and Paymaster contracts because their calldata tuple layouts no longer match.
 - Regenerate ABIs and SDKs before cutover, and update or redeploy every downstream caller that builds manager/payee-settings calldata, including dapps, multisig UIs, scripts, bots, and custom integrations.

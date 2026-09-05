@@ -3501,10 +3501,6 @@
       {
         "name": "_groupId",
         "type": "uint256"
-      },
-      {
-        "name": "_senders",
-        "type": "address[]"
       }
     ],
     "outputs": []

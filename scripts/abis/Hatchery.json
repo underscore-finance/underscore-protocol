@@ -574,18 +574,6 @@
   {
     "stateMutability": "view",
     "type": "function",
-    "name": "WALLET_FACTORY",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address"
-      }
-    ]
-  },
-  {
-    "stateMutability": "view",
-    "type": "function",
     "name": "defaultInstantActionSettings",
     "inputs": [],
     "outputs": [
@@ -737,10 +725,6 @@
       },
       {
         "name": "_nonProdCreator",
-        "type": "address"
-      },
-      {
-        "name": "_walletFactory",
         "type": "address"
       }
     ],

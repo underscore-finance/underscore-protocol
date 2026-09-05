@@ -1,8 +1,9 @@
 import pytest
 import boa
 
+from contracts.core.userWallet import UserWallet
 from constants import MAX_UINT256, ZERO_ADDRESS, MIN_INT24, MAX_INT24
-from conf_utils import filter_logs, fresh_user_wallet
+from conf_utils import filter_logs
 from config.BluePrint import TEST_AMOUNTS, TOKENS, WHALES
 
 
@@ -11,9 +12,9 @@ def bob_user_wallet(setUserWalletConfig, setManagerConfig, hatchery, bob):
     setUserWalletConfig()
     setManagerConfig()  # Set up manager config with default agent
 
-    wallet, _ = fresh_user_wallet(hatchery, bob)
-    assert wallet.address != ZERO_ADDRESS
-    return wallet
+    wallet_addr = hatchery.createUserWallet(bob, ZERO_ADDRESS, 1, sender=bob)
+    assert wallet_addr != ZERO_ADDRESS
+    return UserWallet.at(wallet_addr)
 
 
 @pytest.fixture(scope="package")

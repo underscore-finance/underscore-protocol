@@ -3928,9 +3928,7 @@ def test_claim_all_loot_multiple_assets(loot_distributor, alpha_token, bravo_tok
     mission_control.setCreatorWhitelist(alice, True, sender=switchboard_alpha.address)
 
     # Create a fresh user wallet with the new ambassador
-    # Group identity is irrelevant here; use a tuple distinct from the shared
-    # Alice wallet created by the core fixtures.
-    fresh_user = hatchery.createUserWallet(alice, fresh_ambassador_wallet, 2, sender=alice)
+    fresh_user = hatchery.createUserWallet(alice, fresh_ambassador_wallet, 1, sender=alice)
     fresh_user_wallet = UserWallet.at(fresh_user)
     
     # Set up ambassador config
@@ -4351,9 +4349,7 @@ def test_claim_with_max_deregister_assets(loot_distributor, hatchery, alice, cha
     # Add alice to creator whitelist so they can set an ambassador
     mission_control.setCreatorWhitelist(alice, True, sender=switchboard_alpha.address)
 
-    # Group identity is irrelevant here; use a tuple distinct from the shared
-    # Alice wallet created by the core fixtures.
-    fresh_user = hatchery.createUserWallet(alice, fresh_ambassador_wallet, 2, sender=alice)
+    fresh_user = hatchery.createUserWallet(alice, fresh_ambassador_wallet, 1, sender=alice)
     fresh_user_wallet = UserWallet.at(fresh_user)
 
     # Set up ambassador config for rev share
@@ -4889,9 +4885,7 @@ def test_totalClaimableLoot_accounting_consistency(loot_distributor, hatchery, a
         ambassador = hatchery.createUserWallet(owner, ZERO_ADDRESS, 0, sender=owner)
         ambassadors.append(UserWallet.at(ambassador))
 
-        # This test needs two wallets per owner, not any particular group IDs.
-        # Group 2 avoids the shared production wallet's deterministic tuple.
-        user = hatchery.createUserWallet(owner, ambassadors[-1], 2, sender=owner)
+        user = hatchery.createUserWallet(owner, ambassadors[-1], 1, sender=owner)
         users.append(UserWallet.at(user))
 
     # Set up ambassador configs

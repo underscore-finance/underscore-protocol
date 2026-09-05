@@ -19,7 +19,6 @@ from vyper.compiler import compile_code
 
 EMBEDDED_MODULES = {
     "modules/AddressRegistry.vy",
-    "modules/Create2ProxyGuard.vy",
     "modules/DeptBasics.vy",
     "modules/DexLegoData.vy",
     "modules/Timelock.vy",

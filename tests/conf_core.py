@@ -1,65 +1,8 @@
 import pytest
 import boa
-from eth_utils import keccak, to_checksum_address
 
 from config.BluePrint import PARAMS, TOKENS, INTEGRATION_ADDYS, VAULT_INFO
 from constants import ZERO_ADDRESS, EIGHTEEN_DECIMALS, ONE_YEAR_IN_BLOCKS
-
-
-CANONICAL_CREATE2_SINGLETON = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
-CANONICAL_CREATE2_SINGLETON_RUNTIME = bytes.fromhex(
-    "7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0"
-    "3601600081602082378035828234f58015156039578182fd5b8082525050506014"
-    "600cf3"
-)
-USER_WALLET_IMPL_V1_SALT = bytes.fromhex(
-    "da9e0e08155d5e49d144d1878faacbcf25fec5790c5ca4cfea6c03788d80329d"
-)
-USER_WALLET_CONFIG_IMPL_V1_SALT = bytes.fromhex(
-    "c54fd3bd79f3df3298ee349c311ac2d48d1dd8bdbc6e4c795ec0b851c7321227"
-)
-
-
-def _predict_create2(deployer, salt, initcode):
-    digest = keccak(
-        b"\xff"
-        + bytes.fromhex(str(deployer)[2:])
-        + salt
-        + keccak(initcode)
-    )
-    return to_checksum_address(digest[-20:])
-
-
-def _deploy_fixed_wallet_implementation(env, path, salt):
-    existing_singleton = env.get_code(CANONICAL_CREATE2_SINGLETON)
-    if existing_singleton:
-        assert existing_singleton == CANONICAL_CREATE2_SINGLETON_RUNTIME
-    else:
-        env.set_code(
-            CANONICAL_CREATE2_SINGLETON,
-            CANONICAL_CREATE2_SINGLETON_RUNTIME,
-        )
-
-    partial = boa.load_partial(path)
-    creation_bytecode = partial.compiler_data.bytecode
-    expected = _predict_create2(
-        CANONICAL_CREATE2_SINGLETON,
-        salt,
-        creation_bytecode,
-    )
-    runtime = partial.compiler_data.bytecode_runtime
-
-    existing_code = env.get_code(expected)
-    if existing_code:
-        assert existing_code == runtime
-    else:
-        computation = env.raw_call(
-            CANONICAL_CREATE2_SINGLETON,
-            data=salt + creation_bytecode,
-        )
-        assert to_checksum_address(computation.output[-20:]) == expected
-        assert env.get_code(expected) == runtime
-    return partial.at(expected)
 
 ###########
 # Undy HQ #
@@ -365,60 +308,11 @@ def lego_book(lego_book_deploy, deploy3r, mock_dex_lego, mock_yield_lego, lego_r
 ########
 
 
-# deterministic wallet artifacts
-
-
-@pytest.fixture(scope="session")
-def user_wallet_implementation(env):
-    return _deploy_fixed_wallet_implementation(
-        env,
-        "contracts/core/userWallet/UserWallet.vy",
-        USER_WALLET_IMPL_V1_SALT,
-    )
-
-
-@pytest.fixture(scope="session")
-def user_wallet_config_implementation(env, user_wallet_implementation):
-    implementation = _deploy_fixed_wallet_implementation(
-        env,
-        "contracts/core/userWallet/UserWalletConfig.vy",
-        USER_WALLET_CONFIG_IMPL_V1_SALT,
-    )
-    assert (
-        implementation._constants.USER_WALLET_IMPLEMENTATION
-        == user_wallet_implementation.address
-    )
-    return implementation
-
-
-@pytest.fixture(scope="session")
-def user_wallet_factory(
-    undy_hq_deploy,
-    user_wallet_implementation,
-    user_wallet_config_implementation,
-):
-    # The shared test environment intentionally uses normal CREATE for the
-    # factory, leaving the canonical factory salt exclusively to the focused
-    # singleton tests. Proxy determinism depends on this factory's address,
-    # while its hardcoded implementation trust roots remain the fixed V1 ones.
-    factory = boa.load(
-        "contracts/core/userWallet/UserWalletFactory.vy",
-        name="user_wallet_factory",
-    )
-    assert factory.USER_WALLET_IMPLEMENTATION() == user_wallet_implementation.address
-    assert (
-        factory.USER_WALLET_CONFIG_IMPLEMENTATION()
-        == user_wallet_config_implementation.address
-    )
-    factory.setUndyHq(undy_hq_deploy, sender=ZERO_ADDRESS)
-    return factory
-
-
 # hatchery
 
 
 @pytest.fixture(scope="session")
-def hatchery(undy_hq_deploy, fork, weth, user_wallet_factory):
+def hatchery(undy_hq_deploy, fork, weth):
     return boa.load(
         "contracts/core/Hatchery.vy",
         undy_hq_deploy,
@@ -428,7 +322,6 @@ def hatchery(undy_hq_deploy, fork, weth, user_wallet_factory):
         (weth.address, ONE_YEAR_IN_BLOCKS),
         (weth.address, ONE_YEAR_IN_BLOCKS),
         ZERO_ADDRESS,
-        user_wallet_factory,
         name="hatchery",
     )
 

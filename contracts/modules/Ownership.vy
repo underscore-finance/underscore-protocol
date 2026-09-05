@@ -66,10 +66,9 @@ ownershipTimeLock: public(uint256)
 pendingOwner: public(PendingOwnerChange)
 pendingOwnershipTimeLock: public(PendingOwnershipTimeLock)
 
-UNDY_HQ_FOR_OWNERSHIP: address
-MIN_OWNERSHIP_TIMELOCK: public(uint256)
-MAX_OWNERSHIP_TIMELOCK: public(uint256)
-ownershipInitialized: bool
+UNDY_HQ_FOR_OWNERSHIP: immutable(address)
+MIN_OWNERSHIP_TIMELOCK: public(immutable(uint256))
+MAX_OWNERSHIP_TIMELOCK: public(immutable(uint256))
 MISSION_CONTROL_ID: constant(uint256) = 2
 
 
@@ -80,30 +79,16 @@ def __init__(
     _minTimeLock: uint256,
     _maxTimeLock: uint256,
 ):
-    self._initializeOwnership(_undyHq, _owner, _minTimeLock, _maxTimeLock)
-
-
-@internal
-def _initializeOwnership(
-    _undyHq: address,
-    _owner: address,
-    _minTimeLock: uint256,
-    _maxTimeLock: uint256,
-):
-    assert not self.ownershipInitialized # dev: ownership already initialized
-    # Keep this as the first storage write. Any future external call added to
-    # initialization must observe the guard closed to prevent reentrant init.
-    self.ownershipInitialized = True
     assert empty(address) not in [_undyHq, _owner] # dev: invalid addrs
-    self.UNDY_HQ_FOR_OWNERSHIP = _undyHq
+    UNDY_HQ_FOR_OWNERSHIP = _undyHq
 
     # initial ownership
     self.owner = _owner
 
     # timelock
     assert _minTimeLock != 0 and _minTimeLock < _maxTimeLock # dev: invalid delay
-    self.MIN_OWNERSHIP_TIMELOCK = _minTimeLock
-    self.MAX_OWNERSHIP_TIMELOCK = _maxTimeLock
+    MIN_OWNERSHIP_TIMELOCK = _minTimeLock
+    MAX_OWNERSHIP_TIMELOCK = _maxTimeLock
 
     self.ownershipTimeLock = _minTimeLock
 
@@ -164,7 +149,7 @@ def cancelOwnershipChange():
 @view
 @internal
 def _canPerformSecurityAction(_addr: address) -> bool:
-    missionControl: address = staticcall UndyHq(self.UNDY_HQ_FOR_OWNERSHIP).getAddr(MISSION_CONTROL_ID)
+    missionControl: address = staticcall UndyHq(UNDY_HQ_FOR_OWNERSHIP).getAddr(MISSION_CONTROL_ID)
     if missionControl == empty(address):
         return False
     return staticcall MissionControl(missionControl).canPerformSecurityAction(_addr)
@@ -195,7 +180,7 @@ def _hasPendingOwnerChange() -> bool:
 @external
 def setOwnershipTimeLock(_numBlocks: uint256):
     assert msg.sender == self.owner # dev: no perms
-    assert _numBlocks >= self.MIN_OWNERSHIP_TIMELOCK and _numBlocks <= self.MAX_OWNERSHIP_TIMELOCK # dev: invalid delay
+    assert _numBlocks >= MIN_OWNERSHIP_TIMELOCK and _numBlocks <= MAX_OWNERSHIP_TIMELOCK # dev: invalid delay
 
     currentTimeLock: uint256 = self.ownershipTimeLock
     pending: PendingOwnershipTimeLock = self.pendingOwnershipTimeLock
@@ -243,7 +228,7 @@ def confirmPendingOwnershipTimeLock():
     assert pending.confirmBlock != 0 # dev: no pending time lock
     assert block.number >= pending.confirmBlock # dev: time delay not reached
     assert pending.currentOwner == self.owner # dev: owner must match
-    assert pending.newTimeLock >= self.MIN_OWNERSHIP_TIMELOCK and pending.newTimeLock <= self.MAX_OWNERSHIP_TIMELOCK # dev: invalid delay
+    assert pending.newTimeLock >= MIN_OWNERSHIP_TIMELOCK and pending.newTimeLock <= MAX_OWNERSHIP_TIMELOCK # dev: invalid delay
 
     oldTimeLock: uint256 = self.ownershipTimeLock
     self.ownershipTimeLock = pending.newTimeLock
