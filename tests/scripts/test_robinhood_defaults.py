@@ -136,6 +136,8 @@ def test_robinhood_profile_records_verified_ripe_and_weth_addresses():
         "WETH_CODEHASH": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353",
     }
     assert TOKENS["robinhood"]["RIPE"] == "0x4D3f37a965b21aB4122e92Dd41D2693E742c883b"
+    assert TOKENS["robinhood"]["USDG"] == "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+    assert "USDC" not in TOKENS["robinhood"]
     assert TOKENS["robinhood"]["WETH"] == "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
 
 

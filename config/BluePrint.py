@@ -412,6 +412,10 @@ TOKENS = {
         # RIPE was resolved from live RipeHq registry ID 3; PriceDesk currently
         # reports zero for it, so it must not be a rewards/bonus asset yet.
         "RIPE": "0x4D3f37a965b21aB4122e92Dd41D2693E742c883b",
+        # Robinhood's priced six-decimal stable is Global Dollar (USDG), not
+        # Circle USDC. Keep the truthful key; consumers that require a stable
+        # must opt into USDG explicitly instead of inheriting Base semantics.
+        "USDG": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
         # Ripe's Robinhood deployment profile identifies this as WETH; live
         # calls return name/symbol WETH, 18 decimals, and non-empty runtime.
         "WETH": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
