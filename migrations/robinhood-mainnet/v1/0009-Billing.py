@@ -1,6 +1,9 @@
 from scripts.utils.migration import Migration
 from scripts.utils.registry_preconditions import deploy_and_register
-from scripts.utils.robinhood_runtime import require_approved_robinhood_runtime
+from scripts.utils.robinhood_runtime import (
+    require_approved_robinhood_runtime,
+    require_authenticated_robinhood_hq,
+)
 
 
 BILLING_RUNTIME_CODEHASH = (
@@ -17,9 +20,10 @@ def _validate_billing(billing, hq):
 
 def migrate(migration: Migration):
     migration.log.h2("Billing")
-    hq = migration.get_contract("UndyHq")
+    hq = require_authenticated_robinhood_hq(migration)
     args = (hq,)
-    require_approved_robinhood_runtime(
+    migration.preflight_contract_manifest("Billing", args)
+    expected_runtime = require_approved_robinhood_runtime(
         migration,
         "Billing",
         args,
@@ -48,4 +52,5 @@ def migrate(migration: Migration):
         context="before Robinhood Billing deployment",
         validate=lambda billing: _validate_billing(billing, hq),
         expected_runtime_codehash=BILLING_RUNTIME_CODEHASH,
+        expected_runtime=expected_runtime,
     )

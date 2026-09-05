@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import boa
+import pytest
 
 from config.BluePrint import BLOCK_TIME_CONSTANTS, INTEGRATION_ADDYS, PARAMS, TOKENS
 from scripts.params import regenerate_defaults
@@ -10,6 +11,18 @@ from tests.constants import ZERO_ADDRESS
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+pytestmark = pytest.always
+
+
+@pytest.fixture(scope="session")
+def undy_hq():
+    return None
+
+
+@pytest.fixture(scope="session")
+def wallet_backpack():
+    return None
 
 BLOCK_DENOMINATED_PARAMS = {
     "UNDY_HQ_MIN_GOV_TIMELOCK",
@@ -114,7 +127,13 @@ def test_every_block_denominated_robinhood_param_is_base_divided_by_six():
 def test_robinhood_profile_records_verified_ripe_and_weth_addresses():
     assert INTEGRATION_ADDYS["robinhood"] == {
         "RIPE_HQ_V1": "0xD4e82AE1De673bba3B53386A2D2C630AE6630940",
+        "RIPE_HQ_V1_CODEHASH": "0x695dbca5482e0f02ab1361963a5114fd48812c7fc09ce8e5c3b9b32ee9c859b0",
         "RIPE_PRICE_DESK": "0x56Db9c2322e009189049bC57385751fc7922AAb0",
+        "RIPE_PRICE_DESK_CODEHASH": "0xab49032edcd52353df64533b26d30c3cd1b446a4d0e1fbd4e7cffa39e051995e",
+        "RIPE_TOKEN_CODEHASH": "0xff93dfc1dc8887dc7b376e04fc9c13d173c21697d50bc0298c2111e0587f3264",
+        "RIPE_TELLER": "0x2d3cB2B39289f402187D7Dc9B609EAD6646F2506",
+        "RIPE_TELLER_CODEHASH": "0x544d20b6ba5b31e9102f2e64706bc9d5c53939845d4f14a6f90bb2d3d8d42366",
+        "WETH_CODEHASH": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353",
     }
     assert TOKENS["robinhood"]["RIPE"] == "0x4D3f37a965b21aB4122e92Dd41D2693E742c883b"
     assert TOKENS["robinhood"]["WETH"] == "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"

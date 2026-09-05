@@ -304,7 +304,7 @@ def deploy_and_register(
         )
     require_registry_prefix(
         registry,
-        (*expected_prefix, (name, address)),
+        (*expected_prefix, (name, address, description)),
         context,
     )
     return contract

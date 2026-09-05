@@ -1,7 +1,10 @@
 from scripts.utils.migration import Migration
 from scripts.utils.registry_preconditions import deploy_and_register
 from scripts.utils.ripe_preconditions import require_robinhood_ripe_dependencies
-from scripts.utils.robinhood_runtime import require_approved_robinhood_runtime
+from scripts.utils.robinhood_runtime import (
+    require_approved_robinhood_runtime,
+    require_authenticated_robinhood_hq,
+)
 
 
 APPRAISER_RUNTIME_CODEHASH = (
@@ -18,12 +21,13 @@ def _validate_appraiser(appraiser, hq):
 
 def migrate(migration: Migration):
     migration.log.h2("Appraiser")
-    hq = migration.get_contract("UndyHq")
+    hq = require_authenticated_robinhood_hq(migration)
     ripe_registry, _ripe_token, _price_desk, _teller = (
         require_robinhood_ripe_dependencies(migration)
     )
     args = (hq, ripe_registry)
-    require_approved_robinhood_runtime(
+    migration.preflight_contract_manifest("Appraiser", args)
+    expected_runtime = require_approved_robinhood_runtime(
         migration,
         "Appraiser",
         args,
@@ -50,4 +54,5 @@ def migrate(migration: Migration):
         context="before Robinhood Appraiser deployment",
         validate=lambda appraiser: _validate_appraiser(appraiser, hq),
         expected_runtime_codehash=APPRAISER_RUNTIME_CODEHASH,
+        expected_runtime=expected_runtime,
     )

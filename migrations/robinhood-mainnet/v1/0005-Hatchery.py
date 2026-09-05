@@ -3,7 +3,10 @@ from eth_utils import keccak
 
 from scripts.utils.migration import Migration
 from scripts.utils.registry_preconditions import deploy_and_register
-from scripts.utils.robinhood_runtime import require_approved_robinhood_runtime
+from scripts.utils.robinhood_runtime import (
+    require_approved_robinhood_runtime,
+    require_authenticated_robinhood_hq,
+)
 
 
 PRE_HATCHERY_REGISTRY = (
@@ -14,90 +17,8 @@ PRE_HATCHERY_REGISTRY = (
 )
 
 HATCHERY_RUNTIME_CODEHASH = (
-    "0x7f8baab1a9c140c28c4159ab33d3a6a98adcc1b0b7c1adf19a22d62716a2cbec"
+    "0x799f6480949a278ca20adf22f072cc8d5117d206a25e7690ca9bf30db4f13f4d"
 )
-
-
-def _require_wallet_factory(migration: Migration, hq) -> str:
-    factory_address = migration.blueprint.INTEGRATION_ADDYS.get("WALLET_FACTORY")
-    approved_codehash = migration.blueprint.INTEGRATION_ADDYS.get(
-        "WALLET_FACTORY_CODEHASH"
-    )
-    zero_address = migration.blueprint.CONSTANTS.ZERO_ADDRESS
-    zero_hash = "0x" + "00" * 32
-
-    if not factory_address or factory_address.lower() == zero_address.lower():
-        raise RuntimeError(
-            "Robinhood WALLET_FACTORY is not approved; refusing to deploy Hatchery"
-        )
-    if not approved_codehash or approved_codehash.lower() == zero_hash:
-        raise RuntimeError(
-            "Robinhood WALLET_FACTORY_CODEHASH is not approved; "
-            "refusing to deploy Hatchery"
-        )
-
-    factory_code = boa.env.get_code(factory_address)
-    if not factory_code:
-        raise RuntimeError(
-            "Robinhood WALLET_FACTORY has no code; refusing to deploy Hatchery"
-        )
-    live_factory_codehash = "0x" + keccak(factory_code).hex()
-    if live_factory_codehash.lower() != approved_codehash.lower():
-        raise RuntimeError(
-            "Robinhood WALLET_FACTORY live codehash does not match its approval"
-        )
-
-    try:
-        factory = boa.load_abi(
-            "scripts/abis/UserWalletFactory.json",
-            name="UserWalletFactoryPreflight",
-        ).at(factory_address)
-        factory_hq = factory.undyHq()
-        factory_admin = factory.WALLET_FACTORY_ADMIN()
-        implementations = (
-            (
-                "UserWallet",
-                factory.USER_WALLET_IMPLEMENTATION(),
-                factory.USER_WALLET_IMPLEMENTATION_CODEHASH(),
-            ),
-            (
-                "UserWalletConfig",
-                factory.USER_WALLET_CONFIG_IMPLEMENTATION(),
-                factory.USER_WALLET_CONFIG_IMPLEMENTATION_CODEHASH(),
-            ),
-        )
-    except Exception as exc:
-        raise RuntimeError(
-            "Robinhood WALLET_FACTORY does not expose the required trust-root getters"
-        ) from exc
-
-    if str(factory_hq).lower() != str(hq.address).lower():
-        raise RuntimeError(
-            "Robinhood WALLET_FACTORY is initialized for a different UndyHq"
-        )
-    if str(factory_admin).lower() == zero_address.lower():
-        raise RuntimeError(
-            "Robinhood WALLET_FACTORY still has the zero-address admin placeholder"
-        )
-
-    for label, implementation, expected_codehash in implementations:
-        implementation_address = str(implementation)
-        if implementation_address.lower() == zero_address.lower():
-            raise RuntimeError(f"{label} implementation address is zero")
-        implementation_code = boa.env.get_code(implementation_address)
-        if not implementation_code:
-            raise RuntimeError(f"{label} implementation has no code")
-
-        live_codehash = "0x" + keccak(implementation_code).hex()
-        if isinstance(expected_codehash, bytes):
-            expected_codehash_hex = "0x" + expected_codehash.hex()
-        else:
-            expected_codehash_hex = str(expected_codehash)
-        if live_codehash.lower() != expected_codehash_hex.lower():
-            raise RuntimeError(
-                f"{label} implementation codehash does not match the factory trust root"
-            )
-    return factory_address
 
 
 def _require_weth(migration: Migration) -> str:
@@ -116,13 +37,12 @@ def _require_weth(migration: Migration) -> str:
     return weth
 
 
-def _validate_hatchery(hatchery, hq, weth, eth, wallet_factory, zero_address):
+def _validate_hatchery(hatchery, hq, weth, eth, zero_address):
     if str(hatchery.getUndyHq()).lower() != str(hq.address).lower():
         raise RuntimeError("Robinhood Hatchery is bound to the wrong UndyHq")
     expected_addresses = (
         ("WETH", hatchery.WETH(), weth),
         ("ETH", hatchery.ETH(), eth),
-        ("wallet factory", hatchery.WALLET_FACTORY(), wallet_factory),
         ("non-prod creator", hatchery.nonProdCreator(), zero_address),
     )
     for label, actual, expected in expected_addresses:
@@ -142,12 +62,7 @@ def _validate_hatchery(hatchery, hq, weth, eth, wallet_factory, zero_address):
 
 def migrate(migration: Migration):
     migration.log.h2("Hatchery")
-    hq = migration.get_contract("UndyHq")
-
-    # This profile entry intentionally remains absent until the deterministic
-    # factory sources, admin and release artifacts are frozen. Keep every check
-    # above the first transaction so an incomplete profile cannot consume HQ ID 5.
-    wallet_factory = _require_wallet_factory(migration, hq)
+    hq = require_authenticated_robinhood_hq(migration)
     zero_address = migration.blueprint.CONSTANTS.ZERO_ADDRESS
     weth = _require_weth(migration)
 
@@ -160,14 +75,13 @@ def migrate(migration: Migration):
         [zero_address, 0],
         [zero_address, 0],
         zero_address,
-        wallet_factory,
     )
-    require_approved_robinhood_runtime(
+    migration.preflight_contract_manifest("Hatchery", args)
+    expected_runtime = require_approved_robinhood_runtime(
         migration,
         "Hatchery",
         args,
         HATCHERY_RUNTIME_CODEHASH,
-        wallet_factory_address=wallet_factory,
     )
     deploy_and_register(
         migration,
@@ -186,8 +100,8 @@ def migrate(migration: Migration):
             hq,
             weth,
             eth,
-            wallet_factory,
             zero_address,
         ),
         expected_runtime_codehash=HATCHERY_RUNTIME_CODEHASH,
+        expected_runtime=expected_runtime,
     )

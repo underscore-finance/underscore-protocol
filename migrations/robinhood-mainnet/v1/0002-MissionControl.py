@@ -1,8 +1,9 @@
 from scripts.utils.migration import Migration
-from scripts.utils.registry_preconditions import (
-    deploy_and_register,
-    install_defaults_materialization_dependency,
-    materialize_contract_runtime,
+from scripts.utils.registry_preconditions import deploy_and_register
+from scripts.utils.robinhood_runtime import (
+    require_approved_robinhood_runtime,
+    require_authenticated_robinhood_defaults,
+    require_authenticated_robinhood_hq,
 )
 
 MISSION_CONTROL_RUNTIME_CODEHASH = (
@@ -43,13 +44,22 @@ def _validate_mission_control(mission_control, hq, defaults):
 
 def migrate(migration: Migration):
     migration.log.h2("Mission Control")
-    hq = migration.get_contract("UndyHq")
-    defaults = migration.get_contract("DefaultsRobinhood")
+    hq = require_authenticated_robinhood_hq(migration)
+    defaults = require_authenticated_robinhood_defaults(migration)
+    args = (hq, defaults)
+    migration.preflight_contract_manifest("MissionControl", args)
+    expected_runtime = require_approved_robinhood_runtime(
+        migration,
+        "MissionControl",
+        args,
+        MISSION_CONTROL_RUNTIME_CODEHASH,
+        defaults_dependency=True,
+    )
     deploy_and_register(
         migration,
         hq,
         name="MissionControl",
-        args=(hq, defaults),
+        args=args,
         description="Mission Control",
         expected_id=2,
         expected_prefix=(("Ledger", migration.get_address("Ledger")),),
@@ -60,13 +70,5 @@ def migrate(migration: Migration):
             defaults,
         ),
         expected_runtime_codehash=MISSION_CONTROL_RUNTIME_CODEHASH,
-        runtime_builder=lambda: materialize_contract_runtime(
-            migration,
-            "MissionControl",
-            (hq, defaults),
-            prepare=lambda: install_defaults_materialization_dependency(
-                migration,
-                defaults,
-            ),
-        ),
+        expected_runtime=expected_runtime,
     )

@@ -26,20 +26,6 @@ ROBINHOOD_DEFAULTS_RUNTIME_CODEHASH = (
 )
 
 _RUNTIME_PROBE_ADDRESS = "0x000000000000000000000000000000000000dEaD"
-_FACTORY_STUB = """
-# @version 0.4.3
-
-undy_hq: immutable(address)
-
-@deploy
-def __init__(_undy_hq: address):
-    undy_hq = _undy_hq
-
-@view
-@external
-def undyHq() -> address:
-    return undy_hq
-"""
 
 
 def _address(value):
@@ -89,7 +75,6 @@ def materialize_robinhood_runtime(
     name: str,
     args,
     *,
-    wallet_factory_address=None,
     defaults_dependency=False,
 ):
     """Materialize constructor-specific runtime without touching live state.
@@ -115,12 +100,6 @@ def materialize_robinhood_runtime(
         ) from exc
 
     normalized_args = tuple(_normalize_arg(arg) for arg in args)
-    normalized_factory = (
-        None
-        if wallet_factory_address is None
-        else _address(wallet_factory_address)
-    )
-
     with boa.set_env(Env()) as compile_env:
         compile_env.eoa = deployer
 
@@ -132,17 +111,6 @@ def materialize_robinhood_runtime(
 
         if defaults_dependency:
             _install_defaults_dependency(files)
-
-        # Hatchery's constructor calls factory.undyHq(). The factory itself is
-        # authenticated independently before this probe; this isolated stub
-        # supplies only the constructor dependency needed to materialize the
-        # exact Hatchery runtime without a live-network transaction.
-        if normalized_factory is not None:
-            boa.loads(
-                _FACTORY_STUB,
-                ROBINHOOD_UNDY_HQ,
-                override_address=normalized_factory,
-            )
 
         target_address = (
             ROBINHOOD_UNDY_HQ if name == "UndyHq" else _RUNTIME_PROBE_ADDRESS
@@ -164,7 +132,6 @@ def require_approved_robinhood_runtime(
     args,
     approved_codehash: str,
     *,
-    wallet_factory_address=None,
     defaults_dependency=False,
 ):
     """Return exact current-source runtime or fail before any broadcast."""
@@ -172,7 +139,6 @@ def require_approved_robinhood_runtime(
         migration,
         name,
         args,
-        wallet_factory_address=wallet_factory_address,
         defaults_dependency=defaults_dependency,
     )
     actual_hash = _runtime_codehash(runtime)
@@ -317,6 +283,7 @@ def require_authenticated_robinhood_defaults(migration):
         "DefaultsRobinhood",
         args,
         ROBINHOOD_DEFAULTS_RUNTIME_CODEHASH,
+        defaults_dependency=True,
     )
     _require_bootstrap_manifest_entry(
         migration,

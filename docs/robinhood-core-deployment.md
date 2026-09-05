@@ -113,7 +113,7 @@ The intended initial sequence is:
 | `0002` | `MissionControl` using `DefaultsRobinhood`, at ID 2 |
 | `0003` | empty core `LegoBook` registry at ID 3; no Legos or `LegoTools` |
 | `0004` | `Switchboard` at ID 4; Alpha and Bravo at Switchboard IDs 1 and 2 |
-| `0005` | `Hatchery` at ID 5, only after the frozen wallet factory passes its exact release checks |
+| `0005` | original CREATE-based `Hatchery` at ID 5, using the nonce-0/1 wallet blueprints |
 | `0006` | `LootDistributor` at ID 6, pinned to the live RH Ripe registry and RIPE token |
 | `0007` | `Appraiser` at ID 7, pinned to the live RH Ripe registry |
 | `0008` | `WalletBackpack` at ID 8, with Kernel, Sentinel, HighCommand, Paymaster, ChequeBook, Migrator, and ActionDataProvider wired |
@@ -175,13 +175,12 @@ checks cannot prove that it is empty without event-derived keys.
 
 ## Release blockers and intentionally absent values
 
-- The current V1 deterministic wallet sources are parked and not frozen. The
-  factory admin is still the zero-address placeholder, and there is no approved
-  RH factory address/runtime hash or live pair of implementation contracts.
-  Migration `0005` therefore fails before deploying Hatchery or consuming HQ
-  ID 5. It must require the frozen factory runtime, configured UndyHq, and both
-  exact implementation runtimes; a contract that merely answers `undyHq()` is
-  not sufficient authentication.
+- Wallet-level deterministic deployment is deferred to a separate release.
+  Migration `0005` deploys the original seven-argument Hatchery, whose CREATE
+  flow consumes the original `UserWallet` and `UserWalletConfig` blueprints
+  recorded by `DefaultsRobinhood`. Its runtime and WETH dependency are pinned
+  independently before deployment; no wallet-factory artifact is part of this
+  Robinhood release.
 - No RH governance contract is approved in the profile. Migration `1000` fails
   before any lock or state change until both a nonzero contract address and its
   exact runtime codehash are supplied. Do not copy Base governance: that address
@@ -201,6 +200,6 @@ checks cannot prove that it is empty without event-derived keys.
   future Lego; otherwise Sentinel's zero-registry guard can bypass the
   only-approved-yield-opportunity check.
 
-Until the factory, governance, and ID-10 decision are resolved, only migrations
-`0000` through `0004` form a validated deployable prefix. Do not describe that
-prefix as a working wallet protocol.
+Until governance and the ID-10 decision are resolved, migrations `0000` through
+`0009` form a deployable prefix but `1000` cannot complete the irreversible
+handoff. Do not describe that prefix as a working wallet protocol.

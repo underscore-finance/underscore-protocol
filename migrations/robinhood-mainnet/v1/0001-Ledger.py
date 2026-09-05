@@ -1,7 +1,8 @@
 from scripts.utils.migration import Migration
-from scripts.utils.registry_preconditions import (
-    deploy_and_register,
-    materialize_contract_runtime,
+from scripts.utils.registry_preconditions import deploy_and_register
+from scripts.utils.robinhood_runtime import (
+    require_approved_robinhood_runtime,
+    require_authenticated_robinhood_hq,
 )
 
 LEDGER_RUNTIME_CODEHASH = (
@@ -20,21 +21,25 @@ def _validate_ledger(ledger, hq):
 
 def migrate(migration: Migration):
     migration.log.h2("Ledger")
-    hq = migration.get_contract("UndyHq")
+    hq = require_authenticated_robinhood_hq(migration)
+    args = (hq,)
+    migration.preflight_contract_manifest("Ledger", args)
+    expected_runtime = require_approved_robinhood_runtime(
+        migration,
+        "Ledger",
+        args,
+        LEDGER_RUNTIME_CODEHASH,
+    )
     deploy_and_register(
         migration,
         hq,
         name="Ledger",
-        args=(hq,),
+        args=args,
         description="Ledger",
         expected_id=1,
         expected_prefix=(),
         context="before Robinhood Ledger deployment",
         validate=lambda ledger: _validate_ledger(ledger, hq),
         expected_runtime_codehash=LEDGER_RUNTIME_CODEHASH,
-        runtime_builder=lambda: materialize_contract_runtime(
-            migration,
-            "Ledger",
-            (hq,),
-        ),
+        expected_runtime=expected_runtime,
     )

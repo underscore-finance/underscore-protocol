@@ -1,8 +1,8 @@
 from scripts.utils.migration import Migration
-from scripts.utils.registry_preconditions import (
-    deploy_and_register,
-    install_hq_materialization_dependency,
-    materialize_contract_runtime,
+from scripts.utils.registry_preconditions import deploy_and_register
+from scripts.utils.robinhood_runtime import (
+    require_approved_robinhood_runtime,
+    require_authenticated_robinhood_hq,
 )
 
 LEGO_BOOK_RUNTIME_CODEHASH = (
@@ -40,7 +40,7 @@ def _validate_lego_book(lego_book, hq, migration):
 
 def migrate(migration: Migration):
     migration.log.h2("Lego Book")
-    hq = migration.get_contract("UndyHq")
+    hq = require_authenticated_robinhood_hq(migration)
     args = (
         hq,
         # HQ governance can govern LocalGov children directly. A matching
@@ -48,6 +48,13 @@ def migrate(migration: Migration):
         migration.blueprint.CONSTANTS.ZERO_ADDRESS,
         migration.blueprint.PARAMS["UNDY_HQ_MIN_REG_TIMELOCK"],
         migration.blueprint.PARAMS["UNDY_HQ_MAX_REG_TIMELOCK"],
+    )
+    migration.preflight_contract_manifest("LegoBook", args)
+    expected_runtime = require_approved_robinhood_runtime(
+        migration,
+        "LegoBook",
+        args,
+        LEGO_BOOK_RUNTIME_CODEHASH,
     )
     deploy_and_register(
         migration,
@@ -67,15 +74,7 @@ def migrate(migration: Migration):
             migration,
         ),
         expected_runtime_codehash=LEGO_BOOK_RUNTIME_CODEHASH,
-        runtime_builder=lambda: materialize_contract_runtime(
-            migration,
-            "LegoBook",
-            args,
-            prepare=lambda: install_hq_materialization_dependency(
-                hq,
-                migration,
-            ),
-        ),
+        expected_runtime=expected_runtime,
     )
 
     # Robinhood launches without protocol integrations. The registry is a core

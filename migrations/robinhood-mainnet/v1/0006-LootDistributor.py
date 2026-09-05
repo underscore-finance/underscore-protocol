@@ -3,7 +3,10 @@ import boa
 from scripts.utils.migration import Migration
 from scripts.utils.registry_preconditions import deploy_and_register
 from scripts.utils.ripe_preconditions import require_robinhood_ripe_dependencies
-from scripts.utils.robinhood_runtime import require_approved_robinhood_runtime
+from scripts.utils.robinhood_runtime import (
+    require_approved_robinhood_runtime,
+    require_authenticated_robinhood_hq,
+)
 
 
 LOOT_DISTRIBUTOR_RUNTIME_CODEHASH = (
@@ -24,7 +27,7 @@ def _validate_loot_distributor(loot_distributor, hq, ripe_token, ripe_registry):
 
 def migrate(migration: Migration):
     migration.log.h2("Loot Distributor")
-    hq = migration.get_contract("UndyHq")
+    hq = require_authenticated_robinhood_hq(migration)
     ripe_registry, ripe_token, _price_desk, _teller = (
         require_robinhood_ripe_dependencies(migration)
     )
@@ -33,7 +36,8 @@ def migrate(migration: Migration):
         ripe_token,
         ripe_registry,
     )
-    require_approved_robinhood_runtime(
+    migration.preflight_contract_manifest("LootDistributor", args)
+    expected_runtime = require_approved_robinhood_runtime(
         migration,
         "LootDistributor",
         args,
@@ -58,4 +62,5 @@ def migrate(migration: Migration):
             ripe_registry,
         ),
         expected_runtime_codehash=LOOT_DISTRIBUTOR_RUNTIME_CODEHASH,
+        expected_runtime=expected_runtime,
     )

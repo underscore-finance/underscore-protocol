@@ -3,10 +3,12 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
+import boa
 import pytest
 from eth_utils import keccak
 
 from scripts.utils import ripe_preconditions
+from scripts.utils.registry_preconditions import require_registry_prefix
 
 
 pytestmark = pytest.always
@@ -14,11 +16,8 @@ pytestmark = pytest.always
 MIGRATIONS_DIR = Path("migrations/robinhood-mainnet/v1")
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 HQ_ADDRESS = "0x1111111111111111111111111111111111111111"
-FACTORY_ADDRESS = "0x2222222222222222222222222222222222222222"
 GOVERNANCE_ADDRESS = "0x3333333333333333333333333333333333333333"
 WETH_ADDRESS = "0x4444444444444444444444444444444444444444"
-WALLET_IMPLEMENTATION = "0x5555555555555555555555555555555555555555"
-CONFIG_IMPLEMENTATION = "0x6666666666666666666666666666666666666666"
 TEST_RUNTIME = b"\x01"
 TEST_RUNTIME_HASH = "0x" + keccak(TEST_RUNTIME).hex()
 RIPE_HQ = "0x7777777777777777777777777777777777777777"
@@ -74,6 +73,39 @@ class FakeRegistry:
     def numAddrs(self):
         return max(self.entries, default=0) + 1
 
+    def getAddrInfo(self, reg_id):
+        descriptions = {
+            1: "Ledger",
+            2: "Mission Control",
+            3: "Lego Book",
+            4: "Switchboard",
+            5: "Hatchery",
+            6: "Loot Distributor",
+            7: "Appraiser",
+            8: "Wallet Backpack",
+            9: "Billing",
+        }
+        return SimpleNamespace(
+            version=1,
+            description=descriptions.get(reg_id, ""),
+        )
+
+    def pendingAddrUpdate(self, _reg_id):
+        return SimpleNamespace(
+            newAddr=ZERO_ADDRESS,
+            initiatedBlock=0,
+            confirmBlock=0,
+        )
+
+    def pendingAddrDisable(self, _reg_id):
+        return SimpleNamespace(initiatedBlock=0, confirmBlock=0)
+
+    def hasPendingHqConfigChange(self, _reg_id):
+        return False
+
+    def registryChangeTimeLock(self):
+        return 0
+
 
 class FakeMigration:
     def __init__(self, *, integrations=None, manifest=None, contracts=None):
@@ -113,22 +145,10 @@ class FakeMigration:
 def _patch_code(monkeypatch, module, code_addresses):
     code_addresses = {address.lower() for address in code_addresses}
     monkeypatch.setattr(
-        module.boa.env,
+        boa.env,
         "get_code",
         lambda address: b"\x01" if str(address).lower() in code_addresses else b"",
     )
-
-
-def _fake_factory(hq=HQ_ADDRESS, admin=GOVERNANCE_ADDRESS):
-    contract = SimpleNamespace(
-        undyHq=lambda: hq,
-        WALLET_FACTORY_ADMIN=lambda: admin,
-        USER_WALLET_IMPLEMENTATION=lambda: WALLET_IMPLEMENTATION,
-        USER_WALLET_IMPLEMENTATION_CODEHASH=lambda: keccak(TEST_RUNTIME),
-        USER_WALLET_CONFIG_IMPLEMENTATION=lambda: CONFIG_IMPLEMENTATION,
-        USER_WALLET_CONFIG_IMPLEMENTATION_CODEHASH=lambda: keccak(TEST_RUNTIME),
-    )
-    return SimpleNamespace(at=lambda _address: contract)
 
 
 def _ripe_migration():
@@ -175,142 +195,35 @@ def _hatchery_migration(integrations=None):
     return migration
 
 
-def _approved_factory_integrations():
+def _approved_hatchery_integrations():
     return {
-        "WALLET_FACTORY": FACTORY_ADDRESS,
-        "WALLET_FACTORY_CODEHASH": TEST_RUNTIME_HASH,
         "WETH_CODEHASH": TEST_RUNTIME_HASH,
     }
 
 
-def test_hatchery_missing_factory_fails_before_any_transaction(monkeypatch):
+def _patch_hatchery_runtime(monkeypatch, module, migration):
+    monkeypatch.setattr(
+        module,
+        "require_authenticated_robinhood_hq",
+        lambda _migration: migration.contracts["UndyHq"],
+    )
+    monkeypatch.setattr(
+        module,
+        "require_approved_robinhood_runtime",
+        lambda *_args, **_kwargs: TEST_RUNTIME,
+    )
+
+
+def test_hatchery_missing_weth_codehash_fails_before_any_transaction(monkeypatch):
     module = _load_migration("0005-Hatchery.py")
     migration = _hatchery_migration()
-    _patch_code(monkeypatch, module, CORE_MANIFEST.values())
+    _patch_hatchery_runtime(monkeypatch, module, migration)
+    _patch_code(monkeypatch, module, [WETH_ADDRESS])
 
     with pytest.raises(
         RuntimeError,
-        match="Robinhood WALLET_FACTORY is not approved; refusing to deploy Hatchery",
+        match="Robinhood WETH_CODEHASH is not approved; refusing to deploy Hatchery",
     ):
-        module.migrate(migration)
-
-    assert migration.deploy_calls == []
-    assert migration.execute_calls == []
-
-
-def test_hatchery_factory_without_code_fails_before_any_transaction(monkeypatch):
-    module = _load_migration("0005-Hatchery.py")
-    migration = _hatchery_migration(_approved_factory_integrations())
-    _patch_code(monkeypatch, module, CORE_MANIFEST.values())
-
-    with pytest.raises(
-        RuntimeError,
-        match="Robinhood WALLET_FACTORY has no code; refusing to deploy Hatchery",
-    ):
-        module.migrate(migration)
-
-    assert migration.deploy_calls == []
-    assert migration.execute_calls == []
-
-
-def test_hatchery_factory_for_wrong_hq_fails_before_any_transaction(monkeypatch):
-    module = _load_migration("0005-Hatchery.py")
-    migration = _hatchery_migration(_approved_factory_integrations())
-    _patch_code(
-        monkeypatch,
-        module,
-        [
-            *CORE_MANIFEST.values(),
-            FACTORY_ADDRESS,
-            WALLET_IMPLEMENTATION,
-            CONFIG_IMPLEMENTATION,
-        ],
-    )
-    monkeypatch.setattr(
-        module.boa,
-        "load_abi",
-        lambda *_args, **_kwargs: _fake_factory(
-            hq="0x4444444444444444444444444444444444444444"
-        ),
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Robinhood WALLET_FACTORY is initialized for a different UndyHq",
-    ):
-        module.migrate(migration)
-
-    assert migration.deploy_calls == []
-    assert migration.execute_calls == []
-
-
-def test_hatchery_factory_codehash_mismatch_fails_before_any_transaction(monkeypatch):
-    module = _load_migration("0005-Hatchery.py")
-    integrations = _approved_factory_integrations()
-    integrations["WALLET_FACTORY_CODEHASH"] = "0x" + "ff" * 32
-    migration = _hatchery_migration(integrations)
-    _patch_code(
-        monkeypatch,
-        module,
-        [*CORE_MANIFEST.values(), FACTORY_ADDRESS],
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Robinhood WALLET_FACTORY live codehash does not match its approval",
-    ):
-        module.migrate(migration)
-
-    assert migration.deploy_calls == []
-    assert migration.execute_calls == []
-
-
-def test_hatchery_zero_factory_admin_fails_before_any_transaction(monkeypatch):
-    module = _load_migration("0005-Hatchery.py")
-    migration = _hatchery_migration(_approved_factory_integrations())
-    _patch_code(
-        monkeypatch,
-        module,
-        [
-            *CORE_MANIFEST.values(),
-            FACTORY_ADDRESS,
-            WALLET_IMPLEMENTATION,
-            CONFIG_IMPLEMENTATION,
-        ],
-    )
-    monkeypatch.setattr(
-        module.boa,
-        "load_abi",
-        lambda *_args, **_kwargs: _fake_factory(admin=ZERO_ADDRESS),
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Robinhood WALLET_FACTORY still has the zero-address admin placeholder",
-    ):
-        module.migrate(migration)
-
-    assert migration.deploy_calls == []
-    assert migration.execute_calls == []
-
-
-def test_hatchery_missing_implementation_code_fails_before_any_transaction(
-    monkeypatch,
-):
-    module = _load_migration("0005-Hatchery.py")
-    migration = _hatchery_migration(_approved_factory_integrations())
-    _patch_code(
-        monkeypatch,
-        module,
-        [*CORE_MANIFEST.values(), FACTORY_ADDRESS, CONFIG_IMPLEMENTATION],
-    )
-    monkeypatch.setattr(
-        module.boa,
-        "load_abi",
-        lambda *_args, **_kwargs: _fake_factory(),
-    )
-
-    with pytest.raises(RuntimeError, match="UserWallet implementation has no code"):
         module.migrate(migration)
 
     assert migration.deploy_calls == []
@@ -319,28 +232,76 @@ def test_hatchery_missing_implementation_code_fails_before_any_transaction(
 
 def test_hatchery_weth_without_code_fails_before_any_transaction(monkeypatch):
     module = _load_migration("0005-Hatchery.py")
-    migration = _hatchery_migration(_approved_factory_integrations())
-    _patch_code(
-        monkeypatch,
-        module,
-        [
-            *CORE_MANIFEST.values(),
-            FACTORY_ADDRESS,
-            WALLET_IMPLEMENTATION,
-            CONFIG_IMPLEMENTATION,
-        ],
-    )
-    monkeypatch.setattr(
-        module.boa,
-        "load_abi",
-        lambda *_args, **_kwargs: _fake_factory(),
-    )
+    migration = _hatchery_migration(_approved_hatchery_integrations())
+    _patch_hatchery_runtime(monkeypatch, module, migration)
+    _patch_code(monkeypatch, module, [])
 
     with pytest.raises(
         RuntimeError,
         match="Robinhood WETH has no code; refusing to deploy Hatchery",
     ):
         module.migrate(migration)
+
+    assert migration.deploy_calls == []
+    assert migration.execute_calls == []
+
+
+def test_hatchery_weth_codehash_mismatch_fails_before_any_transaction(monkeypatch):
+    module = _load_migration("0005-Hatchery.py")
+    migration = _hatchery_migration(
+        {"WETH_CODEHASH": "0x" + "ff" * 32}
+    )
+    _patch_hatchery_runtime(monkeypatch, module, migration)
+    _patch_code(monkeypatch, module, [WETH_ADDRESS])
+
+    with pytest.raises(
+        RuntimeError,
+        match="Robinhood WETH live codehash does not match its approval",
+    ):
+        module.migrate(migration)
+
+    assert migration.deploy_calls == []
+    assert migration.execute_calls == []
+
+
+def test_hatchery_uses_original_seven_argument_constructor(monkeypatch):
+    module = _load_migration("0005-Hatchery.py")
+    migration = _hatchery_migration(_approved_hatchery_integrations())
+    _patch_hatchery_runtime(monkeypatch, module, migration)
+    _patch_code(monkeypatch, module, [WETH_ADDRESS])
+    captured = {}
+
+    def capture_deployment(_migration, registry, **kwargs):
+        captured.update(kwargs)
+        captured["registry"] = registry
+        return SimpleNamespace(address=CORE_MANIFEST["Hatchery"])
+
+    monkeypatch.setattr(module, "deploy_and_register", capture_deployment)
+    monkeypatch.setattr(
+        migration,
+        "preflight_contract_manifest",
+        lambda name, args: captured.update(preflight=(name, args)),
+        raising=False,
+    )
+
+    module.migrate(migration)
+
+    args = captured["args"]
+    assert len(args) == 7
+    assert args[0] is migration.contracts["UndyHq"]
+    assert args[1:3] == (
+        WETH_ADDRESS,
+        migration.blueprint.TOKENS["ETH"],
+    )
+    assert args[3:] == (
+        [True, True, True, True],
+        [ZERO_ADDRESS, 0],
+        [ZERO_ADDRESS, 0],
+        ZERO_ADDRESS,
+    )
+    assert captured["preflight"] == ("Hatchery", args)
+    assert captured["expected_runtime"] == TEST_RUNTIME
+    assert "wallet_factory" not in captured
 
     assert migration.deploy_calls == []
     assert migration.execute_calls == []
@@ -393,7 +354,7 @@ def test_ripe_registry_teller_must_have_code(monkeypatch):
 
     with pytest.raises(
         RuntimeError,
-        match="Robinhood RipeHq ID 17 Teller has no code",
+        match="Robinhood Teller has no code",
     ):
         ripe_preconditions.require_robinhood_ripe_dependencies(migration)
 
@@ -414,19 +375,29 @@ def test_ripe_registry_exact_dependencies_pass(monkeypatch):
     )
 
 
-def test_hatchery_wrong_core_prefix_fails_before_factory_or_transaction(monkeypatch):
+def test_hatchery_wrong_core_prefix_fails_before_deployment(monkeypatch):
     module = _load_migration("0005-Hatchery.py")
-    migration = _hatchery_migration({"WALLET_FACTORY": FACTORY_ADDRESS})
+    migration = _hatchery_migration(_approved_hatchery_integrations())
     migration.contracts["UndyHq"].entries[3] = ZERO_ADDRESS
-    _patch_code(
-        monkeypatch,
-        module,
-        [*CORE_MANIFEST.values(), FACTORY_ADDRESS],
+    _patch_hatchery_runtime(monkeypatch, module, migration)
+    _patch_code(monkeypatch, module, [*CORE_MANIFEST.values(), WETH_ADDRESS])
+    monkeypatch.setattr(
+        migration,
+        "preflight_contract_manifest",
+        lambda *_args: None,
+        raising=False,
     )
 
-    with pytest.raises(
-        RuntimeError
-    ) as exc_info:
+    def check_prefix(_migration, registry, **kwargs):
+        require_registry_prefix(
+            registry,
+            kwargs["expected_prefix"],
+            kwargs["context"],
+        )
+
+    monkeypatch.setattr(module, "deploy_and_register", check_prefix)
+
+    with pytest.raises(RuntimeError) as exc_info:
         module.migrate(migration)
 
     assert str(exc_info.value) == (
@@ -496,6 +467,39 @@ def test_tail_dependency_mismatch_never_deploys_or_mutates_registry(
         contracts={"UndyHq": hq},
     )
     _patch_code(monkeypatch, module, CORE_MANIFEST.values())
+    if hasattr(module, "require_authenticated_robinhood_hq"):
+        monkeypatch.setattr(
+            module,
+            "require_authenticated_robinhood_hq",
+            lambda _migration: hq,
+        )
+    if hasattr(module, "require_robinhood_ripe_dependencies"):
+        monkeypatch.setattr(
+            module,
+            "require_robinhood_ripe_dependencies",
+            lambda _migration: (RIPE_HQ, RIPE_TOKEN, PRICE_DESK, RIPE_TELLER),
+        )
+    if hasattr(module, "require_approved_robinhood_runtime"):
+        monkeypatch.setattr(
+            module,
+            "require_approved_robinhood_runtime",
+            lambda *_args, **_kwargs: TEST_RUNTIME,
+        )
+        monkeypatch.setattr(
+            migration,
+            "preflight_contract_manifest",
+            lambda *_args: None,
+            raising=False,
+        )
+
+        def check_prefix(_migration, registry, **kwargs):
+            require_registry_prefix(
+                registry,
+                kwargs["expected_prefix"],
+                kwargs["context"],
+            )
+
+        monkeypatch.setattr(module, "deploy_and_register", check_prefix)
 
     with pytest.raises(RuntimeError) as exc_info:
         module.migrate(migration)

@@ -1,8 +1,8 @@
 from scripts.utils.migration import Migration
-from scripts.utils.registry_preconditions import (
-    deploy_and_register,
-    install_hq_materialization_dependency,
-    materialize_contract_runtime,
+from scripts.utils.registry_preconditions import deploy_and_register
+from scripts.utils.robinhood_runtime import (
+    require_approved_robinhood_runtime,
+    require_authenticated_robinhood_hq,
 )
 
 SWITCHBOARD_RUNTIME_CODEHASH = (
@@ -85,7 +85,7 @@ def _validate_switchboard_module(module, hq, migration, name):
 
 def migrate(migration: Migration):
     migration.log.h2("Switchboard")
-    hq = migration.get_contract("UndyHq")
+    hq = require_authenticated_robinhood_hq(migration)
     registry_args = (
         hq,
         # HQ governance can govern LocalGov children directly. A matching
@@ -93,6 +93,39 @@ def migrate(migration: Migration):
         migration.blueprint.CONSTANTS.ZERO_ADDRESS,
         migration.blueprint.PARAMS["UNDY_HQ_MIN_REG_TIMELOCK"],
         migration.blueprint.PARAMS["UNDY_HQ_MAX_REG_TIMELOCK"],
+    )
+    module_args = (
+        hq,
+        migration.blueprint.CONSTANTS.ZERO_ADDRESS,
+        migration.blueprint.PARAMS["GEN_MIN_CONFIG_TIMELOCK"],
+        migration.blueprint.PARAMS["GEN_MAX_CONFIG_TIMELOCK"],
+    )
+
+    # Compile every artifact and exercise every post-deploy ABI path before the
+    # first transaction. A late compiler failure must not leave half a registry.
+    for name, args in (
+        ("Switchboard", registry_args),
+        ("SwitchboardAlpha", module_args),
+        ("SwitchboardBravo", module_args),
+    ):
+        migration.preflight_contract_manifest(name, args)
+    switchboard_runtime = require_approved_robinhood_runtime(
+        migration,
+        "Switchboard",
+        registry_args,
+        SWITCHBOARD_RUNTIME_CODEHASH,
+    )
+    alpha_runtime = require_approved_robinhood_runtime(
+        migration,
+        "SwitchboardAlpha",
+        module_args,
+        SWITCHBOARD_ALPHA_RUNTIME_CODEHASH,
+    )
+    bravo_runtime = require_approved_robinhood_runtime(
+        migration,
+        "SwitchboardBravo",
+        module_args,
+        SWITCHBOARD_BRAVO_RUNTIME_CODEHASH,
     )
     switchboard = deploy_and_register(
         migration,
@@ -113,23 +146,9 @@ def migrate(migration: Migration):
             migration,
         ),
         expected_runtime_codehash=SWITCHBOARD_RUNTIME_CODEHASH,
-        runtime_builder=lambda: materialize_contract_runtime(
-            migration,
-            "Switchboard",
-            registry_args,
-            prepare=lambda: install_hq_materialization_dependency(
-                hq,
-                migration,
-            ),
-        ),
+        expected_runtime=switchboard_runtime,
     )
 
-    module_args = (
-        hq,
-        migration.blueprint.CONSTANTS.ZERO_ADDRESS,
-        migration.blueprint.PARAMS["GEN_MIN_CONFIG_TIMELOCK"],
-        migration.blueprint.PARAMS["GEN_MAX_CONFIG_TIMELOCK"],
-    )
     switchboard_alpha = deploy_and_register(
         migration,
         switchboard,
@@ -146,15 +165,7 @@ def migrate(migration: Migration):
             "SwitchboardAlpha",
         ),
         expected_runtime_codehash=SWITCHBOARD_ALPHA_RUNTIME_CODEHASH,
-        runtime_builder=lambda: materialize_contract_runtime(
-            migration,
-            "SwitchboardAlpha",
-            module_args,
-            prepare=lambda: install_hq_materialization_dependency(
-                hq,
-                migration,
-            ),
-        ),
+        expected_runtime=alpha_runtime,
         maximum_next_id=3,
     )
 
@@ -174,13 +185,5 @@ def migrate(migration: Migration):
             "SwitchboardBravo",
         ),
         expected_runtime_codehash=SWITCHBOARD_BRAVO_RUNTIME_CODEHASH,
-        runtime_builder=lambda: materialize_contract_runtime(
-            migration,
-            "SwitchboardBravo",
-            module_args,
-            prepare=lambda: install_hq_materialization_dependency(
-                hq,
-                migration,
-            ),
-        ),
+        expected_runtime=bravo_runtime,
     )

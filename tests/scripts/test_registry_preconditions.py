@@ -10,7 +10,20 @@ from scripts.utils.registry_preconditions import (
     require_registry_prefix,
 )
 
+pytestmark = pytest.always
+
 TEST_RUNTIME_CODEHASH = "0x" + keccak(b"\x01").hex()
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+
+@pytest.fixture(scope="session")
+def undy_hq():
+    return None
+
+
+@pytest.fixture(scope="session")
+def wallet_backpack():
+    return None
 
 
 class FakeRegistry:
@@ -31,6 +44,9 @@ class FakeRegistry:
 
     def numAddrs(self):
         return len(self.addresses) + 1
+
+    def registryChangeTimeLock(self):
+        return 0
 
     def getAddr(self, registry_id):
         return self.addresses[registry_id - 1]
@@ -196,7 +212,7 @@ def test_deploy_and_register_handles_fresh_pending_and_confirmed_states(monkeypa
         context=context,
         validate=lambda _contract: None,
         expected_runtime_codehash=TEST_RUNTIME_CODEHASH,
-        runtime_builder=lambda: b"\x01",
+        expected_runtime=b"\x01",
     )
     assert fresh.address == "0x300"
     assert fresh_migration.deploy_calls == [
@@ -228,7 +244,7 @@ def test_deploy_and_register_handles_fresh_pending_and_confirmed_states(monkeypa
         context=context,
         validate=lambda _contract: None,
         expected_runtime_codehash=TEST_RUNTIME_CODEHASH,
-        runtime_builder=lambda: b"\x01",
+        expected_runtime=b"\x01",
     )
     assert pending_migration.deploy_calls == []
     assert pending_migration.preflight_calls == []
@@ -252,7 +268,7 @@ def test_deploy_and_register_handles_fresh_pending_and_confirmed_states(monkeypa
         context=context,
         validate=lambda _contract: None,
         expected_runtime_codehash=TEST_RUNTIME_CODEHASH,
-        runtime_builder=lambda: b"\x01",
+        expected_runtime=b"\x01",
     )
     assert confirmed_migration.deploy_calls == []
     assert confirmed_migration.preflight_calls == []
@@ -283,7 +299,7 @@ def test_deploy_and_register_resumes_earlier_child_with_later_prefix(monkeypatch
         context="before alpha",
         validate=lambda _contract: None,
         expected_runtime_codehash=TEST_RUNTIME_CODEHASH,
-        runtime_builder=lambda: b"\x01",
+        expected_runtime=b"\x01",
         maximum_next_id=3,
     )
 
@@ -318,7 +334,7 @@ def test_deploy_and_register_rejects_manifest_confirmed_mismatch(monkeypatch):
             context="before test deployment",
             validate=lambda _contract: None,
             expected_runtime_codehash=TEST_RUNTIME_CODEHASH,
-            runtime_builder=lambda: b"\x01",
+            expected_runtime=b"\x01",
         )
 
     assert migration.deploy_calls == []
@@ -347,7 +363,7 @@ def test_deploy_and_register_rejects_manifestless_or_unapproved_runtime(monkeypa
             context="before test deployment",
             validate=lambda _contract: None,
             expected_runtime_codehash=TEST_RUNTIME_CODEHASH,
-            runtime_builder=lambda: b"\x01",
+            expected_runtime=b"\x01",
         )
 
     monkeypatch.setattr(boa.env, "get_code", lambda _address: b"\x02")
@@ -366,7 +382,7 @@ def test_deploy_and_register_rejects_manifestless_or_unapproved_runtime(monkeypa
             context="before test deployment",
             validate=lambda _contract: None,
             expected_runtime_codehash=TEST_RUNTIME_CODEHASH,
-            runtime_builder=lambda: b"\x01",
+            expected_runtime=b"\x01",
         )
 
 
