@@ -273,12 +273,13 @@ def test_robinhood_core_migration_rejects_wrong_chain_before_nonce_use(
     with fork_env.anchor():
         fork_env.evm.patch.chain_id = 8_453
 
-        with pytest.raises(MigrationError) as exc_info:
+        # The runner's chain guard intentionally executes before loading a
+        # migration, so this boundary is a direct RuntimeError rather than a
+        # migration-body failure wrapped in MigrationError.
+        with pytest.raises(RuntimeError) as exc_info:
             _run_core_migration(tmp_path, rpc_url)
 
-        assert str(exc_info.value.__cause__) == (
-            "wrong chain id: expected 4663, got 8453"
-        )
+        assert str(exc_info.value) == "wrong chain id: expected 4663, got 8453"
         assert get_account_nonce(DEPLOYER) == 0
         for address in _expected_core_addresses().values():
             assert fork_env.get_code(address) == b""
