@@ -6,15 +6,17 @@ from scripts.utils import log
 from scripts.utils.migration_helpers import get_account, load_vyper_files
 from scripts.utils.migration_runner import MigrationRunner
 from scripts.utils.deploy_args import DeployArgs
+from scripts.utils.nonce_alignment import assert_chain_id
 from boa.environment import Env
 from scripts.utils.mock_account import MockAccount
+from scripts.utils.log import rpc_log_label
 # from scripts.utils.safe_account import SafeAccount
-# from scripts.utils.ledger_account import LedgerAccount
 import os
 
 
 MIGRATION_SCRIPTS_DIR = "./migrations"
 MIGRATION_HISTORY_DIR = "./migration_history"
+ROBINHOOD_CHAIN_ID = 4_663
 
 
 CLICK_PROMPTS = {
@@ -60,7 +62,17 @@ CLICK_PROMPTS = {
         "prompt": "Chain name",
         "default": "base-mainnet",
         "help": "Chain name for custom configuration on the deployment (ex: eth-mainnet, eth-sepolia, base-mainnet, base-sepolia).  Defaults to `base-mainnet`",
-        "type": click.Choice(["local", "base-mainnet", "base-sepolia", "eth-sepolia", "eth-mainnet", "base-mainnet", "base-sepolia"], case_sensitive=False),
+        "type": click.Choice(
+            [
+                "local",
+                "base-mainnet",
+                "base-sepolia",
+                "eth-sepolia",
+                "eth-mainnet",
+                "robinhood-mainnet",
+            ],
+            case_sensitive=False,
+        ),
 
     },
     "account": {
@@ -87,8 +99,8 @@ CLICK_PROMPTS = {
 
 
 ETHERSCAN_API_KEYS = {
-    "base-mainnet": os.environ["ETHERSCAN_API_KEY"],
-    "base-sepolia": os.environ["ETHERSCAN_API_KEY"],
+    "base-mainnet": os.environ.get("ETHERSCAN_API_KEY"),
+    "base-sepolia": os.environ.get("ETHERSCAN_API_KEY"),
 }
 ETHERSCAN_URLS = {
     "eth-mainnet": "https://api.etherscan.io/v2/api?chainid=1",
@@ -98,7 +110,6 @@ ETHERSCAN_URLS = {
     "base-goerli": "https://api-goerli.basescan.org/api",
     "base-sepolia": "https://api-sepolia.basescan.org/api",
 }
-
 
 def param_prompt(ctx, param, value):
     param_config = CLICK_PROMPTS[param.name]
@@ -213,6 +224,14 @@ def param_prompt(ctx, param, value):
     type=int,
 )
 @click.option(
+    "--ledger-path",
+    default="",
+    help=(
+        "Explicit Ledger derivation path, for example "
+        "m/44'/60'/1'/0/0. Cannot be combined with --ledger."
+    ),
+)
+@click.option(
     "--is-retry",
     is_flag=True,
     default=CLICK_PROMPTS["is_retry"]["default"],
@@ -239,6 +258,7 @@ def cli(
     blueprint,
     account,
     ledger,
+    ledger_path,
     block,
 ):
     """
@@ -267,31 +287,89 @@ def cli(
     `.migration_history/network/v1`.
     """
 
-    final_rpc = rpc if rpc else (
-        'boa' if chain == 'local' else f"https://{chain}.g.alchemy.com/v2/{os.environ.get('WEB3_ALCHEMY_API_KEY')}")
+    if rpc:
+        final_rpc = rpc
+    elif chain == "local":
+        final_rpc = "boa"
+    elif chain == "robinhood-mainnet":
+        final_rpc = os.environ.get("ROBINHOOD_MAINNET_RPC_URL")
+        if not final_rpc:
+            raise click.UsageError(
+                "ROBINHOOD_MAINNET_RPC_URL must be set when --chain "
+                "robinhood-mainnet is used without --rpc"
+            )
+    else:
+        final_rpc = (
+            f"https://{chain}.g.alchemy.com/v2/"
+            f"{os.environ.get('WEB3_ALCHEMY_API_KEY')}"
+        )
+
+    if chain == "robinhood-mainnet" and blueprint != "robinhood":
+        raise click.UsageError(
+            "--chain robinhood-mainnet requires --blueprint robinhood; "
+            f"got {blueprint!r}"
+        )
+    if chain == "robinhood-mainnet" and start_timestamp == "0":
+        raise click.UsageError(
+            "--chain robinhood-mainnet requires an explicit "
+            "--start-timestamp; never infer an irreversible deployment resume"
+        )
+    if chain == "robinhood-mainnet" and is_retry:
+        raise click.UsageError(
+            "--is-retry is disabled for robinhood-mainnet; positional logs are "
+            "not proof of on-chain state"
+        )
+
+    if ledger_path != "" and ledger != -1:
+        raise click.UsageError(
+            "--ledger-path and --ledger cannot be used together"
+        )
+    if safe != "" and (ledger != -1 or ledger_path != ""):
+        raise click.UsageError(
+            "--safe cannot be used with --ledger or --ledger-path"
+        )
 
     if safe != "":
         if fork:
             sender = MockAccount(safe)
+        else:
+            raise click.UsageError("--safe is currently supported only with --fork")
         # else:
         #     sender = SafeAccount(
         #         safe_address=safe,
         #         rpc_url=final_rpc
         #     )
+    elif ledger_path != "":
+        # Keep hardware-only dependencies out of local/test imports.
+        from scripts.utils.ledger_account import LedgerAccount
+
+        sender = LedgerAccount(final_rpc, derivation_path=ledger_path)
+        if fork:
+            sender = MockAccount(sender.address)
     elif ledger != -1:
-        # sender = LedgerAccount(final_rpc, ledger)
+        # Keep hardware-only dependencies out of local/test imports.
+        from scripts.utils.ledger_account import LedgerAccount
+
+        sender = LedgerAccount(final_rpc, ledger)
         if fork:
             sender = MockAccount(sender.address)
     else:
+        private_key_name = f"{account}_PRIVATE_KEY"
+        if chain == "robinhood-mainnet" and not os.environ.get(private_key_name):
+            raise click.UsageError(
+                f"{private_key_name} must be set for robinhood-mainnet when "
+                "no Ledger or Safe backend is selected"
+            )
         sender = get_account(account)
 
     deploy_args = DeployArgs(
         sender, chain, ignore_logs=not is_retry, blueprint=blueprint, rpc=final_rpc)
 
     log.h1("Contract Migration")
-    log.info(f"Connected to rpc `{final_rpc}`.")
+    log.info(f"Connected to rpc `{rpc_log_label(final_rpc)}`.")
     log.info(f"Deployer account `{sender.address}`.")
-    log.info(f"Manifests are stored in `{environment}`.")
+    history_environment = f"{environment}-fork" if fork else environment
+    log.info(f"Manifests are stored in `{history_environment}`.")
     log.info(f"Deployment arguments: {deploy_args}")
     log.info(f"Running migrations starting with timestamp {start_timestamp}.")
     log.info(f"Chain: {chain}.")
@@ -302,17 +380,25 @@ def cli(
 
     migrations = MigrationRunner(
         f"{MIGRATION_SCRIPTS_DIR}/{chain}/{environment}",
-        f"{MIGRATION_HISTORY_DIR}/{chain}/{environment}",
+        f"{MIGRATION_HISTORY_DIR}/{chain}/{history_environment}",
         vyper_files
     )
 
     boa.deployments.set_deployments_db(
         boa.deployments.DeploymentsDB(":memory:"))
-    boa.set_etherscan(
-        api_key=ETHERSCAN_API_KEYS[chain], uri=ETHERSCAN_URLS[chain])
+    etherscan_api_key = ETHERSCAN_API_KEYS.get(chain)
+    etherscan_url = ETHERSCAN_URLS.get(chain)
+    if etherscan_api_key and etherscan_url:
+        boa.set_etherscan(api_key=etherscan_api_key, uri=etherscan_url)
+    else:
+        log.info(
+            f"No authoritative explorer verification endpoint configured for "
+            f"{chain}; skipping explorer setup."
+        )
 
     if final_rpc == 'boa':
         with boa.set_env(Env()) as env:
+            env.eoa = sender.address
             total_gas = migrations.run(
                 deploy_args, start_timestamp, end_timestamp, not single)
 
@@ -325,6 +411,12 @@ def cli(
 
         label = f"block {block}" if block != '0' else "latest block"
         with boa.fork(final_rpc, **kwargs) as env:
+            # Migration.deploy intentionally relies on Boa's default EOA. Set it
+            # explicitly so fork deployments consume the requested account's
+            # nonce instead of Boa's process-global default sender.
+            env.eoa = sender.address
+            if chain == "robinhood-mainnet":
+                assert_chain_id(ROBINHOOD_CHAIN_ID, env=env)
             try:
                 env.set_balance(sender.address, 10*10**18)
                 log.h2('Deployer wallet funded with 10 ETH')
@@ -335,7 +427,9 @@ def cli(
                 deploy_args, start_timestamp, end_timestamp, not single)
     else:
         with boa.set_network_env(final_rpc) as env:
-            env.add_account(sender)
+            env.add_account(sender, force_eoa=True)
+            if chain == "robinhood-mainnet":
+                assert_chain_id(ROBINHOOD_CHAIN_ID, env=env)
             log.h2("Running migrations in production...")
             total_gas = migrations.run(
                 deploy_args, start_timestamp, end_timestamp, not single)

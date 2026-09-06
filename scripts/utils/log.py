@@ -1,4 +1,18 @@
+from urllib.parse import urlsplit
+
 from colorama import Fore, Style
+
+
+def rpc_log_label(rpc_url):
+    """Return an endpoint label without credentials, path tokens, or query data."""
+    if rpc_url == "boa":
+        return rpc_url
+    parsed = urlsplit(rpc_url)
+    if not parsed.scheme or not parsed.hostname:
+        return "<configured RPC>"
+    host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
+    port = f":{parsed.port}" if parsed.port is not None else ""
+    return f"{parsed.scheme}://{host}{port}"
 
 
 def h1(msg):

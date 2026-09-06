@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-Regenerate DefaultsBase.vy from Live MissionControl Parameters
+Regenerate network Defaults from live MissionControl parameters.
 
-This script reads current production parameters from MissionControl on Base mainnet
-and generates a new DefaultsBase.vy file with hardcoded production values.
+This script reads current production parameters from MissionControl on the selected
+network and generates its Defaults contract with that network's block clock.
 
 This is a safety measure to preserve all current params when redeploying MissionControl.
 
 Usage:
     python scripts/params/regenerate_defaults.py
+    python scripts/params/regenerate_defaults.py --profile robinhood
 """
 
+import argparse
 import os
 import sys
 import time
@@ -35,13 +37,25 @@ except ImportError:
         boa_fork_context,
     )
 
+from config.BluePrint import BLOCK_TIME_CONSTANTS
+
 # ============================================================================
 # CONSTANTS FOR VYPER VALUE FORMATTING
 # ============================================================================
 
 EIGHTEEN_DECIMALS = 10**18
 HUNDRED_PERCENT = 100_00
-DAY_IN_BLOCKS = 43_200  # ~2 second blocks on Base
+DEFAULT_PROFILE = "base"
+SUPPORTED_PROFILES = ("base", "robinhood")
+LOCAL_CONTRACT_SOURCES = {
+    "undy_hq": os.path.join("contracts", "registries", "UndyHq.vy"),
+    "mission_control": os.path.join("contracts", "data", "MissionControl.vy"),
+}
+
+# Preserve the existing module-level constants for callers that import them.
+BLOCKS_PER_MINUTE = BLOCK_TIME_CONSTANTS[DEFAULT_PROFILE]["BLOCKS_PER_MINUTE"]
+HOUR_IN_BLOCKS = BLOCK_TIME_CONSTANTS[DEFAULT_PROFILE]["HOUR_IN_BLOCKS"]
+DAY_IN_BLOCKS = BLOCK_TIME_CONSTANTS[DEFAULT_PROFILE]["DAY_IN_BLOCKS"]
 WEEK_IN_BLOCKS = 7 * DAY_IN_BLOCKS
 MONTH_IN_BLOCKS = 30 * DAY_IN_BLOCKS
 YEAR_IN_BLOCKS = 365 * DAY_IN_BLOCKS
@@ -54,35 +68,41 @@ ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 # ============================================================================
 
 
-def format_blocks(blocks: int) -> str:
-    """Convert block counts to readable time constants."""
+def format_blocks(blocks: int, profile: str = DEFAULT_PROFILE) -> str:
+    """Convert block counts using the selected chain's EVM block clock."""
     if blocks == 0:
         return "0"
 
+    clock = BLOCK_TIME_CONSTANTS[profile]
+    day_in_blocks = clock["DAY_IN_BLOCKS"]
+    week_in_blocks = clock["WEEK_IN_BLOCKS"]
+    month_in_blocks = clock["MONTH_IN_BLOCKS"]
+    year_in_blocks = clock["YEAR_IN_BLOCKS"]
+
     # Check exact matches first
-    if blocks == DAY_IN_BLOCKS // 2:
+    if blocks == day_in_blocks // 2:
         return "DAY_IN_BLOCKS // 2"
-    if blocks == DAY_IN_BLOCKS:
+    if blocks == day_in_blocks:
         return "DAY_IN_BLOCKS"
-    if blocks == WEEK_IN_BLOCKS:
+    if blocks == week_in_blocks:
         return "WEEK_IN_BLOCKS"
-    if blocks == MONTH_IN_BLOCKS:
+    if blocks == month_in_blocks:
         return "MONTH_IN_BLOCKS"
-    if blocks == YEAR_IN_BLOCKS:
+    if blocks == year_in_blocks:
         return "YEAR_IN_BLOCKS"
 
     # Handle multiples (check largest units first)
-    if blocks % YEAR_IN_BLOCKS == 0:
-        mult = blocks // YEAR_IN_BLOCKS
+    if blocks % year_in_blocks == 0:
+        mult = blocks // year_in_blocks
         return f"{mult} * YEAR_IN_BLOCKS"
-    if blocks % MONTH_IN_BLOCKS == 0:
-        mult = blocks // MONTH_IN_BLOCKS
+    if blocks % month_in_blocks == 0:
+        mult = blocks // month_in_blocks
         return f"{mult} * MONTH_IN_BLOCKS"
-    if blocks % WEEK_IN_BLOCKS == 0:
-        mult = blocks // WEEK_IN_BLOCKS
+    if blocks % week_in_blocks == 0:
+        mult = blocks // week_in_blocks
         return f"{mult} * WEEK_IN_BLOCKS"
-    if blocks % DAY_IN_BLOCKS == 0:
-        mult = blocks // DAY_IN_BLOCKS
+    if blocks % day_in_blocks == 0:
+        mult = blocks // day_in_blocks
         return f"{mult} * DAY_IN_BLOCKS"
 
     # Fall back to raw number with underscores for readability
@@ -156,8 +176,10 @@ def generate_defaults_vy(
     ripe_rewards_config,
     security_signers: list,
     whitelisted_creators: list,
+    profile: str = DEFAULT_PROFILE,
 ) -> str:
-    """Generate the DefaultsBase.vy file content."""
+    """Generate Defaults source for values read from the selected network."""
+    clock = BLOCK_TIME_CONSTANTS[profile]
 
     # Extract addresses for constants
     wallet_template = str(user_wallet_config.walletTemplate)
@@ -177,7 +199,9 @@ import interfaces.ConfigStructs as cs
 EIGHTEEN_DECIMALS: constant(uint256) = 10 ** 18
 
 # blocks
-DAY_IN_BLOCKS: constant(uint256) = 43_200
+BLOCKS_PER_MINUTE: constant(uint256) = {clock["BLOCKS_PER_MINUTE"]}
+HOUR_IN_BLOCKS: constant(uint256) = 60 * BLOCKS_PER_MINUTE
+DAY_IN_BLOCKS: constant(uint256) = 24 * HOUR_IN_BLOCKS
 WEEK_IN_BLOCKS: constant(uint256) = 7 * DAY_IN_BLOCKS
 MONTH_IN_BLOCKS: constant(uint256) = 30 * DAY_IN_BLOCKS
 YEAR_IN_BLOCKS: constant(uint256) = 365 * DAY_IN_BLOCKS
@@ -205,10 +229,10 @@ def userWalletConfig() -> cs.UserWalletConfig:
         configTemplate = USER_WALLET_CONFIG_TEMPLATE,
         numUserWalletsAllowed = {format_uint(user_wallet_config.numUserWalletsAllowed)},
         enforceCreatorWhitelist = {str(user_wallet_config.enforceCreatorWhitelist)},
-        minKeyActionTimeLock = {format_blocks(user_wallet_config.minKeyActionTimeLock)},
-        maxKeyActionTimeLock = {format_blocks(user_wallet_config.maxKeyActionTimeLock)},
+        minKeyActionTimeLock = {format_blocks(user_wallet_config.minKeyActionTimeLock, profile)},
+        maxKeyActionTimeLock = {format_blocks(user_wallet_config.maxKeyActionTimeLock, profile)},
         depositRewardsAsset = REWARDS_ASSET,
-        lootClaimCoolOffPeriod = {format_blocks(user_wallet_config.lootClaimCoolOffPeriod)},
+        lootClaimCoolOffPeriod = {format_blocks(user_wallet_config.lootClaimCoolOffPeriod, profile)},
         txFees = cs.TxFees(
             swapFee = {format_percent(user_wallet_config.txFees.swapFee)},
             stableSwapFee = {format_percent(user_wallet_config.txFees.stableSwapFee)},
@@ -234,7 +258,7 @@ def userWalletConfig() -> cs.UserWalletConfig:
 def agentConfig() -> cs.AgentConfig:
     return cs.AgentConfig(
         startingAgent = STARTING_AGENT,
-        startingAgentActivationLength = {format_blocks(agent_config.startingAgentActivationLength)},
+        startingAgentActivationLength = {format_blocks(agent_config.startingAgentActivationLength, profile)},
     )
 
 
@@ -242,8 +266,8 @@ def agentConfig() -> cs.AgentConfig:
 @external
 def managerConfig() -> cs.ManagerConfig:
     return cs.ManagerConfig(
-        managerPeriod = {format_blocks(manager_config.managerPeriod)},
-        managerActivationLength = {format_blocks(manager_config.managerActivationLength)},
+        managerPeriod = {format_blocks(manager_config.managerPeriod, profile)},
+        managerActivationLength = {format_blocks(manager_config.managerActivationLength, profile)},
         mustHaveUsdValueOnSwaps = {str(manager_config.mustHaveUsdValueOnSwaps)},
         maxNumSwapsPerPeriod = {format_uint(manager_config.maxNumSwapsPerPeriod)},
         maxSlippageOnSwaps = {format_percent(manager_config.maxSlippageOnSwaps)},
@@ -255,8 +279,8 @@ def managerConfig() -> cs.ManagerConfig:
 @external
 def payeeConfig() -> cs.PayeeConfig:
     return cs.PayeeConfig(
-        payeePeriod = {format_blocks(payee_config.payeePeriod)},
-        payeeActivationLength = {format_blocks(payee_config.payeeActivationLength)},
+        payeePeriod = {format_blocks(payee_config.payeePeriod, profile)},
+        payeeActivationLength = {format_blocks(payee_config.payeeActivationLength, profile)},
     )
 
 
@@ -266,9 +290,9 @@ def chequeConfig() -> cs.ChequeConfig:
     return cs.ChequeConfig(
         maxNumActiveCheques = {format_uint(cheque_config.maxNumActiveCheques)},
         instantUsdThreshold = {format_token_amount(cheque_config.instantUsdThreshold)},
-        periodLength = {format_blocks(cheque_config.periodLength)},
-        expensiveDelayBlocks = {format_blocks(cheque_config.expensiveDelayBlocks)},
-        defaultExpiryBlocks = {format_blocks(cheque_config.defaultExpiryBlocks)},
+        periodLength = {format_blocks(cheque_config.periodLength, profile)},
+        expensiveDelayBlocks = {format_blocks(cheque_config.expensiveDelayBlocks, profile)},
+        defaultExpiryBlocks = {format_blocks(cheque_config.defaultExpiryBlocks, profile)},
     )
 
 
@@ -277,7 +301,7 @@ def chequeConfig() -> cs.ChequeConfig:
 def ripeRewardsConfig() -> cs.RipeRewardsConfig:
     return cs.RipeRewardsConfig(
         stakeRatio = {format_percent(ripe_rewards_config.stakeRatio)},
-        lockDuration = {format_blocks(ripe_rewards_config.lockDuration)},
+        lockDuration = {format_blocks(ripe_rewards_config.lockDuration, profile)},
     )
 
 
@@ -310,25 +334,51 @@ def generate_address_array(addresses: list) -> str:
 # ============================================================================
 
 
-def main():
+def _parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--profile",
+        choices=SUPPORTED_PROFILES,
+        default=DEFAULT_PROFILE,
+        help="network whose live values and EVM block clock should be used",
+    )
+    return parser.parse_args()
+
+
+def main(profile: str = DEFAULT_PROFILE):
     """Main entry point."""
     # Output file path
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(script_dir))
-    output_file = os.path.join(project_root, "contracts", "config", "DefaultsBase.vy")
+    contract_suffix = "Base" if profile == "base" else "Robinhood"
+    output_file = os.path.join(
+        project_root, "contracts", "config", f"Defaults{contract_suffix}.vy"
+    )
 
-    print("Connecting to Base mainnet via Alchemy...", file=sys.stderr)
+    network_name = "Base" if profile == "base" else "Robinhood"
+    print(f"Connecting to {network_name} mainnet...", file=sys.stderr)
 
-    # Set etherscan API for contract loading
-    setup_boa_etherscan()
+    rpc_url = None
+    if profile == "base":
+        # Base deployments can be loaded from their verified source.
+        setup_boa_etherscan()
+    else:
+        rpc_url = os.environ.get("ROBINHOOD_MAINNET_RPC_URL")
+        if not rpc_url:
+            raise SystemExit("ROBINHOOD_MAINNET_RPC_URL is required")
 
     # Fork at latest block
-    with boa_fork_context() as block_number:
+    with boa_fork_context(rpc_url) as block_number:
         print(f"Connected. Block: {block_number}", file=sys.stderr)
 
         # Load UndyHQ
         print("Loading UndyHQ...", file=sys.stderr)
-        hq = boa.from_etherscan(UNDY_HQ, name="UndyHq")
+        if profile == "base":
+            hq = boa.from_etherscan(UNDY_HQ, name="UndyHq")
+        else:
+            hq = boa.load_partial(
+                os.path.join(project_root, LOCAL_CONTRACT_SOURCES["undy_hq"])
+            ).at(UNDY_HQ)
 
         # Get MissionControl address
         time.sleep(RPC_DELAY)
@@ -337,7 +387,12 @@ def main():
 
         # Load MissionControl
         time.sleep(RPC_DELAY)
-        mc = boa.from_etherscan(mc_addr, name="MissionControl")
+        if profile == "base":
+            mc = boa.from_etherscan(mc_addr, name="MissionControl")
+        else:
+            mc = boa.load_partial(
+                os.path.join(project_root, LOCAL_CONTRACT_SOURCES["mission_control"])
+            ).at(mc_addr)
 
         # Read all configs
         print("Reading configs from MissionControl...", file=sys.stderr)
@@ -373,7 +428,7 @@ def main():
             # Create a simple object with default values
             class DefaultRipeRewardsConfig:
                 stakeRatio = 80_00  # 80%
-                lockDuration = 6 * MONTH_IN_BLOCKS
+                lockDuration = 6 * BLOCK_TIME_CONSTANTS[profile]["MONTH_IN_BLOCKS"]
             ripe_rewards_config = DefaultRipeRewardsConfig()
 
         # Fetch security signers (iterable)
@@ -405,7 +460,7 @@ def main():
             print(f"  whitelistedCreators: NOT AVAILABLE (iterable not supported)", file=sys.stderr)
 
         # Generate Vyper code
-        print("\nGenerating DefaultsBase.vy...", file=sys.stderr)
+        print(f"\nGenerating Defaults{contract_suffix}.vy...", file=sys.stderr)
         vyper_code = generate_defaults_vy(
             user_wallet_config,
             agent_config,
@@ -415,6 +470,7 @@ def main():
             ripe_rewards_config,
             security_signers,
             whitelisted_creators,
+            profile,
         )
 
         # Write to file
@@ -458,4 +514,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(_parse_args().profile)

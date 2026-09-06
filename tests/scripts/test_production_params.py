@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from config.BluePrint import DAY_IN_BLOCKS, MONTH_IN_BLOCKS, PARAMS, YEAR_IN_BLOCKS
+from config.BluePrint import BLOCK_TIME_CONSTANTS, PARAMS
 from scripts.params.production_params import classify_sender_by_abi
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,22 +22,27 @@ PARAM_SCRIPT_MODULES = (
 DEFAULTS_FILE_BY_NETWORK = {
     "base": "DefaultsBase.vy",
     "local": "DefaultsLocal.vy",
+    "robinhood": "DefaultsRobinhood.vy",
 }
 
 VYPER_TIME_CONSTANTS = {
-    "DAY_IN_BLOCKS": DAY_IN_BLOCKS,
-    "WEEK_IN_BLOCKS": 7 * DAY_IN_BLOCKS,
-    "MONTH_IN_BLOCKS": MONTH_IN_BLOCKS,
-    "YEAR_IN_BLOCKS": YEAR_IN_BLOCKS,
+    network: {
+        name: value
+        for name, value in clock.items()
+        if name.endswith("_IN_BLOCKS")
+    }
+    for network, clock in BLOCK_TIME_CONSTANTS.items()
 }
 
 
-def _eval_vyper_uint_expr(expr: str) -> int:
+def _eval_vyper_uint_expr(expr: str, network: str) -> int:
+    constants = VYPER_TIME_CONSTANTS[network]
+
     def eval_node(node: ast.AST) -> int:
         if isinstance(node, ast.Constant) and isinstance(node.value, int):
             return node.value
-        if isinstance(node, ast.Name) and node.id in VYPER_TIME_CONSTANTS:
-            return VYPER_TIME_CONSTANTS[node.id]
+        if isinstance(node, ast.Name) and node.id in constants:
+            return constants[node.id]
         if isinstance(node, ast.BinOp):
             left = eval_node(node.left)
             right = eval_node(node.right)
@@ -59,7 +64,7 @@ def _read_default_max_key_action_timelock(network: str) -> int:
     source = defaults_path.read_text()
     match = re.search(r"maxKeyActionTimeLock\s*=\s*([^,\n]+)", source)
     assert match, f"{defaults_path} must define maxKeyActionTimeLock"
-    return _eval_vyper_uint_expr(match.group(1).strip())
+    return _eval_vyper_uint_expr(match.group(1).strip(), network)
 
 
 @pytest.mark.parametrize(
@@ -76,7 +81,7 @@ def test_classify_sender_by_abi_identifies_agent_sender_types(abi_name, expected
     assert classify_sender_by_abi(abi) == expected_type
 
 
-@pytest.mark.parametrize("network", ("base", "local"))
+@pytest.mark.parametrize("network", ("base", "local", "robinhood"))
 def test_max_key_action_timelock_fits_cheque_unlock_and_expiry_windows(network):
     """Deploy defaults must not exceed ChequeBook's max unlock/expiry bounds."""
     max_key_action_timelock = _read_default_max_key_action_timelock(network)

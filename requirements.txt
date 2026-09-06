@@ -4,16 +4,26 @@
 #
 #    pip-compile requirements.in
 #
+aiohappyeyeballs==2.7.1
+    # via aiohttp
+aiohttp==3.14.3
+    # via web3
+aiosignal==1.4.0
+    # via aiohttp
 annotated-types==0.7.0
     # via pydantic
 asttokens==3.0.0
     # via vyper
 attrs==25.3.0
-    # via hypothesis
+    # via
+    #   aiohttp
+    #   hypothesis
 babel==2.17.0
     # via mkdocs-material
 bitarray==3.7.1
     # via eth-account
+bleak==3.0.2
+    # via ledgerblue
 cached-property==2.0.1
     # via py-evm
 cbor2==5.7.0
@@ -34,12 +44,19 @@ coverage[toml]==7.10.6
     # via pytest-cov
 cytoolz==1.0.1
     # via eth-utils
+dbus-fast==5.0.22
+    # via bleak
+ecpy==1.2.5
+    # via ledgerblue
 eth-abi==5.2.0
     # via
     #   eth-account
     #   titanoboa
+    #   web3
 eth-account==0.13.7
-    # via titanoboa
+    # via
+    #   titanoboa
+    #   web3
 eth-bloom==3.1.0
     # via py-evm
 eth-hash[pycryptodome]==0.7.1
@@ -47,6 +64,7 @@ eth-hash[pycryptodome]==0.7.1
     #   eth-bloom
     #   eth-utils
     #   trie
+    #   web3
 eth-keyfile==0.8.1
     # via eth-account
 eth-keys==0.7.0
@@ -66,6 +84,7 @@ eth-typing==5.2.1
     #   py-ecc
     #   py-evm
     #   titanoboa
+    #   web3
 eth-utils==5.3.1
     # via
     #   eth-abi
@@ -73,10 +92,18 @@ eth-utils==5.3.1
     #   eth-keyfile
     #   eth-keys
     #   eth-rlp
+    #   ledgereth
     #   py-ecc
     #   py-evm
     #   rlp
     #   trie
+    #   web3
+frozenlist==1.8.0
+    # via
+    #   aiohttp
+    #   aiosignal
+future==1.0.0
+    # via ledgerblue
 ghp-import==2.1.0
     # via mkdocs
 hexbytes==1.3.1
@@ -84,10 +111,18 @@ hexbytes==1.3.1
     #   eth-account
     #   eth-rlp
     #   trie
+    #   web3
+hidapi==0.15.0
+    # via
+    #   -r requirements.in
+    #   ledgerblue
+    #   python-u2flib-host
 hypothesis==6.138.15
     # via titanoboa
 idna==3.10
-    # via requests
+    # via
+    #   requests
+    #   yarl
 immutables==0.21
     # via vyper
 iniconfig==2.1.0
@@ -98,6 +133,14 @@ jinja2==3.1.6
     #   mkdocs-material
 lark==1.2.2
     # via vyper
+ledgerblue==0.1.48
+    # via
+    #   -r requirements.in
+    #   ledgereth
+ledgereth==0.10.0
+    # via -r requirements.in
+libusb1==3.4.0
+    # via nfcpy
 lru-dict==1.3.0
     # via py-evm
 markdown==3.9
@@ -125,6 +168,14 @@ mkdocs-material==9.5.41
     # via titanoboa
 mkdocs-material-extensions==1.3.1
     # via mkdocs-material
+multidict==6.7.1
+    # via
+    #   aiohttp
+    #   yarl
+ndeflib==0.3.3
+    # via nfcpy
+nfcpy==1.0.4
+    # via ledgerblue
 packaging==24.2
     # via
     #   mkdocs
@@ -137,12 +188,20 @@ parsimonious==0.10.0
     # via eth-abi
 pathspec==0.12.1
     # via mkdocs
+pillow==12.3.0
+    # via ledgerblue
 platformdirs==4.4.0
     # via mkdocs-get-deps
 pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
+propcache==0.5.2
+    # via
+    #   aiohttp
+    #   yarl
+protobuf==5.29.6
+    # via ledgerblue
 py-ecc==8.0.0
     # via py-evm
 py-evm==0.12.1b1
@@ -152,13 +211,21 @@ pycryptodome==3.23.0
     #   eth-hash
     #   eth-keyfile
     #   eth-stdlib
+    #   ledgerblue
     #   vyper
+pycryptodomex==3.23.0
+    # via ledgerblue
 pydantic==2.11.7
     # via
     #   eth-account
     #   eth-utils
+    #   web3
 pydantic-core==2.33.2
     # via pydantic
+pydes==2.0.1
+    # via nfcpy
+pyelftools==0.33
+    # via ledgerblue
 pygments==2.19.2
     # via
     #   mkdocs-material
@@ -166,6 +233,8 @@ pygments==2.19.2
     #   rich
 pymdown-extensions==10.16.1
     # via mkdocs-material
+pyserial==3.5
+    # via nfcpy
 pytest==8.4.2
     # via
     #   pytest-cov
@@ -174,6 +243,12 @@ pytest-cov==7.0.0
     # via titanoboa
 python-dateutil==2.9.0.post0
     # via ghp-import
+python-gnupg==0.5.6
+    # via ledgerblue
+python-u2flib-host==3.0.3
+    # via ledgerblue
+pyunormalize==17.0.0
+    # via web3
 pyyaml==6.0.2
     # via
     #   mkdocs
@@ -189,8 +264,10 @@ regex==2025.9.1
 requests==2.32.5
     # via
     #   mkdocs-material
+    #   python-u2flib-host
     #   titanoboa
     #   vvm
+    #   web3
 rich==14.1.0
     # via titanoboa
 rlp==4.0.1
@@ -198,6 +275,7 @@ rlp==4.0.1
     #   -r requirements.in
     #   eth-account
     #   eth-rlp
+    #   ledgereth
     #   py-evm
     #   trie
 six==1.17.0
@@ -212,17 +290,24 @@ toolz==1.0.0
     # via cytoolz
 trie==3.1.0
     # via py-evm
+types-requests==2.33.0.20260712
+    # via web3
 typing-extensions==4.15.0
     # via
+    #   aiohttp
+    #   aiosignal
     #   eth-typing
     #   pydantic
     #   pydantic-core
     #   titanoboa
     #   typing-inspection
+    #   web3
 typing-inspection==0.4.1
     # via pydantic
 urllib3==2.5.0
-    # via requests
+    # via
+    #   requests
+    #   types-requests
 vvm==0.3.2
     # via titanoboa
 vyper==0.4.3
@@ -231,5 +316,13 @@ vyper==0.4.3
     #   titanoboa
 watchdog==6.0.0
     # via mkdocs
+web3==7.16.0
+    # via -r requirements.in
+websocket-client==1.9.2
+    # via ledgerblue
+websockets==15.0.1
+    # via web3
 wheel==0.45.1
     # via vyper
+yarl==1.24.5
+    # via aiohttp

@@ -1,12 +1,14 @@
-from config.BluePrint import PARAMS, INTEGRATION_ADDYS, TOKENS, HOUR_IN_BLOCKS, DAY_IN_BLOCKS, MONTH_IN_BLOCKS, YEAR_IN_BLOCKS, VAULT_INFO, LEGO_IDS
+from config.BluePrint import BLOCK_TIME_CONSTANTS, PARAMS, INTEGRATION_ADDYS, TOKENS, VAULT_INFO, LEGO_IDS
 from tests.constants import ZERO_ADDRESS, MAX_UINT256, EIGHTEEN_DECIMALS
 
 
 class Blocks:
-    HOUR = HOUR_IN_BLOCKS
-    DAY = DAY_IN_BLOCKS
-    MONTH = MONTH_IN_BLOCKS
-    YEAR = YEAR_IN_BLOCKS
+    def __init__(self, blueprint):
+        clock = BLOCK_TIME_CONSTANTS[blueprint]
+        self.HOUR = clock["HOUR_IN_BLOCKS"]
+        self.DAY = clock["DAY_IN_BLOCKS"]
+        self.MONTH = clock["MONTH_IN_BLOCKS"]
+        self.YEAR = clock["YEAR_IN_BLOCKS"]
 
 
 class Constants:
@@ -22,7 +24,7 @@ class BluePrint:
         self.INTEGRATION_ADDYS = INTEGRATION_ADDYS[blueprint]
         self.TOKENS = TOKENS[blueprint]
         self.VAULT_INFO = VAULT_INFO
-        self.BLOCKS = Blocks
+        self.BLOCKS = Blocks(blueprint)
         self.CONSTANTS = Constants
         self.LEGO_IDS = LEGO_IDS
 

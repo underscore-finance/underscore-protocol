@@ -6,6 +6,10 @@ from operator import itemgetter
 from scripts.utils import log
 from scripts.utils.migration import Migration
 from scripts.utils.deploy_args import DeployArgs
+from scripts.utils.nonce_alignment import assert_chain_id
+
+
+ROBINHOOD_CHAIN_ID = 4_663
 
 
 class MigrationError(Exception):
@@ -52,6 +56,12 @@ class MigrationRunner:
         named `current-manifest.json` will be also be saved in the history directory,
         duplicating the manifest of the latest migration.
         """
+        # Keep the chain boundary below the CLI so direct runner use and a
+        # mislabeled local ``boa`` RPC cannot write a poisoned Robinhood
+        # manifest or execute any migration transaction.
+        if deploy_args.chain == "robinhood-mainnet":
+            assert_chain_id(ROBINHOOD_CHAIN_ID)
+
         for migrate, timestamp, prev_timestamp in self._migrations(start_timestamp, end_timestamp):
             log.h1(f"Running migration with timestamp {timestamp}...")
             try:
@@ -144,7 +154,10 @@ class MigrationRunner:
 
         # scan each file to get the latest timestamp
         for file in os.listdir(self.history_dir):
-            match = re.fullmatch(r"(.*)\-manifest\.json$", file)
+            # ``current-manifest.json`` is an operational alias, not a
+            # timestamp. Only numeric migration manifests participate in
+            # ordering so automatic resume can never attempt ``int('current')``.
+            match = re.fullmatch(r"(\d+)\-manifest\.json$", file)
             if match:
                 timestamp = match.group(1)
                 # Convert timestamps to integers for proper numerical comparison

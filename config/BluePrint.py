@@ -1,10 +1,48 @@
 # time (blocks)
 from enum import IntFlag
 
-HOUR_IN_BLOCKS = 1_800
-DAY_IN_BLOCKS = 43_200
-MONTH_IN_BLOCKS = DAY_IN_BLOCKS * 30
-YEAR_IN_BLOCKS = DAY_IN_BLOCKS * 365
+# Keep the existing Base constants as the module-level defaults for backwards
+# compatibility. Consumers selecting a chain profile should use
+# BLOCK_TIME_CONSTANTS so Robinhood never inherits Base's block clock.
+BLOCK_TIME_CONSTANTS = {
+    "base": {
+        "BLOCKS_PER_MINUTE": 30,
+        "HOUR_IN_BLOCKS": 1_800,
+        "DAY_IN_BLOCKS": 43_200,
+        "WEEK_IN_BLOCKS": 302_400,
+        "MONTH_IN_BLOCKS": 1_296_000,
+        "YEAR_IN_BLOCKS": 15_768_000,
+    },
+    "local": {
+        "BLOCKS_PER_MINUTE": 30,
+        "HOUR_IN_BLOCKS": 1_800,
+        "DAY_IN_BLOCKS": 43_200,
+        "WEEK_IN_BLOCKS": 302_400,
+        "MONTH_IN_BLOCKS": 1_296_000,
+        "YEAR_IN_BLOCKS": 15_768_000,
+    },
+    # Robinhood's EVM block.number follows the ~12-second L1 ancestor
+    # estimate, not the sub-second Arbitrum child height.
+    "robinhood": {
+        "BLOCKS_PER_MINUTE": 5,
+        "HOUR_IN_BLOCKS": 300,
+        "DAY_IN_BLOCKS": 7_200,
+        "WEEK_IN_BLOCKS": 50_400,
+        "MONTH_IN_BLOCKS": 216_000,
+        "YEAR_IN_BLOCKS": 2_628_000,
+    },
+}
+
+HOUR_IN_BLOCKS = BLOCK_TIME_CONSTANTS["base"]["HOUR_IN_BLOCKS"]
+DAY_IN_BLOCKS = BLOCK_TIME_CONSTANTS["base"]["DAY_IN_BLOCKS"]
+WEEK_IN_BLOCKS = BLOCK_TIME_CONSTANTS["base"]["WEEK_IN_BLOCKS"]
+MONTH_IN_BLOCKS = BLOCK_TIME_CONSTANTS["base"]["MONTH_IN_BLOCKS"]
+YEAR_IN_BLOCKS = BLOCK_TIME_CONSTANTS["base"]["YEAR_IN_BLOCKS"]
+
+ROBINHOOD_HOUR_IN_BLOCKS = BLOCK_TIME_CONSTANTS["robinhood"]["HOUR_IN_BLOCKS"]
+ROBINHOOD_DAY_IN_BLOCKS = BLOCK_TIME_CONSTANTS["robinhood"]["DAY_IN_BLOCKS"]
+ROBINHOOD_MONTH_IN_BLOCKS = BLOCK_TIME_CONSTANTS["robinhood"]["MONTH_IN_BLOCKS"]
+ROBINHOOD_YEAR_IN_BLOCKS = BLOCK_TIME_CONSTANTS["robinhood"]["YEAR_IN_BLOCKS"]
 
 VAULT_INFO = {
     "USDC": {
@@ -99,6 +137,44 @@ PARAMS = {
         "CHEQUE_MAX_UNLOCK_BLOCKS": 1 * MONTH_IN_BLOCKS,
         "CHEQUE_MAX_EXPIRY_BLOCKS": 3 * MONTH_IN_BLOCKS,
         # earn vault params
+        "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5,  # 5 mins
+        "EARN_VAULT_MAX_NUM_SNAPSHOTS": 20,
+        "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00,  # 10%
+        "EARN_VAULT_STALE_TIME": 60 * 60 * 24,  # 1 day
+        # ripe collateral vault id
+        "RIPE_COLLATERAL_VAULT_ID": 5,
+    },
+    "robinhood": {
+        # Every block-denominated Base parameter is divided by six because
+        # Robinhood block.number advances at ~12 seconds rather than ~2 seconds.
+        # undy hq - gov changes (blocks)
+        "UNDY_HQ_MIN_GOV_TIMELOCK": 1 * ROBINHOOD_DAY_IN_BLOCKS,
+        "UNDY_HQ_MAX_GOV_TIMELOCK": 30 * ROBINHOOD_DAY_IN_BLOCKS,
+        # undy hq - registry changes (blocks)
+        "UNDY_HQ_MIN_REG_TIMELOCK": 2 * ROBINHOOD_HOUR_IN_BLOCKS,
+        "UNDY_HQ_MAX_REG_TIMELOCK": 30 * ROBINHOOD_DAY_IN_BLOCKS,
+        # gen config changes (blocks)
+        "GEN_MIN_CONFIG_TIMELOCK": 2 * ROBINHOOD_HOUR_IN_BLOCKS,
+        "GEN_MAX_CONFIG_TIMELOCK": 30 * ROBINHOOD_DAY_IN_BLOCKS,
+        # boss validator
+        "BOSS_MIN_MANAGER_PERIOD": 24 * ROBINHOOD_HOUR_IN_BLOCKS,
+        "BOSS_MAX_MANAGER_PERIOD": 2 * ROBINHOOD_YEAR_IN_BLOCKS,
+        "BOSS_MIN_ACTIVATION_LENGTH": 24 * ROBINHOOD_HOUR_IN_BLOCKS,
+        "BOSS_MAX_ACTIVATION_LENGTH": 6 * ROBINHOOD_YEAR_IN_BLOCKS,
+        "BOSS_MAX_START_DELAY": 3 * ROBINHOOD_MONTH_IN_BLOCKS,
+        # paymaster
+        "PAYMASTER_MIN_PAYEE_PERIOD": 24 * ROBINHOOD_HOUR_IN_BLOCKS,
+        "PAYMASTER_MAX_PAYEE_PERIOD": 2 * ROBINHOOD_YEAR_IN_BLOCKS,
+        "PAYMASTER_MIN_ACTIVATION_LENGTH": 24 * ROBINHOOD_HOUR_IN_BLOCKS,
+        "PAYMASTER_MAX_ACTIVATION_LENGTH": 6 * ROBINHOOD_YEAR_IN_BLOCKS,
+        "PAYMASTER_MAX_START_DELAY": 3 * ROBINHOOD_MONTH_IN_BLOCKS,
+        # cheques
+        "CHEQUE_MIN_PERIOD": 1 * ROBINHOOD_DAY_IN_BLOCKS,
+        "CHEQUE_MAX_PERIOD": 1 * ROBINHOOD_YEAR_IN_BLOCKS,
+        "CHEQUE_MIN_EXPENSIVE_DELAY": 12 * ROBINHOOD_HOUR_IN_BLOCKS,
+        "CHEQUE_MAX_UNLOCK_BLOCKS": 1 * ROBINHOOD_MONTH_IN_BLOCKS,
+        "CHEQUE_MAX_EXPIRY_BLOCKS": 3 * ROBINHOOD_MONTH_IN_BLOCKS,
+        # earn vault params (seconds/counts/ratios; intentionally not scaled)
         "EARN_VAULT_MIN_SNAPSHOT_DELAY": 60 * 5,  # 5 mins
         "EARN_VAULT_MAX_NUM_SNAPSHOTS": 20,
         "EARN_VAULT_MAX_UPSIDE_DEVIATION": 10_00,  # 10%
@@ -201,6 +277,17 @@ INTEGRATION_ADDYS = {
         "VAULT_AGENT_OWNER": "0xe8c5B195E7634952b375ff633FA98Ca0FaDaC4e5",
         "STARTER_AGENT": "0x9d3F593380875860cC18F5736373ae4B084Ba2F9",
         "WALLET_CREATOR": "0x84edC07f0Cead3275059373F8FA47A566Dd429df",
+    },
+    "robinhood": {
+        # Ripe registry addresses verified on Robinhood mainnet.
+        "RIPE_HQ_V1": "0xD4e82AE1De673bba3B53386A2D2C630AE6630940",
+        "RIPE_HQ_V1_CODEHASH": "0x695dbca5482e0f02ab1361963a5114fd48812c7fc09ce8e5c3b9b32ee9c859b0",
+        "RIPE_PRICE_DESK": "0x56Db9c2322e009189049bC57385751fc7922AAb0",
+        "RIPE_PRICE_DESK_CODEHASH": "0xab49032edcd52353df64533b26d30c3cd1b446a4d0e1fbd4e7cffa39e051995e",
+        "RIPE_TOKEN_CODEHASH": "0xff93dfc1dc8887dc7b376e04fc9c13d173c21697d50bc0298c2111e0587f3264",
+        "RIPE_TELLER": "0x2d3cB2B39289f402187D7Dc9B609EAD6646F2506",
+        "RIPE_TELLER_CODEHASH": "0x544d20b6ba5b31e9102f2e64706bc9d5c53939845d4f14a6f90bb2d3d8d42366",
+        "WETH_CODEHASH": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353",
     },
 }
 
@@ -320,6 +407,20 @@ TOKENS = {
         "WASABI_USDC": "0x1c4a802fd6b591bb71daa01d8335e43719048b24",
         # avantis
         "AVANTIS_USDC": "0x944766f715b51967e56afde5f0aa76ceacc9e7f9",
+    },
+    "robinhood": {
+        # RIPE was resolved from live RipeHq registry ID 3; PriceDesk currently
+        # reports zero for it, so it must not be a rewards/bonus asset yet.
+        "RIPE": "0x4D3f37a965b21aB4122e92Dd41D2693E742c883b",
+        # Robinhood's priced six-decimal stable is Global Dollar (USDG), not
+        # Circle USDC. Keep the truthful key; consumers that require a stable
+        # must opt into USDG explicitly instead of inheriting Base semantics.
+        "USDG": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        # Ripe's Robinhood deployment profile identifies this as WETH; live
+        # calls return name/symbol WETH, 18 decimals, and non-empty runtime.
+        "WETH": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "ETH": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+        "BTC": "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB",
     },
     "local": {
         # important tokens / representations

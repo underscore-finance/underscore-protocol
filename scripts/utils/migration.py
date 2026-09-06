@@ -1,4 +1,5 @@
 import os
+import warnings
 
 import boa.contracts
 import boa.contracts.abi
@@ -7,8 +8,12 @@ import boa
 from scripts.utils import log
 from scripts.utils import json_file
 from scripts.utils.deploy_args import DeployArgs
-from scripts.utils.migration_helpers import (deployed_contracts_manifest,
-                                             execute_transaction)
+from scripts.utils.migration_helpers import (
+    deployed_contracts_manifest,
+    encode_constructor_args,
+    execute_transaction,
+    get_vyper_abi,
+)
 
 
 class Migration:
@@ -61,19 +66,24 @@ class Migration:
         self._save_log_file()
         return contract
 
-    def deploy_bp(self, name):
+    def deploy_bp(self, name, **kwargs):
         """
         Deploys contract with given name as blueprint or skips if already deployed
         Returns the deployed contract.
         """
         args = []
-        kwargs = {}
 
-        def deploy_bp_wrapper(*args, **kwargs):
+        def deploy_bp_wrapper(*_args, **_kwargs):
             c = boa.load_partial(self._files[name]).deploy_as_blueprint()
             return c
 
-        contract = self._run(name, deploy_bp_wrapper, *args, **kwargs)
+        contract = self._run(
+            name,
+            deploy_bp_wrapper,
+            *args,
+            name=name,
+            **kwargs,
+        )
         return self._register_contract(name, name, contract, args)
 
     def deploy(self, name, *args, **kwargs):
@@ -101,12 +111,43 @@ class Migration:
     def get_address(self, name):
         return self._previous_manifest["contracts"][name]["address"]
 
+    def get_manifest_entry(self, name):
+        return self._previous_manifest.get("contracts", {}).get(name)
+
+    def get_contract_file(self, name):
+        return self._files[name]
+
+    def preflight_contract_manifest(self, name, args):
+        """Exercise post-deploy ABI generation before broadcasting a CREATE."""
+        abi = get_vyper_abi(self._files[name])
+        encode_constructor_args(abi, args)
+
     def get_contract(self, name, address=None):
         file = self._previous_manifest["contracts"][name]["file"]
         if address:
             return boa.load_partial(file).at(address)
         else:
             return boa.load_partial(file).at(self.get_address(name))
+
+    def discard_transaction_replay(self):
+        """Discard positional logs when a migration verifies progress on-chain."""
+        self._transactions = []
+        self._count = 0
+
+    def register_existing(self, name, address, *args, **kwargs):
+        """Register an on-chain-verified deployment without sending a transaction."""
+        label = kwargs.get("label", name)
+        # Blueprint and immutable-bearing runtime naturally differs from the
+        # compiler's unmaterialized runtime. The caller has already performed
+        # the exact live-code comparison before using this method.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="casted bytecode does not match compiled bytecode.*",
+                category=UserWarning,
+            )
+            contract = boa.load_partial(self._files[name]).at(address)
+        return self._register_contract(name, label, contract, list(args))
 
     def end(self):
         """
