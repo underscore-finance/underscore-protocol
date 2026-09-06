@@ -334,7 +334,16 @@ def test_robinhood_core_registries_deploy_end_to_end(
             rpc_url,
             end_timestamp="0004",
         )
-        expected_addresses = {
+        # These post-HQ addresses are deterministic only inside Boa's fork
+        # environment. In-process contract calls do not consume the deployer
+        # nonce there, while every registration stage/confirm is a real
+        # nonce-consuming transaction on a live NetworkEnv. Base proves the
+        # difference: its committed manifest has MissionControl at deployer
+        # nonce 9 (0x910F...), whereas this fork assigns that same address to
+        # Switchboard. Only the nonce-5 UndyHq address is an intentional
+        # production parity guarantee; keep this assertion to detect changes
+        # to the fork migration graph, not as a Robinhood production map.
+        expected_fork_addresses = {
             **_expected_core_addresses(),
             "Ledger": "0x9e97A2e527890E690c7FA978696A88EFA868c5D0",
             "MissionControl": "0x5Ae89bfd4B835c8D9BabEabd9789eD7221c96CEe",
@@ -343,7 +352,7 @@ def test_robinhood_core_registries_deploy_end_to_end(
             "SwitchboardAlpha": "0x135B15CCAe0329846802bBa529d2f74f4A62A0dF",
             "SwitchboardBravo": "0x78d4eA139ed53579EeB0e9aE56C910Ef828b5262",
         }
-        assert deployed_addresses == expected_addresses
+        assert deployed_addresses == expected_fork_addresses
 
         hq = boa.load_partial("contracts/registries/UndyHq.vy").at(
             EXPECTED_UNDY_HQ
@@ -488,6 +497,9 @@ def test_switchboard_migration_resumes_every_registry_boundary(
                     start_timestamp="0004",
                     end_timestamp="0004",
                 )
+                # These remain the deterministic Boa-fork addresses described
+                # in test_robinhood_core_registries_deploy_end_to_end, not live
+                # Robinhood CREATE predictions.
                 assert deployed["Switchboard"] == (
                     "0x910FE9484540fa21B092eE04a478A30A6B342006"
                 )
