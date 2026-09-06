@@ -9,10 +9,9 @@ from scripts.utils.deploy_args import DeployArgs
 from scripts.utils.nonce_alignment import assert_chain_id
 from boa.environment import Env
 from scripts.utils.mock_account import MockAccount
+from scripts.utils.log import rpc_log_label
 # from scripts.utils.safe_account import SafeAccount
-# from scripts.utils.ledger_account import LedgerAccount
 import os
-from urllib.parse import urlsplit
 
 
 MIGRATION_SCRIPTS_DIR = "./migrations"
@@ -111,19 +110,6 @@ ETHERSCAN_URLS = {
     "base-goerli": "https://api-goerli.basescan.org/api",
     "base-sepolia": "https://api-sepolia.basescan.org/api",
 }
-
-
-def rpc_log_label(rpc_url):
-    """Return an endpoint label without credentials, path tokens, or query data."""
-    if rpc_url == "boa":
-        return rpc_url
-    parsed = urlsplit(rpc_url)
-    if not parsed.scheme or not parsed.hostname:
-        return "<configured RPC>"
-    host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
-    port = f":{parsed.port}" if parsed.port is not None else ""
-    return f"{parsed.scheme}://{host}{port}"
-
 
 def param_prompt(ctx, param, value):
     param_config = CLICK_PROMPTS[param.name]
@@ -238,6 +224,14 @@ def param_prompt(ctx, param, value):
     type=int,
 )
 @click.option(
+    "--ledger-path",
+    default="",
+    help=(
+        "Explicit Ledger derivation path, for example "
+        "m/44'/60'/1'/0/0. Cannot be combined with --ledger."
+    ),
+)
+@click.option(
     "--is-retry",
     is_flag=True,
     default=CLICK_PROMPTS["is_retry"]["default"],
@@ -264,6 +258,7 @@ def cli(
     blueprint,
     account,
     ledger,
+    ledger_path,
     block,
 ):
     """
@@ -325,6 +320,15 @@ def cli(
             "not proof of on-chain state"
         )
 
+    if ledger_path != "" and ledger != -1:
+        raise click.UsageError(
+            "--ledger-path and --ledger cannot be used together"
+        )
+    if safe != "" and (ledger != -1 or ledger_path != ""):
+        raise click.UsageError(
+            "--safe cannot be used with --ledger or --ledger-path"
+        )
+
     if safe != "":
         if fork:
             sender = MockAccount(safe)
@@ -335,11 +339,27 @@ def cli(
         #         safe_address=safe,
         #         rpc_url=final_rpc
         #     )
+    elif ledger_path != "":
+        # Keep hardware-only dependencies out of local/test imports.
+        from scripts.utils.ledger_account import LedgerAccount
+
+        sender = LedgerAccount(final_rpc, derivation_path=ledger_path)
+        if fork:
+            sender = MockAccount(sender.address)
     elif ledger != -1:
-        # sender = LedgerAccount(final_rpc, ledger)
+        # Keep hardware-only dependencies out of local/test imports.
+        from scripts.utils.ledger_account import LedgerAccount
+
+        sender = LedgerAccount(final_rpc, ledger)
         if fork:
             sender = MockAccount(sender.address)
     else:
+        private_key_name = f"{account}_PRIVATE_KEY"
+        if chain == "robinhood-mainnet" and not os.environ.get(private_key_name):
+            raise click.UsageError(
+                f"{private_key_name} must be set for robinhood-mainnet when "
+                "no Ledger or Safe backend is selected"
+            )
         sender = get_account(account)
 
     deploy_args = DeployArgs(

@@ -30,6 +30,89 @@ Constructor arguments and bytecode do not affect these CREATE addresses. Use
 the Robinhood profile and Robinhood-specific values; only deployer and nonce
 determine the address.
 
+## Ledger path and signing preflight
+
+Do not translate a wallet UI label such as "account 1" directly into
+`--ledger 1`. Common Ethereum wallet software uses three incompatible Ledger
+derivation conventions:
+
+| Convention | Path at index `N` |
+| --- | --- |
+| BIP44 address index (MetaMask default) | `m/44'/60'/0'/0/N` |
+| Ledger Live account | `m/44'/60'/N'/0/0` |
+| Ledger Legacy (MEW/MyCrypto) | `m/44'/60'/0'/N` |
+
+With the Ledger unlocked and the Ethereum app open, resolve the path before
+any signing:
+
+```shell
+PYTHONPATH=. .venv/bin/python scripts/ledger_signing_smoke.py --discover-path
+```
+
+This is read-only. It derives 15 addresses (all three conventions at `N=0..4`),
+prints a table in this form, matches the pinned deployer, and reports its latest
+and pending nonces from chain ID 4663 when the Robinhood RPC is available:
+
+```text
+Convention             N  Derivation path        Address
+BIP44 address index    0  m/44'/60'/0'/0/0       0x...
+Ledger Live account    1  m/44'/60'/1'/0/0       0x...
+Ledger Legacy          1  m/44'/60'/0'/1         0x...
+
+Pinned deployer match    m/<resolved path> (<convention> N=<index>)
+Migration signer flag   --ledger-path "m/<resolved path>"
+```
+
+The installed `ledgereth` implementation derives each address with the Ethereum
+app's `GET_ADDRESS_NO_CONFIRM` APDU (`P1=0x00`), so it does not request an
+address-display confirmation. Discovery does not sign or broadcast. If none of
+the 15 rows is
+`0x14051A647C2B647363739ccfD4B008AfEeb8FD8e`, stop. Either the connected
+device is not the Base deployer or the path is outside the approved scan; both
+require a human decision. Do not choose an index by convention or extend the
+search during the launch. A nonzero or unavailable live nonce does not prevent
+the read-only path result from being printed; it means state must be reconciled
+before a deployment resume.
+
+After path discovery passes, prove one real-size contract-creation signature
+against a local Anvil fork. In two shells, run:
+
+```shell
+anvil --fork-url "$ROBINHOOD_MAINNET_RPC_URL" --chain-id 4663 --port 8545 --silent
+```
+
+```shell
+PYTHONPATH=. .venv/bin/python scripts/ledger_signing_smoke.py
+```
+
+Alternatively, if Anvil is on `PATH`, the second command can manage it:
+
+```shell
+PYTHONPATH=. .venv/bin/python scripts/ledger_signing_smoke.py --manage-anvil
+```
+
+The full smoke payload is 24,376 bytes, matching the largest Robinhood core
+CREATE data: `VaultRegistry`'s 24,248-byte compiler bytecode plus 128 bytes of
+constructor arguments. It streams as 95 full 255-byte chunks plus a final
+partial chunk. The smoke broadcasts only to local Anvil; the real Robinhood RPC
+is used for read-only chain/nonce checks and as the fork source. Unlike
+discovery-only mode, the signing path fails closed unless both the latest and
+pending live deployer nonces are zero. Do not use
+`--toy-payload` as launch approval because it does not exercise this streaming
+path.
+
+Expect these device behaviors:
+
+- With blind signing disabled, the Ethereum app rejects every contract
+  creation. Enable blind signing before the smoke test.
+- Chain ID 4663 is unknown to the Ethereum app, so it presents an
+  unknown-network warning on every transaction prompt. Verify the displayed
+  chain ID rather than treating the warning as exceptional.
+- A roughly 24 KB initcode payload streams for several seconds before the
+  device displays anything. This can look like a hang. Do not unplug or lock
+  the device while it is streaming; older firmware may fail here even when a
+  toy payload signs.
+
 ## Running and resuming
 
 Set `ROBINHOOD_MAINNET_RPC_URL`, activate the repository virtual environment,
@@ -54,12 +137,16 @@ PYTHONPATH=. .venv/bin/python scripts/migrate.py \
   --single
 ```
 
-For production, provide the matching deployer key through
-`DEPLOYER_PRIVATE_KEY` and run:
+For production, paste the exact path emitted by discovery when prompted below,
+then use the explicit hardware path. Invoking Robinhood without `--ledger-path`
+or `--ledger` now fails closed unless an explicit `DEPLOYER_PRIVATE_KEY` is
+present; it never falls back to the public Anvil test key.
 
 ```shell
+printf '%s' 'Paste resolved Ledger path (m/...): '
+IFS= read -r LEDGER_PATH
 PYTHONPATH=. .venv/bin/python scripts/migrate.py \
-  --account DEPLOYER \
+  --ledger-path "$LEDGER_PATH" \
   --chain robinhood-mainnet \
   --blueprint robinhood \
   --environment v1 \
@@ -88,6 +175,36 @@ do not describe the nonce-5 target as lost merely because automatic resume was
 refused. If nonce 5 has been consumed without the exact `UndyHq` deployment,
 the target address is unreachable by this deployer.
 
+`MigrationRunner` does not durably distinguish a pre-broadcast signer refusal
+from a broadcast or receipt failure: both raise `MigrationError`, and neither
+attempt is appended to the migration log or manifest. The live exception and
+terminal boundary matter:
+
+- A device rejection, lock, disconnect, or timeout before
+  `Transaction signed on Ledger!` originates in `sign_transaction`; Boa has no
+  raw transaction to broadcast, so that attempt spent no nonce. Exit the
+  process, reconnect and unlock the Ledger, reopen the Ethereum app, verify
+  latest/pending nonce and the expected live state, then retry in a fresh CLI
+  process. Do not retry in the same Boa environment because its preflight
+  simulation may be dirty.
+- Once `Transaction signed on Ledger!` appears, any later transport or receipt
+  failure is potentially post-broadcast. Stop and preserve the terminal output.
+  Reconcile the transaction hash if one was printed, receipt, latest/pending
+  nonce, exact runtime code, manifest, registry IDs, pending registry action,
+  and WalletBackpack configuration as applicable. Never blindly rerun an
+  ambiguous post-HQ CREATE: a mined deployment whose response was lost may have
+  consumed the nonce without recording its address.
+
+On a pristine deployer, plan for **66 physical confirmations through `0011`**:
+25 CREATEs, 26 registry stage/confirm writes, 14 WalletBackpack child writes,
+and the nonce-4 alignment self-send. About 25 prompts are blind-signed contract
+creations, and several stream more than 90 chunks. `1000` adds 11 writes, for
+**77 confirmations in the intended full run**. As currently checked in,
+Robinhood governance and its codehash are intentionally unapproved, so `1000`
+fails closed before its first prompt; 77 applies only after that release blocker
+is resolved. This is a long session: disable device auto-lock if policy permits,
+keep the cable stable, and have the stop/reconcile procedure ready.
+
 Robinhood explorer verification is intentionally skipped until an authoritative
 endpoint is configured. RPC logs redact credentials, path tokens, and query
 parameters.
@@ -104,6 +221,15 @@ through a registry, so do not apply padding, fixed-nonce signing, or address
 parity requirements to migrations `0001` and later. Normal dependency ordering
 still matters, and every migration verifies the exact existing registry prefix
 before its first transaction.
+
+Any post-HQ address map produced by the Boa fork test is a fork-only artifact,
+not a production prediction. Boa's in-process calls consume no deployer nonce;
+live registration stage/confirm calls do. Base's committed manifest makes the
+difference concrete: `MissionControl` is the deployer's nonce-9 CREATE at
+`0x910FE9484540fa21B092eE04a478A30A6B342006`, while the Robinhood Boa fork
+assigns that same nonce-derived address to `Switchboard`. Only nonce-5
+`UndyHq` is an intentional production parity guarantee; do not extrapolate
+later production addresses from the fork literals.
 
 Do not use `migration_history/base-mainnet/v1/current-manifest.json` as evidence
 of live Base parity: that generation stopped in November 2025. The checked-in
@@ -145,7 +271,7 @@ Run the post-HQ sequence only after every release blocker below is resolved:
 
 ```shell
 PYTHONPATH=. .venv/bin/python scripts/migrate.py \
-  --account DEPLOYER \
+  --ledger-path "$LEDGER_PATH" \
   --chain robinhood-mainnet \
   --blueprint robinhood \
   --environment v1 \
