@@ -18,7 +18,7 @@ cached-property==2.0.1
     # via py-evm
 cbor2==5.7.0
     # via vyper
-certifi==2025.8.3
+certifi==2026.10.19
     # via requests
 charset-normalizer==3.4.3
     # via requests
